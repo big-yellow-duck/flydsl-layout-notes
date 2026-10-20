@@ -43,4 +43,4 @@ For original `(M,N)` tiled by `(TM,TN)`; `RM=M/TM`, `RN=N/TN` here:
 - A layout tiler and a tuple of per-mode tilers have different semantics.
 - Valid layout arithmetic does not automatically guarantee bounds-safe GPU memory access.
 
-For a refresh, recompute composition at `(2,1)` in [lesson 04](lessons/04-composition.md), then the selected tile offset in [lesson 06](lessons/06-logical-divide.md).
+For a refresh, recompute composition at `(2,1)` in [lesson 03](lessons/03-composition.md), then the selected tile offset in [lesson 05](lessons/05-logical-divide.md).

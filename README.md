@@ -8,12 +8,12 @@ These notes preserve the learning sequence from our discussion through logical d
 
 | Lesson | Question it answers |
 | --- | --- |
-| [01 · Shapes and strides](lessons/01-shapes-and-strides.md) | How does a coordinate become an offset? |
-| [02 · Coordinates and views](lessons/02-coordinates-and-views.md) | What does a single integer mean for a multidimensional layout? |
-| [03 · Nested layouts](lessons/03-nested-layouts.md) | How can one dimension contain smaller dimensions? |
-| [04 · Composition](lessons/04-composition.md) | How can we index a layout with another layout? |
-| [05 · Coalescing](lessons/05-coalescing.md) | Can we simplify the blueprint while preserving its offsets? |
-| [06 · Logical divide](lessons/06-logical-divide.md) | How do we expose windows into the original layout? |
+| [00 · Shapes and strides](lessons/00-shapes-and-strides.md) | How does a coordinate become an offset? |
+| [01 · Coordinates and views](lessons/01-coordinates-and-views.md) | What does a single integer mean for a multidimensional layout? |
+| [02 · Nested layouts](lessons/02-nested-layouts.md) | How can one dimension contain smaller dimensions? |
+| [03 · Composition](lessons/03-composition.md) | How can we index a layout with another layout? |
+| [04 · Coalescing](lessons/04-coalescing.md) | Can we simplify the blueprint while preserving its offsets? |
+| [05 · Logical divide](lessons/05-logical-divide.md) | How do we expose windows into the original layout? |
 
 Each lesson has a mental model, worked example, trap to avoid, and a quick revision question.
 

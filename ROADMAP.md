@@ -4,13 +4,13 @@ The layout algebra foundation is covered through logical divide. The next steps 
 
 | Stage | Learn | Small exercise / completion check |
 | --- | --- | --- |
-| 1 · Select a block tile | `logical_divide` + `slice`, block index | Split 32 elements into blocks of 8; block 2 must name 16–23 |
-| 2 · Give threads ownership | Thread/value coordinates and layouts | Draw 4 threads × 2 values over an 8-element tile |
-| 3 · Trace a tiled copy | Copy atom, `make_layout_tv`, `get_slice(tid)`, `partition_S/D` | Predict each thread's source and destination offsets |
-| 4 · Add in registers | Global views versus register fragments; fragment allocation | Load A and B, compute C, store C; explain each data movement |
-| 5 · Handle a partial tile | Coordinate tensors and predicates | For N=19 and block size 8, identify the last block's 3 valid positions |
-| 6 · Run a FlyDSL vector-add kernel | Launch, argument wrapping, current compiler API | Compare `C` with `A+B`, including N=1, 19, and a divisible size |
-| 7 · Inspect and tune | Copy widths, alignment, access patterns, generated ISA | Compare scalar and vector copies with measured bandwidth |
+| `06-select-block-tile` | `logical_divide` + `slice`, block index | Split 32 elements into blocks of 8; block 2 must name 16–23 |
+| `07-thread-value-layouts` | Thread/value coordinates and layouts | Draw 4 threads × 2 values over an 8-element tile |
+| `08-tiled-copy` | Copy atom, `make_layout_tv`, `get_slice(tid)`, `partition_S/D` | Predict each thread's source and destination offsets |
+| `09-register-fragments` | Global views versus register fragments; fragment allocation | Load A and B, compute C, store C; explain each data movement |
+| `10-predicates-and-tails` | Coordinate tensors and predicates | For N=19 and block size 8, identify the last block's 3 valid positions |
+| `11-vector-addition` | Launch, argument wrapping, current compiler API | Compare `C` with `A+B`, including N=1, 19, and a divisible size |
+| `12-inspect-and-tune` | Copy widths, alignment, access patterns, generated ISA | Compare scalar and vector copies with measured bandwidth |
 
 ## First ownership exercise
 
