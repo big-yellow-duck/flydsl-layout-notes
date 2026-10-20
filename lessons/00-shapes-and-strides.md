@@ -1,4 +1,4 @@
-# 01 · Shapes and strides
+# 00 · Shapes and strides
 
 **Mental model:** shape tells you the valid coordinates; stride tells you the offset change for one step along each coordinate axis.
 
@@ -51,4 +51,4 @@ Offset 13, size 12, cosize 14. The row pitch introduces holes at offsets 4 and 9
 
 </details>
 
-[Next: coordinates and views →](02-coordinates-and-views.md)
+[Next: coordinates and views →](01-coordinates-and-views.md)
