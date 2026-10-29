@@ -38,6 +38,24 @@ Run all numerical examples with Python 3.10+; no GPU or extra package is require
 python3 examples/layout_walkthrough.py
 ```
 
-This is a CPU model of the arithmetic, not a replacement implementation of FlyDSL. `fx.*` snippets in the lessons are API patterns for use inside a FlyDSL tracing context (`@flyc.jit` or `@flyc.kernel`); they are not standalone Python programs. The repository does not yet contain a runnable GPU kernel.
+This is a CPU model of the arithmetic, not a replacement implementation of FlyDSL. `fx.*` snippets in the lessons are API patterns for use inside a FlyDSL tracing context (`@flyc.jit` or `@flyc.kernel`); they are not standalone Python programs. The optional GPU check below exercises selected mappings with FlyDSL.
 
 **Where we left off:** the windowing idea is understood. Next, fix a tile coordinate with `slice`, then give each GPU thread a portion of that tile.
+
+## GPU validation
+
+The included Pixi environment targets Linux x86-64 and AMD `gfx1152` (Radeon 860M), with ROCm 10, PyTorch and FlyDSL pinned in `pixi.lock`. Install [Pixi](https://pixi.sh/), ensure the host GPU driver and `/dev/kfd` and render-node permissions are available, then run:
+
+```bash
+pixi install --locked
+pixi run cpu-check
+pixi run gpu-check
+```
+
+The first install downloads the ROCm SDK and PyTorch and can be large. Other GPU architectures need a matching ROCm device package and architecture configuration; this lockfile was tested on `gfx1152`. To run with another already configured FlyDSL and ROCm-enabled PyTorch environment:
+
+```bash
+python examples/gpu_layout_check.py
+```
+
+This checks one mapping from each lesson on the GPU and checks all 32 coordinates of the 2-D flat-divide example using thread-dependent coordinates. The other five checks use static coordinates and may be evaluated during compilation. It does not test every API example or a vector-add kernel. Verified on AMD Radeon 860M (gfx1152), ROCm 10, PyTorch 2.13.0+rocm10.0.0, and FlyDSL 0.4.1.
