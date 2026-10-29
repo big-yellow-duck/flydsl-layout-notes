@@ -74,40 +74,38 @@ B emits 6; A expands it to `(0,3)` and returns offset 3. Composition connects th
 
 ## Practice
 
-### Goal and starting data
+Build `fx.composition(A,B)` for `A=(2,4):(4,1)` and `B=(4,2):(2,1)`, then evaluate it for all eight coordinates of B.
 
-Evaluate **`A(B(q))`** for every scalar logical coordinate of **`B = (4,2):(2,1)`**, using **`A = (2,4):(4,1)`**. Return only the final offsets, ordered by `q=0..7`.
+Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. All practice files start unfinished. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
 
-Open [`practice.py`](practice.py). Both layouts, the loop, intermediate checks, and the output list are provided. Replace the two `None` values. The local [`layout.py`](layout.py) supports layout evaluation and `size(shape)`; it has no symbolic `composition` function to implement or call.
+### Native APIs and output
 
-### Complete `solve()`
+This exercise invokes FlyDSL's symbolic composition operation. The host checks the intermediate sequence `0,2,4,6,1,3,5,7` as well as the final sequence `0..7`. `solve()` returns the eight final offsets. The intermediate values must fit A's logical size, not its storage span.
 
-1. Trace `q=1` before coding. B expands it to `(1,0)`, emits `1*2 + 0*1 = 2`, and A then expands **2** to `(0,1)`, giving final offset 1.
-2. Set `intermediate` by applying `b` to the loop variable `q`. B runs first. B's output becomes A's **scalar logical coordinate**.
-3. Keep the supplied check `0 <= intermediate < size(a.shape)`. All B outputs must fit A's logical domain; A's storage span is not the bound for this intermediate number.
-4. Set `final_offset` by applying `a` to `intermediate`.
-5. Keep the append and return statements. Return a **list of eight integers** in B's scalar-coordinate order. Do not return intermediate indices or coordinate tuples.
+### Complete the kernel
 
-For debugging, temporarily print `(q, intermediate, final_offset)` inside the loop. The first two triples should be `(0,0,0)` and `(1,2,1)`. Checking the intermediate stage matters here because the final sequence happens to be `0..7`.
+1. Trace `q=1`: B emits 2, which A expands to `(0,1)`, giving offset 1.
+2. Fill `composed` with `fx.composition(a, b)`.
+3. Fill `intermediate` with `fx.crd2idx(q, b)`.
+4. Fill `final_offset` with `fx.crd2idx(q, composed)`. Keep the separate `fx.crd2idx(intermediate, a)` store as a cross-check.
 
 ### Run and check
 
-From the repository root:
+From the repository root, using the [configured GPU environment](../../README.md):
 
 ```bash
-python3 lessons/03-composition/practice.py
-python3 lessons/03-composition/solution.py
+pixi run python lessons/03-composition/practice.py
+pixi run python lessons/03-composition/solution.py
 ```
 
-From this lesson directory, use `python3 practice.py` and `python3 solution.py`. Initially the file reports `Practice not finished: ...`. After filling in both TODOs, expect `Exercise passed: [0, 1, 2, 3, 4, 5, 6, 7]`. Compare with the commented [worked solution](solution.py) after your attempt.
+An unfinished starter exits with `Practice not finished: ...` during tracing. Fill each TODO with a native API expression, then rerun. A correct exercise prints `Exercise passed:` and its checkpoint. Compare with the commented [worked solution](solution.py) after your attempt.
 
-If your result begins `0,2,4,6`, you may be returning B's outputs before passing them through A. The order is `a(b(q))`. Componentwise stride multiplication does not perform A's scalar-coordinate expansion. This particular pair also makes `b(a(q))` return `0..7`, so the starter checks B's intermediate outputs as well. An `apply B first` assertion means that stage is wrong even if your final list would have matched.
+`@flyc.kernel` traces the device computation; `@flyc.jit` traces its launch. `solve()` allocates a PyTorch GPU output, launches exactly as many threads as there are positions, synchronizes, and copies results to the host for assertions. PyTorch uses the device name `cuda` on ROCm too. These tiny launches need no tail predicate because each thread has one valid output row. General-sized launches will need bounds handling.
 
-### Try another case
+### Troubleshooting and another case
 
-Use scratch code so the required checker stays unchanged:
+Reversing A and B happens to produce the same final sequence in this example, so trace the intermediate stage too. Try native composition with `fx.make_layout(2,2)` as B, or use the nested example above; the GPU regression check covers both.
 
-- Replace B with `Layout(2, 2)` and loop over its two coordinates. Trace both stages: this should select a subset of A rather than cover every position.
-- Use `a = Layout(((2,2),3), ((1,4),8))` and `b = Layout((2,3), (2,4))`. Trace every coordinate of B. Compare the composed offsets against `Layout((2,3), (4,8)).sequence()`. This case also helps reveal a reversed composition order.
+Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
 
 [← Nested layouts](../02-nested-layouts/README.md) · [Next: coalescing →](../04-coalescing/README.md)

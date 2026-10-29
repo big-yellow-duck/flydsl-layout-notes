@@ -86,58 +86,40 @@ Original `(1,7)`, offset 15. Logical coordinate `((1,0),(3,1))`; flat coordinate
 
 ## Practice
 
-### Goal and starting data
+Split `(4,8):(8,1)` into `(2,4)` tiles with native divide operations. All 32 GPU threads validate corresponding coordinates; `solve()` returns tile `(1,1)` as `[20,21,22,23,28,29,30,31]`.
 
-Start with a row-major matrix **`A = (4,8):(8,1)`**, split it into **`(2,4)` tiles**, and enumerate the offsets of **tile `(1,1)`**. Tile coordinates and local coordinates are zero-based. The matrix has two tile rows and two tile columns.
+Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. All practice files start unfinished. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
 
-Open [`practice.py`](practice.py). The original layout, tile shape, selected tile, flat-divide shape, and nested loops are provided. Fill in `divided_stride` and `memory_offset`. The local [`layout.py`](layout.py) evaluates explicitly constructed layouts; it has no `logical_divide`, `flat_divide`, or slicing API to call in this exercise.
+### Native APIs and output
 
-### Derive the divided layout
+The thread index q is assigned in groups of eight per tile. Within a tile, `n` changes fastest, so the output is row-major locally. This scheduling arithmetic chooses coordinates; FlyDSL constructs and evaluates every layout.
 
-Use a flat coordinate **`(m,n,p,q)`**:
+The five output columns are flat, logical, zipped, tiled, and original-layout offsets. The checker validates every column at every position and checks that the tiles cover offsets `0..31` exactly once.
 
-| Name | Meaning | Valid values |
-| --- | --- | --- |
-| `m` | Row within the tile | `0..1` |
-| `n` | Column within the tile | `0..3` |
-| `p` | Tile row | `0..1` |
-| `q` | Tile column | `0..1` |
+### Complete the kernel
 
-The original coordinate is `(m + 2*p, n + 4*q)`. Derive each stride by changing just one coordinate by one:
-
-1. A step in `m` advances one original row, so use the original row stride.
-2. A step in `n` advances one original column, so use the original column stride.
-3. A step in `p` advances `tile_shape[0]` original rows, so multiply the row stride by that tile size.
-4. A step in `q` advances `tile_shape[1]` original columns, so multiply the column stride by that tile size.
-
-### Complete `solve()`
-
-1. Set `divided_stride` to the **four-integer tuple** you derived, ordered `(m,n,p,q)`. The provided `Layout((2,4,2,2), divided_stride)` represents the flat-divide view.
-2. Keep `p,q` fixed at the selected tile `(1,1)`. The provided loops enumerate `m` outside and `n` inside, giving **row-major local order**.
-3. Set `memory_offset` by calling `divided` with the explicit tuple `(m,n,p,q)`.
-4. Keep the append and return statements. Return a **flat list of eight integers**, the first local row followed by the second.
-
-As a separate checkpoint, tile `(0,1)` begins at original coordinate `(0,4)`, offset 4. Its local coordinate `(1,2)` lands at `(1,6)`, offset 14. For any tile, you can verify a divided offset independently with `original((m + 2*p, n + 4*q))`.
+1. Derive the flat strides on paper: `(8,1,16,4)` for `(m,n,p,tile_column)`.
+2. Fill `divided` with `fx.flat_divide(original, (2,4))`. The tuple tiler splits each original mode.
+3. Fill `memory_offset` with `fx.crd2idx(fx.make_coord(m,n,p,tile_column), divided)`.
+4. Keep the native logical, zipped, and tiled divide checks. Their coordinates have different parentheses but must produce the same offset as the original matrix coordinate.
 
 ### Run and check
 
-From the repository root:
+From the repository root, using the [configured GPU environment](../../README.md):
 
 ```bash
-python3 lessons/05-logical-divide/practice.py
-python3 lessons/05-logical-divide/solution.py
+pixi run python lessons/05-logical-divide/practice.py
+pixi run python lessons/05-logical-divide/solution.py
 ```
 
-From this lesson directory, use `python3 practice.py` and `python3 solution.py`. The untouched file reports `Practice not finished: ...`. After completing both TODOs, expect `Exercise passed: [20, 21, 22, 23, 28, 29, 30, 31]`. Compare with the commented [worked solution](solution.py) after your attempt.
+An unfinished starter exits with `Practice not finished: ...` during tracing. Fill each TODO with a native API expression, then rerun. A correct exercise prints `Exercise passed:` and its checkpoint. Compare with the commented [worked solution](solution.py) after your attempt.
 
-If you get `20,28,21,29,...`, you enumerated the local row first-mode-fastest rather than using the required row-major local order. If you get `0,1,2,3,8,9,10,11`, you omitted the selected tile's base offset. `divided((m,n,p,q))` already includes that base; do not add it again. Logical-divide coordinates have a different nesting, `((m,p),(n,q))`, and cannot be passed unchanged to this flat layout.
+`@flyc.kernel` traces the device computation; `@flyc.jit` traces its launch. `solve()` allocates a PyTorch GPU output, launches exactly as many threads as there are positions, synchronizes, and copies results to the host for assertions. PyTorch uses the device name `cuda` on ROCm too. These tiny launches need no tail predicate because each thread has one valid output row. General-sized launches will need bounds handling.
 
-### Try another case
+### Troubleshooting and another case
 
-Use scratch code so the required checker stays unchanged:
+If the selected offsets begin `20,28,21,29`, local rows are changing fastest. If they begin `0,1,2,3`, the tile coordinate was omitted. A flat coordinate cannot be passed unchanged to logical divide. The regression check also loads from sliced tensor views to verify that slicing carries the tile base offset.
 
-- Select tile `(0,1)` and verify all eight offsets against the original matrix coordinates.
-- Loop over all four tiles and collect their eight offsets. Check that sorting the resulting 32 offsets gives `list(range(32))`, with each original position visited once.
-- Construct the lesson's logical-divide layout `Layout(((2,2),(4,2)), ((8,16),(1,4)))`. For every local and tile coordinate, compare `logical(((m,p),(n,q)))` with `divided((m,n,p,q))`. Use matching explicit coordinates, not equal scalar indices across regrouped variants.
+Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
 
 [← Coalescing](../04-coalescing/README.md) · [Continue with the roadmap →](../../ROADMAP.md)

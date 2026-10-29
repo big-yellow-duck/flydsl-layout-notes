@@ -50,48 +50,40 @@ Expand 5 as `(5 % 3, 5 // 3) = (2,1)`. Offset is `2*2 + 1 = 5`. The matching inp
 
 ## Practice
 
-### Goal and starting data
+Expand each scalar logical coordinate of `(2,4):(4,1)` and map the resulting tuple to an offset. Eight threads cover `q=0..7`.
 
-For **`L = (2,4):(4,1)`**, trace every scalar logical coordinate `q` from `0` through `7`. For each `q`, return both its expanded `(row,column)` coordinate and its memory offset. The purpose is to keep the two transformations visible:
+Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. All practice files start unfinished. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
 
-```text
-q --expand through shape--> (row,column) --apply strides--> memory offset
-```
+### Native APIs and output
 
-Open [`practice.py`](practice.py). The layout, result list, loop bounds, and append operation are provided. Fill in the two `None` values inside the loop. The helpers come from the local [`layout.py`](layout.py):
+`enumeration = fx.make_ordered_layout(fx.get_shape(layout), (0,1))` makes a compact first-mode-fastest layout with strides `(1,2)`. **`idx2crd` uses strides:** applying it to the data layout would interpret q as a memory index, not as a scalar logical coordinate. Applying it to the compact enumeration layout performs the shape expansion we want.
 
-| Expression | Meaning |
-| --- | --- |
-| `size(layout.shape)` | Number of scalar logical coordinates, 8 here |
-| `expand(q, layout.shape)` | Expand a scalar through the shape, first mode fastest |
-| `layout(coordinate)` | Map an explicit tuple to an element offset |
-| `layout(q)` | Shorthand that expands the scalar and then applies strides |
+`solve()` returns eight `((row,column), offset)` pairs; the first two are `((0,0),0)` and `((1,0),4)`.
 
-### Complete `solve()`
+### Complete the kernel
 
-1. Trace `q=2` on paper: `2 % 2 = 0`, `2 // 2 = 1`, so its tuple is `(0,1)`. The memory offset is `0*4 + 1*1 = 1`.
-2. Set `coordinate` with `expand(q, layout.shape)`.
-3. Set `memory_offset` by passing that tuple to `layout`. Keep the expansion explicit for this exercise.
-4. Keep the provided append and return statements. Return a **list of eight pairs** in increasing `q` order, with each pair shaped as `((row,column), memory_offset)`. For example, the entry for `q=2` is `((0,1), 1)`.
+1. Trace `q=2`: the logical tuple is `(0,1)` and its offset is 1.
+2. Fill `coordinate` with `fx.idx2crd(q, enumeration)`.
+3. Fill `memory_offset` with `fx.crd2idx(coordinate, layout)`.
+4. Keep all four stores: row, column, explicit-coordinate offset, and direct scalar-coordinate offset. The last two must agree for every thread.
 
 ### Run and check
 
-From the repository root, run:
+From the repository root, using the [configured GPU environment](../../README.md):
 
 ```bash
-python3 lessons/01-coordinates-and-views/practice.py
-python3 lessons/01-coordinates-and-views/solution.py
+pixi run python lessons/01-coordinates-and-views/practice.py
+pixi run python lessons/01-coordinates-and-views/solution.py
 ```
 
-From this lesson directory, use `python3 practice.py` and `python3 solution.py`. The untouched starter reports `Practice not finished: ...`; replace the TODO values and run again. Success prints `Exercise passed:` followed by the list. Compare your code with the commented [worked solution](solution.py) after your attempt.
+An unfinished starter exits with `Practice not finished: ...` during tracing. Fill each TODO with a native API expression, then rerun. A correct exercise prints `Exercise passed:` and its checkpoint. Compare with the commented [worked solution](solution.py) after your attempt.
 
-Check that the first two entries are `((0,0), 0)` and `((1,0), 4)`. The offset column should begin `0,4,1,5`, not `0,1,2,3`. Sorting the offsets or using a row-major nested loop changes the required order. `expand` takes the shape, not the strides, and its input is a logical coordinate, not an offset to invert.
+`@flyc.kernel` traces the device computation; `@flyc.jit` traces its launch. `solve()` allocates a PyTorch GPU output, launches exactly as many threads as there are positions, synchronizes, and copies results to the host for assertions. PyTorch uses the device name `cuda` on ROCm too. These tiny launches need no tail predicate because each thread has one valid output row. General-sized launches will need bounds handling.
 
-### Try another case
+### Troubleshooting and another case
 
-Use scratch code so the required checker stays unchanged:
+The offset sequence must begin `0,4,1,5`; do not sort it. In a scratch copy, change the data strides to `(1,2)`: the expanded coordinates stay the same while the offsets change.
 
-- Keep shape `(2,4)` but change strides to `(1,2)`. Which column of your result changes: expanded coordinates or offsets? Verify all eight entries.
-- With the original layout, apply `layout(q)` directly and check that it agrees with `layout(expand(q, layout.shape))` for every `q`.
+Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
 
 [← Shapes and strides](../00-shapes-and-strides/README.md) · [Next: nested layouts →](../02-nested-layouts/README.md)

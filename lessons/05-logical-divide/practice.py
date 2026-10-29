@@ -1,48 +1,109 @@
-"""Practice: Enumerate one tile of a matrix.
+"""Practice: Divide a matrix into tiles.
 
-Read the Practice section in README.md, then replace the TODO None values.
-Run this file with Python 3.10+; only the local layout.py model is used.
+Run from the repository root:
+    pixi run python lessons/05-logical-divide/practice.py
+Layout algebra is traced by FlyDSL; thread-dependent mappings run on the GPU.
 """
 
-from layout import Layout
+import flydsl.compiler as flyc
+import flydsl.expr as fx
+import torch
+
+
+@flyc.kernel
+def exercise_kernel(out: fx.Tensor):
+    q = fx.thread_idx.x
+    original = fx.make_layout((4, 8), (8, 1))
+    # Eight threads per tile; local columns change fastest for this exercise.
+    m = (q // 4) % 2
+    n = q % 4
+    p = q // 16
+    tile_column = (q // 8) % 2
+    # TASK: Split each original mode using the tuple tiler (2, 4).
+    # TODO 1: Fill in divided using the native API described in README.md.
+    divided = None
+    if divided is None:
+        raise NotImplementedError("Fill in divided in exercise_kernel().")
+    # TODO 2: Fill in memory_offset using the native API described in README.md.
+    memory_offset = None
+    if memory_offset is None:
+        raise NotImplementedError("Fill in memory_offset in exercise_kernel().")
+    out[q * 5] = fx.get_scalar(memory_offset)
+    # The other groupings must agree at CORRESPONDING explicit coordinates.
+    logical = fx.logical_divide(original, (2, 4))
+    zipped = fx.zipped_divide(original, (2, 4))
+    tiled = fx.tiled_divide(original, (2, 4))
+    out[q * 5 + 1] = fx.get_scalar(
+        fx.crd2idx(fx.make_coord((m, p), (n, tile_column)), logical)
+    )
+    out[q * 5 + 2] = fx.get_scalar(
+        fx.crd2idx(fx.make_coord((m, n), (p, tile_column)), zipped)
+    )
+    out[q * 5 + 3] = fx.get_scalar(
+        fx.crd2idx(fx.make_coord((m, n), p, tile_column), tiled)
+    )
+    out[q * 5 + 4] = fx.get_scalar(
+        fx.crd2idx(fx.make_coord(m + 2 * p, n + 4 * tile_column), original)
+    )
+
+
+@flyc.jit
+def run(out: fx.Tensor, stream: fx.Stream = fx.Stream(None)):  # noqa: B008 -- FlyDSL stream default
+    # Exactly 32 threads: every thread owns one output row; no tail mask needed.
+    exercise_kernel(out).launch(grid=(1, 1, 1), block=(32, 1, 1), stream=stream)
 
 
 def solve():
-    """Return eight offsets for tile (1, 1), in row-major local order (n changes fastest)."""
-    # Given: original row/column strides and a contiguous 2-by-4 tile.
-    original = Layout((4, 8), (8, 1))
-    tile_shape = (2, 4)
-    tile_coordinate = (1, 1)
-
-    # A flat-divide coordinate is (m, n, p, q): local row/column, tile row/column.
-    # TODO 1: Supply the four strides in that order. Local strides come from
-    # original.stride; tile strides multiply them by the matching tile sizes.
-    divided_stride = None
-    if divided_stride is None:
-        raise NotImplementedError("Fill in divided_stride as a tuple of four integers.")
-    divided = Layout((2, 4, 2, 2), divided_stride)
-
-    p, q = tile_coordinate
-    offsets = []
-    for m in range(tile_shape[0]):
-        for n in range(tile_shape[1]):
-            # TODO 2: Evaluate divided at the explicit tuple (m, n, p, q).
-            memory_offset = None
-            if memory_offset is None:
-                raise NotImplementedError(
-                    "Fill in memory_offset inside the nested loops."
-                )
-            offsets.append(memory_offset)
-    return offsets
+    """Launch the exercise, check every GPU result, and return the lesson checkpoint."""
+    out = torch.full((160,), -1, dtype=torch.int32, device="cuda")
+    run(out)
+    torch.cuda.synchronize()
+    rows = out.cpu().reshape(32, 5).tolist()
+    # Host code only checks and formats results; it does not implement layouts.
+    expected_offsets = [
+        0,
+        1,
+        2,
+        3,
+        8,
+        9,
+        10,
+        11,
+        4,
+        5,
+        6,
+        7,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        24,
+        25,
+        26,
+        27,
+        20,
+        21,
+        22,
+        23,
+        28,
+        29,
+        30,
+        31,
+    ]
+    assert rows == [[offset] * 5 for offset in expected_offsets], rows
+    assert sorted(row[0] for row in rows) == list(range(32)), rows
+    return [row[0] for row in rows[24:32]]  # Tile (1, 1), row-major locally.
 
 
 if __name__ == "__main__":
     try:
         actual = solve()
     except NotImplementedError as error:
-        raise SystemExit(
-            f"Practice not finished: {error} See README.md for steps and hints."
-        ) from None
+        raise SystemExit(f"Practice not finished: {error} See README.md.") from None
     expected = [20, 21, 22, 23, 28, 29, 30, 31]
     assert actual == expected, f"Expected {expected!r}, got {actual!r}"
     print("Exercise passed:", actual)

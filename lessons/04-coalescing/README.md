@@ -49,40 +49,38 @@ Yes: `6:3`, because `6 = 2*3`. Offsets remain `0,3,6,9,12,15`.
 
 ## Practice
 
-### Goal and starting data
+Ask FlyDSL to coalesce `(2,3):(3,6)` and compare both mappings over all six scalar coordinates.
 
-Simplify **`L = (2,3):(3,6)`** into a single-mode layout and verify that every scalar coordinate still maps to the same offset.
+Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. All practice files start unfinished. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
 
-Open [`practice.py`](practice.py). The original layout, construction of the simplified layout, a size check, and the return statement are provided. Fill in the four `None` values. The local [`layout.py`](layout.py) supplies `Layout`, `size(shape)`, and `.sequence()`; it does not supply a `coalesce()` algorithm. Your task is to derive this example's result and construct it explicitly.
+### Native APIs and output
 
-### Complete `solve()`
+The kernel also records `fx.size(simplified)` and `fx.cosize(simplified)`; expect 6 and 16. Coalescing preserves the mapping at each scalar coordinate, not just the set of offsets. The layout algebra is compile-time work for these static layouts; evaluation at thread-dependent q runs on the GPU.
 
-1. Name the original values: `s0=2`, `s1=3`, `d0=3`, `d1=6`. Verify the merge condition **`d1 == s0*d0`**. Compact memory coverage is not required.
-2. Set `merged_shape` to the product of the original shape sizes. You can use `size(original.shape)`. This must be an integer, not a two-element tuple.
-3. Set `merged_stride` to the original first mode's stride, available as `original.stride[0]`. The provided `Layout(merged_shape, merged_stride)` constructs your candidate.
-4. Set `original_offsets` and `simplified_offsets` with `.sequence()` on the respective layouts. This method returns `[layout(q) for q in range(size(layout.shape))]` in scalar-coordinate order.
-5. Keep the return statement: return a **tuple of two lists**, `(original_offsets, simplified_offsets)`. Preserve their order; do not sort or remove duplicates.
+### Complete the kernel
 
-As a manual checkpoint, the original scalar coordinates `q=0,1,2` expand to `(0,0)`, `(1,0)`, `(0,1)` and produce offsets `0,3,6`. Your single-mode layout must reproduce these and every remaining offset with one constant stride.
+1. Predict the result: `6 = 2*3`, so the merged layout should be `6:3`.
+2. Fill `simplified` with `fx.coalesce(original)`; let the compiler construct the result.
+3. Fill `original_offset` and `simplified_offset` with `fx.crd2idx(q, ...)` for the respective layouts.
+4. Keep the stores and checker. The returned pair of lists must contain the same ordered offsets `[0,3,6,9,12,15]`.
 
 ### Run and check
 
-From the repository root:
+From the repository root, using the [configured GPU environment](../../README.md):
 
 ```bash
-python3 lessons/04-coalescing/practice.py
-python3 lessons/04-coalescing/solution.py
+pixi run python lessons/04-coalescing/practice.py
+pixi run python lessons/04-coalescing/solution.py
 ```
 
-From this lesson directory, use `python3 practice.py` and `python3 solution.py`. The untouched starter reports `Practice not finished: ...`. The completed exercise prints `Exercise passed:` followed by two identical lists, each `[0, 3, 6, 9, 12, 15]`. Compare with the commented [worked solution](solution.py) after your attempt.
+An unfinished starter exits with `Practice not finished: ...` during tracing. Fill each TODO with a native API expression, then rerun. A correct exercise prints `Exercise passed:` and its checkpoint. Compare with the commented [worked solution](solution.py) after your attempt.
 
-If your simplified sequence is `0..5`, you changed the mapping by assuming the merged stride must be 1. If only the sets match, compare the unsorted sequences: coalescing preserves the offset for **each scalar coordinate**, not merely the set of visited offsets. Passing checks here validates your candidate for this example; it does not implement general coalescing.
+`@flyc.kernel` traces the device computation; `@flyc.jit` traces its launch. `solve()` allocates a PyTorch GPU output, launches exactly as many threads as there are positions, synchronizes, and copies results to the host for assertions. PyTorch uses the device name `cuda` on ROCm too. These tiny launches need no tail predicate because each thread has one valid output row. General-sized launches will need bounds handling.
 
-### Try another case
+### Troubleshooting and another case
 
-Use scratch code so the required checker stays unchanged:
+If the simplified sequence is `0..5`, the stride was lost. Try the size-1 example and the unmergeable row-major layout from the table above; the GPU regression check covers both.
 
-- Compare `Layout((2,4), (4,1))` with `Layout(8,1)`. Compare both their offset sets and their ordered sequences. Explain why only one comparison succeeds.
-- Simplify `Layout(((2,1),4), ((1,99),2))`. Why can the size-1 mode disappear even though its stride is 99? Construct your candidate and compare full sequences.
+Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
 
 [← Composition](../03-composition/README.md) · [Next: logical divide →](../05-logical-divide/README.md)

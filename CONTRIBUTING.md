@@ -4,7 +4,7 @@ Keep each lesson focused on one question. Start with intuition, trace one small 
 
 - Preserve the coordinate/offset distinction and show parentheses explicitly.
 - Use exact diagrams with readable labels; keep the drawing source in `tools/`.
-- Check numerical examples with the CPU walkthrough. If adding real GPU code, validate it separately and record the FlyDSL version and target GPU.
+- Use native FlyDSL operations in lessons; do not add a Python layout interpreter. Run `pixi run gpu-check` and record the FlyDSL version and target GPU. Use thread-dependent coordinates to check the whole small domain.
 - Link to the relevant upstream source. Mark API patterns, pseudocode, and runnable programs clearly.
 - Update the roadmap when a new lesson is completed.
 
@@ -14,4 +14,4 @@ To regenerate diagrams, install Pillow in your preferred Python environment, the
 python3 tools/draw_diagrams.py
 ```
 
-The lessons embed SVGs; PNG copies are included for convenient previews. The numerical walkthrough only needs Python's standard library.
+The lessons embed SVGs; PNG copies are included for convenient previews. The numerical walkthrough requires the pinned FlyDSL/ROCm GPU environment. Keep practice TODOs unfinished and solutions runnable.

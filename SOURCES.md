@@ -16,15 +16,17 @@ Reviewed on 2026-10-16 against ROCm/FlyDSL commit `0653ff888bad3787c759eabeeeefb
 
 Pinned FlyDSL links preserve the reference snapshot. NVIDIA's `latest` pages may evolve.
 
-## What was checked
+## Native execution validation
 
-- All worked offsets, both composition examples, subset composition, and coalescing equivalences are exhaustively checked over their small logical domains by `examples/layout_walkthrough.py`.
-- All 32 elements of the 2-D tiling example agree across the four divide variants at corresponding tuple coordinates.
-- The ownership exercise covers each block exactly once; a CPU vector-add simulation checks the partial-tile predicate for several sizes.
-- `fx.*` snippets were checked as API patterns against source, but were **not compiled or run with FlyDSL**. There is no GPU benchmark or ISA validation in this repository yet.
+Migrated and validated on 2026-10-29 using the installed **FlyDSL 0.4.1** source and `pixi.lock`, with ROCm 10, PyTorch 2.13.0+rocm10.0.0, and AMD Radeon 860M Graphics (`gfx1152`). The earlier upstream reference snapshot above is background; executable API signatures were checked against the pinned installed package.
+
+- `pixi run lessons-check` compiles and executes all six worked solutions. Each uses thread-dependent coordinates and checks its full logical domain, not just a single constant expression.
+- `pixi run gpu-check` also checks row/column layouts, aliasing, subset and nested composition, coalescing examples, and actual loads from sliced 1-D and 2-D tensor views.
+- Lesson 05 checks every original matrix element across native logical, zipped, tiled, and flat divide at corresponding explicit coordinates, including exact coverage.
+- Host code allocates buffers and compares GPU outputs with expected tables. No CPU layout interpreter or manually constructed substitute for composition/coalescing/divide remains.
+
+Static algebra may be evaluated during compilation. These checks establish the tested mappings and view accesses, not a performance result or an ISA guarantee. The roadmap's vector-add and ownership exercises are future work; no vector-add kernel is included yet.
 
 ## Deliberate limits
 
-The arithmetic model covers static, positive shapes and nonnegative integer strides. The lessons use regular, evenly dividing tiles. Swizzles, basis-valued strides, dynamic shape constraints, general complement construction, and the full composition divisibility algorithm are later topics.
-
-The Python model evaluates composition as a function; it does not implement FlyDSL's symbolic layout simplification or prove compiler support for arbitrary inputs.
+The lessons use static positive shapes, nonnegative integer strides, and regular evenly dividing tiles. Swizzles, basis-valued strides, dynamic shape constraints, general complement construction, and the full composition divisibility algorithm are later topics. Passing these examples does not establish support for arbitrary layouts or tilers.

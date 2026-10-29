@@ -15,23 +15,34 @@ These notes preserve the learning sequence from our discussion through logical d
 | [04 · Coalescing](lessons/04-coalescing/README.md) | Can we simplify the blueprint while preserving its offsets? |
 | [05 · Logical divide](lessons/05-logical-divide/README.md) | How do we expose windows into the original layout? |
 
-Each lesson directory contains notes, a scaffolded `practice.py`, a commented `solution.py`, and its own `layout.py` arithmetic model. Read the lesson's **Practice** section for the exact input layout, a manual checkpoint, helper explanations, numbered TODO steps, the return format, and troubleshooting hints.
+Each lesson contains notes, a scaffolded `practice.py`, and a commented `solution.py`. Both programs use native FlyDSL APIs inside GPU kernels. There is no Python layout implementation: PyTorch allocates GPU buffers and the host checks the returned results.
 
-Start with lesson 00. From the repository root:
+## Set up and start
+
+The included Pixi environment pins FlyDSL 0.4.1, ROCm 10, and PyTorch 2.13.0+rocm10.0.0 for Linux x86-64 and AMD `gfx1152` (Radeon 860M). Install [Pixi](https://pixi.sh/), ensure the host GPU driver and `/dev/kfd` and render-node permissions are available, then run:
 
 ```bash
-python3 lessons/00-shapes-and-strides/practice.py
+pixi install --locked
+pixi run python lessons/00-shapes-and-strides/practice.py
 ```
 
-The starter reports `Practice not finished: ...` and exits with status 1 until you replace the `None` values at its TODO comments. Open that `practice.py`, fill in `solve()` using the supplied layout and helpers, and rerun the same command. Keep the provided return format and checker. A completed exercise prints `Exercise passed: ...`; an incorrect result shows the expected and actual values.
+The starter reports `Practice not finished: ...` and exits with status 1. Read the lesson's **Practice** section and replace the numbered `None` TODOs in `exercise_kernel()`. Keep the supplied stores, launch, and checker. A completed exercise prints `Exercise passed: ...`; incorrect results fail the host assertions.
 
 After your attempt, compare with the worked solution:
 
 ```bash
-python3 lessons/00-shapes-and-strides/solution.py
+pixi run python lessons/00-shapes-and-strides/solution.py
 ```
 
-These exercises need only Python 3.10+ and run on the CPU. The lesson-local `layout.py` models evaluate arithmetic; they do not implement FlyDSL compiler operations. The notes separately show FlyDSL API patterns. Each practice section also includes optional extensions to try in scratch code without changing the required exercise's checker.
+All six practice files are reset for a fresh attempt. Exercises require the GPU environment; plain system Python is not enough. The first install downloads the ROCm SDK and PyTorch and can be large. Other GPU architectures need matching ROCm device packages and architecture configuration. With an already configured FlyDSL/ROCm PyTorch environment, use `python` in place of `pixi run python`.
+
+## What executes where
+
+- `@flyc.kernel` traces native `fx.make_layout`, `fx.crd2idx`, `fx.composition`, `fx.coalesce`, and divide operations. Static algebra can simplify at compile time.
+- `fx.thread_idx.x` supplies runtime coordinates. Every exercise evaluates the complete small coordinate domain on the GPU, with one output row per thread.
+- `@flyc.jit` launches the kernel. `solve()` allocates buffers, synchronizes, and checks results on the host. The expected tables are independent checks, not replacement layout APIs.
+
+`fx.*` snippets in the notes belong inside a tracing context. The practice and solution files provide complete runnable programs. In lessons 01 and 02, `fx.idx2crd` expands logical scalar coordinates using a compact `fx.make_ordered_layout`; applying it directly to the data layout would instead interpret memory indices.
 
 ![A matrix divided into tiles, with one tile selected](assets/logical-divide.svg)
 
@@ -41,30 +52,20 @@ These exercises need only Python 3.10+ and run on the CPU. The lesson-local `lay
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all numerical examples with Python 3.10+; no GPU or extra package is required:
+Run all six worked lessons:
 
 ```bash
-python3 examples/layout_walkthrough.py
+pixi run lessons-check
 ```
 
-This is a CPU model of the arithmetic, not a replacement implementation of FlyDSL. `fx.*` snippets in the lessons are API patterns for use inside a FlyDSL tracing context (`@flyc.jit` or `@flyc.kernel`); they are not standalone Python programs. The optional GPU check below exercises selected mappings with FlyDSL.
-
-**Where we left off:** the windowing idea is understood. Next, fix a tile coordinate with `slice`, then give each GPU thread a portion of that tile.
-
-## GPU validation
-
-The included Pixi environment targets Linux x86-64 and AMD `gfx1152` (Radeon 860M), with ROCm 10, PyTorch and FlyDSL pinned in `pixi.lock`. Install [Pixi](https://pixi.sh/), ensure the host GPU driver and `/dev/kfd` and render-node permissions are available, then run:
+Run the lessons plus the additional examples from the notes:
 
 ```bash
-pixi install --locked
-pixi run cpu-check
 pixi run gpu-check
 ```
 
-The first install downloads the ROCm SDK and PyTorch and can be large. Other GPU architectures need a matching ROCm device package and architecture configuration; this lockfile was tested on `gfx1152`. To run with another already configured FlyDSL and ROCm-enabled PyTorch environment:
+The GPU check covers padding, aliasing, scalar and nested coordinates, full and subset composition, coalescing (including size-1 and unmergeable cases), every position across all four 2-D divide groupings, and actual loads through sliced 1-D and 2-D tensor views. The selected matrix tile returns values from offsets `20,21,22,23,28,29,30,31`.
 
-```bash
-python examples/gpu_layout_check.py
-```
+Validated on AMD Radeon 860M Graphics (`gfx1152`) with the pinned environment. These are correctness checks, not performance benchmarks or ISA validation. Vector addition, thread/value copy plans, and tail predicates remain in the roadmap.
 
-This checks one mapping from each lesson on the GPU and checks all 32 coordinates of the 2-D flat-divide example using thread-dependent coordinates. The other five checks use static coordinates and may be evaluated during compilation. It does not test every API example or a vector-add kernel. Verified on AMD Radeon 860M (gfx1152), ROCm 10, PyTorch 2.13.0+rocm10.0.0, and FlyDSL 0.4.1.
+**Where we left off:** the windowing idea is understood. Next, fix a tile coordinate with `slice`, then give each GPU thread a portion of that tile.

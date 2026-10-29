@@ -44,3 +44,11 @@ For original `(M,N)` tiled by `(TM,TN)`; `RM=M/TM`, `RN=N/TN` here:
 - Valid layout arithmetic does not automatically guarantee bounds-safe GPU memory access.
 
 For a refresh, recompute composition at `(2,1)` in [lesson 03](lessons/03-composition/README.md), then the selected tile offset in [lesson 05](lessons/05-logical-divide/README.md).
+
+## Native API reminders
+
+Inside a FlyDSL kernel, construct with `fx.make_layout(shape, stride)` and map with `fx.crd2idx(coord, layout)`. Use `fx.size(layout)` and `fx.cosize(layout)` for count and span, and `fx.get_scalar(...)` to store a scalar integer-tuple result.
+
+To expand logical q for a flat 2-D shape, use `fx.idx2crd(q, fx.make_ordered_layout(shape, (0,1)))`. `idx2crd` uses the supplied layout's strides; it is not a shape-only expansion when passed the data layout. Nested shapes need a matching nested order, as in lesson 02.
+
+Run `pixi run lessons-check` for the six native worked solutions or `pixi run gpu-check` for additional mapping and sliced-view checks.
