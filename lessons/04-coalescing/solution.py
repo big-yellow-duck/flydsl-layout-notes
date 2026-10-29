@@ -1,17 +1,35 @@
-"""Lesson exercise using the CPU layout model; Python 3.10+."""
+"""Worked solution: Build and verify a simpler layout.
 
-import sys
-from pathlib import Path
+Run this file with Python 3.10+; only the local layout.py model is used.
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "examples"))
-from layout_walkthrough import Layout, expand, size
+The merge rule holds because 6 = 2*3. The merged shape is 2*3 = 6
+and its stride stays 3, giving Layout(6, 3). Both layouts visit the
+same ordered offsets. Sorting the lists or comparing sets would hide
+mapping changes and would not verify coalescing.
+"""
+
+from layout import Layout, size
 
 
 def solve():
-    # Construct a coalesced layout with the same scalar mapping.
+    """Return (original_offsets, simplified_offsets), a tuple containing two lists."""
+    # Given: the second stride is the first shape times the first stride.
     original = Layout((2, 3), (3, 6))
-    simplified = Layout(6, 3)
-    return original.sequence(), simplified.sequence()
+
+    # Step 1: Multiply the two shape sizes to get a single integer shape.
+    merged_shape = size(original.shape)
+    # Step 2: Keep the first mode's stride as the merged stride.
+    merged_stride = original.stride[0]
+
+    simplified = Layout(merged_shape, merged_stride)
+    assert size(original.shape) == size(simplified.shape), (
+        "Coalescing must preserve size"
+    )
+    # Step 3: Use .sequence() on each layout; preserve scalar-coordinate order.
+    original_offsets = original.sequence()
+    simplified_offsets = simplified.sequence()
+
+    return original_offsets, simplified_offsets
 
 
 if __name__ == "__main__":

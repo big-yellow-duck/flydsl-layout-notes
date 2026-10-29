@@ -15,14 +15,23 @@ These notes preserve the learning sequence from our discussion through logical d
 | [04 · Coalescing](lessons/04-coalescing/README.md) | Can we simplify the blueprint while preserving its offsets? |
 | [05 · Logical divide](lessons/05-logical-divide/README.md) | How do we expose windows into the original layout? |
 
-Each lesson directory contains notes, a `practice.py` exercise, and a worked `solution.py`. Read the notes, run the practice file and complete `solve()`, then compare your answer with the solution. For example:
+Each lesson directory contains notes, a scaffolded `practice.py`, a commented `solution.py`, and its own `layout.py` arithmetic model. Read the lesson's **Practice** section for the exact input layout, a manual checkpoint, helper explanations, numbered TODO steps, the return format, and troubleshooting hints.
+
+Start with lesson 00. From the repository root:
 
 ```bash
 python3 lessons/00-shapes-and-strides/practice.py
+```
+
+The starter reports `Practice not finished: ...` and exits with status 1 until you replace the `None` values at its TODO comments. Open that `practice.py`, fill in `solve()` using the supplied layout and helpers, and rerun the same command. Keep the provided return format and checker. A completed exercise prints `Exercise passed: ...`; an incorrect result shows the expected and actual values.
+
+After your attempt, compare with the worked solution:
+
+```bash
 python3 lessons/00-shapes-and-strides/solution.py
 ```
 
-The exercises use the CPU arithmetic model below, while the notes also show FlyDSL API patterns.
+These exercises need only Python 3.10+ and run on the CPU. The lesson-local `layout.py` models evaluate arithmetic; they do not implement FlyDSL compiler operations. The notes separately show FlyDSL API patterns. Each practice section also includes optional extensions to try in scratch code without changing the required exercise's checker.
 
 ![A matrix divided into tiles, with one tile selected](assets/logical-divide.svg)
 

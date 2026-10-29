@@ -47,8 +47,42 @@ Yes: `6:3`, because `6 = 2*3`. Offsets remain `0,3,6,9,12,15`.
 
 </details>
 
-[← Composition](../03-composition/README.md) · [Next: logical divide →](../05-logical-divide/README.md)
-
 ## Practice
 
-Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.
+### Goal and starting data
+
+Simplify **`L = (2,3):(3,6)`** into a single-mode layout and verify that every scalar coordinate still maps to the same offset.
+
+Open [`practice.py`](practice.py). The original layout, construction of the simplified layout, a size check, and the return statement are provided. Fill in the four `None` values. The local [`layout.py`](layout.py) supplies `Layout`, `size(shape)`, and `.sequence()`; it does not supply a `coalesce()` algorithm. Your task is to derive this example's result and construct it explicitly.
+
+### Complete `solve()`
+
+1. Name the original values: `s0=2`, `s1=3`, `d0=3`, `d1=6`. Verify the merge condition **`d1 == s0*d0`**. Compact memory coverage is not required.
+2. Set `merged_shape` to the product of the original shape sizes. You can use `size(original.shape)`. This must be an integer, not a two-element tuple.
+3. Set `merged_stride` to the original first mode's stride, available as `original.stride[0]`. The provided `Layout(merged_shape, merged_stride)` constructs your candidate.
+4. Set `original_offsets` and `simplified_offsets` with `.sequence()` on the respective layouts. This method returns `[layout(q) for q in range(size(layout.shape))]` in scalar-coordinate order.
+5. Keep the return statement: return a **tuple of two lists**, `(original_offsets, simplified_offsets)`. Preserve their order; do not sort or remove duplicates.
+
+As a manual checkpoint, the original scalar coordinates `q=0,1,2` expand to `(0,0)`, `(1,0)`, `(0,1)` and produce offsets `0,3,6`. Your single-mode layout must reproduce these and every remaining offset with one constant stride.
+
+### Run and check
+
+From the repository root:
+
+```bash
+python3 lessons/04-coalescing/practice.py
+python3 lessons/04-coalescing/solution.py
+```
+
+From this lesson directory, use `python3 practice.py` and `python3 solution.py`. The untouched starter reports `Practice not finished: ...`. The completed exercise prints `Exercise passed:` followed by two identical lists, each `[0, 3, 6, 9, 12, 15]`. Compare with the commented [worked solution](solution.py) after your attempt.
+
+If your simplified sequence is `0..5`, you changed the mapping by assuming the merged stride must be 1. If only the sets match, compare the unsorted sequences: coalescing preserves the offset for **each scalar coordinate**, not merely the set of visited offsets. Passing checks here validates your candidate for this example; it does not implement general coalescing.
+
+### Try another case
+
+Use scratch code so the required checker stays unchanged:
+
+- Compare `Layout((2,4), (4,1))` with `Layout(8,1)`. Compare both their offset sets and their ordered sequences. Explain why only one comparison succeeds.
+- Simplify `Layout(((2,1),4), ((1,99),2))`. Why can the size-1 mode disappear even though its stride is 99? Construct your candidate and compare full sequences.
+
+[← Composition](../03-composition/README.md) · [Next: logical divide →](../05-logical-divide/README.md)

@@ -1,16 +1,29 @@
-"""Lesson exercise using the CPU layout model; Python 3.10+."""
+"""Worked solution: Measure a padded layout.
 
-import sys
-from pathlib import Path
+Run this file with Python 3.10+; only the local layout.py model is used.
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "examples"))
-from layout_walkthrough import Layout, expand, size
+The coordinate (2, 3) gives 2*5 + 3*1 = 13. There are 3*4 = 12
+logical positions. The largest reachable offset is 13, so the span is 14;
+offsets 4 and 9 are padding holes, not additional logical positions.
+"""
+
+from layout import Layout, size
 
 
 def solve():
-    # Return the offset at (2, 3), logical size, and storage span.
+    """Return (offset_at_2_3, logical_size, storage_span), a tuple of three integers."""
+    # Given: three rows, four columns, and a row pitch of five elements.
     layout = Layout((3, 4), (5, 1))
-    return layout((2, 3)), size(layout.shape), layout.cosize()
+    coordinate = (2, 3)
+
+    # Step 1: Call the layout with the explicit (row, column) coordinate.
+    element_offset = layout(coordinate)
+    # Step 2: Count logical positions using size(layout.shape).
+    logical_size = size(layout.shape)
+    # Step 3: Find the storage span using layout.cosize().
+    storage_span = layout.cosize()
+
+    return element_offset, logical_size, storage_span
 
 
 if __name__ == "__main__":

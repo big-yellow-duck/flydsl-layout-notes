@@ -1,16 +1,29 @@
-"""Lesson exercise using the CPU layout model; Python 3.10+."""
+"""Worked solution: Trace a nested coordinate.
 
-import sys
-from pathlib import Path
+Run this file with Python 3.10+; only the local layout.py model is used.
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "examples"))
-from layout_walkthrough import Layout, expand, size
+The size is (2*2)*3 = 12. Splitting q=7 by the first mode's size 4
+gives (3, 1), then expanding 3 inside (2, 2) gives (1, 1). The full
+coordinate is ((1, 1), 1), whose offset is 1*1 + 1*4 + 1*8 = 13.
+"""
+
+from layout import Layout, expand, size
 
 
 def solve():
-    # Return size, expanded coordinate for 7, and its offset.
+    """Return (logical_size, expanded_coordinate, memory_offset) for scalar coordinate 7."""
+    # Given: two top-level modes; the first contains two leaf axes.
     layout = Layout(((2, 2), 3), ((1, 4), 8))
-    return size(layout.shape), expand(7, layout.shape), layout(7)
+    q = 7
+
+    # Step 1: Count all logical positions with size(layout.shape).
+    logical_size = size(layout.shape)
+    # Step 2: Expand q recursively through layout.shape with expand(...).
+    coordinate = expand(q, layout.shape)
+    # Step 3: Evaluate the layout at the nested coordinate you just found.
+    memory_offset = layout(coordinate)
+
+    return logical_size, coordinate, memory_offset
 
 
 if __name__ == "__main__":

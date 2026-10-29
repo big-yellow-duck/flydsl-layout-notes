@@ -48,8 +48,50 @@ Expand 5 as `(5 % 3, 5 // 3) = (2,1)`. Offset is `2*2 + 1 = 5`. The matching inp
 
 </details>
 
-[← Shapes and strides](../00-shapes-and-strides/README.md) · [Next: nested layouts →](../02-nested-layouts/README.md)
-
 ## Practice
 
-Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.
+### Goal and starting data
+
+For **`L = (2,4):(4,1)`**, trace every scalar logical coordinate `q` from `0` through `7`. For each `q`, return both its expanded `(row,column)` coordinate and its memory offset. The purpose is to keep the two transformations visible:
+
+```text
+q --expand through shape--> (row,column) --apply strides--> memory offset
+```
+
+Open [`practice.py`](practice.py). The layout, result list, loop bounds, and append operation are provided. Fill in the two `None` values inside the loop. The helpers come from the local [`layout.py`](layout.py):
+
+| Expression | Meaning |
+| --- | --- |
+| `size(layout.shape)` | Number of scalar logical coordinates, 8 here |
+| `expand(q, layout.shape)` | Expand a scalar through the shape, first mode fastest |
+| `layout(coordinate)` | Map an explicit tuple to an element offset |
+| `layout(q)` | Shorthand that expands the scalar and then applies strides |
+
+### Complete `solve()`
+
+1. Trace `q=2` on paper: `2 % 2 = 0`, `2 // 2 = 1`, so its tuple is `(0,1)`. The memory offset is `0*4 + 1*1 = 1`.
+2. Set `coordinate` with `expand(q, layout.shape)`.
+3. Set `memory_offset` by passing that tuple to `layout`. Keep the expansion explicit for this exercise.
+4. Keep the provided append and return statements. Return a **list of eight pairs** in increasing `q` order, with each pair shaped as `((row,column), memory_offset)`. For example, the entry for `q=2` is `((0,1), 1)`.
+
+### Run and check
+
+From the repository root, run:
+
+```bash
+python3 lessons/01-coordinates-and-views/practice.py
+python3 lessons/01-coordinates-and-views/solution.py
+```
+
+From this lesson directory, use `python3 practice.py` and `python3 solution.py`. The untouched starter reports `Practice not finished: ...`; replace the TODO values and run again. Success prints `Exercise passed:` followed by the list. Compare your code with the commented [worked solution](solution.py) after your attempt.
+
+Check that the first two entries are `((0,0), 0)` and `((1,0), 4)`. The offset column should begin `0,4,1,5`, not `0,1,2,3`. Sorting the offsets or using a row-major nested loop changes the required order. `expand` takes the shape, not the strides, and its input is a logical coordinate, not an offset to invert.
+
+### Try another case
+
+Use scratch code so the required checker stays unchanged:
+
+- Keep shape `(2,4)` but change strides to `(1,2)`. Which column of your result changes: expanded coordinates or offsets? Verify all eight entries.
+- With the original layout, apply `layout(q)` directly and check that it agrees with `layout(expand(q, layout.shape))` for every `q`.
+
+[← Shapes and strides](../00-shapes-and-strides/README.md) · [Next: nested layouts →](../02-nested-layouts/README.md)

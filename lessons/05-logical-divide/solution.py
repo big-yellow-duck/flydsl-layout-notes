@@ -1,17 +1,43 @@
-"""Lesson exercise using the CPU layout model; Python 3.10+."""
+"""Worked solution: Enumerate one tile of a matrix.
 
-import sys
-from pathlib import Path
+Run this file with Python 3.10+; only the local layout.py model is used.
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "examples"))
-from layout_walkthrough import Layout, expand, size
+One local row steps 8 elements, one local column steps 1, one tile row
+steps 2*8 = 16, and one tile column steps 4*1 = 4. Tile (1, 1) begins
+at 16+4 = 20. Explicit nested loops enumerate the first local row before
+the second; .sequence() would instead use first-mode-fastest order.
+The divided layout is constructed explicitly, not by a CPU divide API.
+"""
+
+from layout import Layout
 
 
 def solve():
-    # Tile a (4, 8) row-major matrix into (2, 4) tiles.
-    # Return offsets for tile (1, 1), in row-major local order.
-    divided = Layout((2, 4, 2, 2), (8, 1, 16, 4))
-    return [divided((m, n, 1, 1)) for m in range(2) for n in range(4)]
+    """Return eight offsets for tile (1, 1), in row-major local order (n changes fastest)."""
+    # Given: original row/column strides and a contiguous 2-by-4 tile.
+    original = Layout((4, 8), (8, 1))
+    tile_shape = (2, 4)
+    tile_coordinate = (1, 1)
+
+    # A flat-divide coordinate is (m, n, p, q): local row/column, tile row/column.
+    # Step 1: Supply the four strides in that order. Local strides come from
+    # original.stride; tile strides multiply them by the matching tile sizes.
+    divided_stride = (
+        original.stride[0],
+        original.stride[1],
+        tile_shape[0] * original.stride[0],
+        tile_shape[1] * original.stride[1],
+    )
+    divided = Layout((2, 4, 2, 2), divided_stride)
+
+    p, q = tile_coordinate
+    offsets = []
+    for m in range(tile_shape[0]):
+        for n in range(tile_shape[1]):
+            # Step 2: Evaluate divided at the explicit tuple (m, n, p, q).
+            memory_offset = divided((m, n, p, q))
+            offsets.append(memory_offset)
+    return offsets
 
 
 if __name__ == "__main__":

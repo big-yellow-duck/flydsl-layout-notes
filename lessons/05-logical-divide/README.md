@@ -84,8 +84,60 @@ Original `(1,7)`, offset 15. Logical coordinate `((1,0),(3,1))`; flat coordinate
 
 </details>
 
-[← Coalescing](../04-coalescing/README.md) · [Continue with the roadmap →](../../ROADMAP.md)
-
 ## Practice
 
-Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.
+### Goal and starting data
+
+Start with a row-major matrix **`A = (4,8):(8,1)`**, split it into **`(2,4)` tiles**, and enumerate the offsets of **tile `(1,1)`**. Tile coordinates and local coordinates are zero-based. The matrix has two tile rows and two tile columns.
+
+Open [`practice.py`](practice.py). The original layout, tile shape, selected tile, flat-divide shape, and nested loops are provided. Fill in `divided_stride` and `memory_offset`. The local [`layout.py`](layout.py) evaluates explicitly constructed layouts; it has no `logical_divide`, `flat_divide`, or slicing API to call in this exercise.
+
+### Derive the divided layout
+
+Use a flat coordinate **`(m,n,p,q)`**:
+
+| Name | Meaning | Valid values |
+| --- | --- | --- |
+| `m` | Row within the tile | `0..1` |
+| `n` | Column within the tile | `0..3` |
+| `p` | Tile row | `0..1` |
+| `q` | Tile column | `0..1` |
+
+The original coordinate is `(m + 2*p, n + 4*q)`. Derive each stride by changing just one coordinate by one:
+
+1. A step in `m` advances one original row, so use the original row stride.
+2. A step in `n` advances one original column, so use the original column stride.
+3. A step in `p` advances `tile_shape[0]` original rows, so multiply the row stride by that tile size.
+4. A step in `q` advances `tile_shape[1]` original columns, so multiply the column stride by that tile size.
+
+### Complete `solve()`
+
+1. Set `divided_stride` to the **four-integer tuple** you derived, ordered `(m,n,p,q)`. The provided `Layout((2,4,2,2), divided_stride)` represents the flat-divide view.
+2. Keep `p,q` fixed at the selected tile `(1,1)`. The provided loops enumerate `m` outside and `n` inside, giving **row-major local order**.
+3. Set `memory_offset` by calling `divided` with the explicit tuple `(m,n,p,q)`.
+4. Keep the append and return statements. Return a **flat list of eight integers**, the first local row followed by the second.
+
+As a separate checkpoint, tile `(0,1)` begins at original coordinate `(0,4)`, offset 4. Its local coordinate `(1,2)` lands at `(1,6)`, offset 14. For any tile, you can verify a divided offset independently with `original((m + 2*p, n + 4*q))`.
+
+### Run and check
+
+From the repository root:
+
+```bash
+python3 lessons/05-logical-divide/practice.py
+python3 lessons/05-logical-divide/solution.py
+```
+
+From this lesson directory, use `python3 practice.py` and `python3 solution.py`. The untouched file reports `Practice not finished: ...`. After completing both TODOs, expect `Exercise passed: [20, 21, 22, 23, 28, 29, 30, 31]`. Compare with the commented [worked solution](solution.py) after your attempt.
+
+If you get `20,28,21,29,...`, you enumerated the local row first-mode-fastest rather than using the required row-major local order. If you get `0,1,2,3,8,9,10,11`, you omitted the selected tile's base offset. `divided((m,n,p,q))` already includes that base; do not add it again. Logical-divide coordinates have a different nesting, `((m,p),(n,q))`, and cannot be passed unchanged to this flat layout.
+
+### Try another case
+
+Use scratch code so the required checker stays unchanged:
+
+- Select tile `(0,1)` and verify all eight offsets against the original matrix coordinates.
+- Loop over all four tiles and collect their eight offsets. Check that sorting the resulting 32 offsets gives `list(range(32))`, with each original position visited once.
+- Construct the lesson's logical-divide layout `Layout(((2,2),(4,2)), ((8,16),(1,4)))`. For every local and tile coordinate, compare `logical(((m,p),(n,q)))` with `divided((m,n,p,q))`. Use matching explicit coordinates, not equal scalar indices across regrouped variants.
+
+[← Coalescing](../04-coalescing/README.md) · [Continue with the roadmap →](../../ROADMAP.md)
