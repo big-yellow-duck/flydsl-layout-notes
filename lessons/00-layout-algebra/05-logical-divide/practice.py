@@ -12,40 +12,40 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     original = fx.make_layout((4, 8), (8, 1))
     # Axes: (local row, local column, tile row, tile column).
-    # Speed ranks: n first, then m, tile_column, and p last.
+    # Speed ranks: local_col first, then local_row, tile_col, and tile_row last.
     thread_layout = fx.make_ordered_layout((2, 4, 2, 2), (1, 0, 3, 2))
-    coordinate = fx.idx2crd(q, thread_layout)
-    m, n, p, tile_column = coordinate.unpack()
+    coordinate = fx.idx2crd(thread_id, thread_layout)
+    local_row, local_col, tile_row, tile_col = coordinate.unpack()
     # TASK: Split each original mode using the tuple tiler (2, 4).
-    # TODO 1: Fill in divided using the native API described in README.md.
+    # TODO 1: Fill in divided; see README.md.
     divided = None
-    divided = fx.flat_divide(original, (2, 4))
     if divided is None:
-        raise NotImplementedError("Fill in divided in exercise_kernel().")
-    # TODO 2: Fill in memory_offset using the native API described in README.md.
+        raise NotImplementedError("Fill in divided.")
+    # TODO 2: Fill in memory_offset; see README.md.
     memory_offset = None
-    memory_offset = fx.crd2idx(coordinate, divided)
     if memory_offset is None:
-        raise NotImplementedError("Fill in memory_offset in exercise_kernel().")
-    out[q * 5] = fx.get_scalar(memory_offset)
+        raise NotImplementedError("Fill in memory_offset.")
+    out[thread_id * 5] = fx.get_scalar(memory_offset)
     # The other groupings must agree at CORRESPONDING explicit coordinates.
     logical = fx.logical_divide(original, (2, 4))
     zipped = fx.zipped_divide(original, (2, 4))
     tiled = fx.tiled_divide(original, (2, 4))
-    out[q * 5 + 1] = fx.get_scalar(
-        fx.crd2idx(fx.make_coord((m, p), (n, tile_column)), logical)
+    out[thread_id * 5 + 1] = fx.get_scalar(
+        fx.crd2idx(fx.make_coord((local_row, tile_row), (local_col, tile_col)), logical)
     )
-    out[q * 5 + 2] = fx.get_scalar(
-        fx.crd2idx(fx.make_coord((m, n), (p, tile_column)), zipped)
+    out[thread_id * 5 + 2] = fx.get_scalar(
+        fx.crd2idx(fx.make_coord((local_row, local_col), (tile_row, tile_col)), zipped)
     )
-    out[q * 5 + 3] = fx.get_scalar(
-        fx.crd2idx(fx.make_coord((m, n), p, tile_column), tiled)
+    out[thread_id * 5 + 3] = fx.get_scalar(
+        fx.crd2idx(fx.make_coord((local_row, local_col), tile_row, tile_col), tiled)
     )
-    out[q * 5 + 4] = fx.get_scalar(
-        fx.crd2idx(fx.make_coord(m + 2 * p, n + 4 * tile_column), original)
+    out[thread_id * 5 + 4] = fx.get_scalar(
+        fx.crd2idx(
+            fx.make_coord(local_row + 2 * tile_row, local_col + 4 * tile_col), original
+        )
     )
 
 

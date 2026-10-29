@@ -2,7 +2,7 @@
 
 Short lessons for rebuilding the intuition behind FlyDSL layouts: **a layout is an indexing blueprint**. It tells us which offset a coordinate names. Algebra changes that blueprint; loads, stores, and copies move the data.
 
-These notes preserve the learning sequence from our discussion through logical divide. The examples are deliberately small enough to work out by hand. They are reconstructed teaching examples, not a verbatim transcript.
+These notes follow our learning sequence from layout algebra through GPU copies, vector addition, and measurement. The examples are deliberately small enough to work out by hand. They are reconstructed teaching examples, not a verbatim transcript.
 
 ## Learning path
 
@@ -34,6 +34,20 @@ pixi run python lessons/00-layout-algebra/00-shapes-and-strides/solution.py
 
 Exercises require the GPU environment; plain system Python is not enough. The first install downloads the ROCm SDK and PyTorch and can be large. Other GPU architectures need matching ROCm device packages and architecture configuration. With an already configured FlyDSL/ROCm PyTorch environment, use `python` in place of `pixi run python`.
 
+## How to read a kernel
+
+The examples follow a consistent sequence where applicable:
+
+```text
+Create or reuse views → select the work → assign ownership → load → compute → store
+```
+
+A memory view combines a storage iterator (a typed pointer) with a layout. Use `make_view` when changing the storage's indexing; reuse the incoming tensor when its layout already fits. View construction, division, and slicing do not move data. Reads, writes, and copies do.
+
+The early algebra lessons intentionally stop at mapping coordinates to offsets. Copy lessons begin with their data views. Tail lessons use a separate coordinate-only view to decide whether a memory access is valid. The combined divide exercise is an explicit cross-check, while the four focused tutorials show one direct access path each.
+
+All 17 practice files are reset to unfinished TODOs. Each numbered TODO is an expression inside the kernel; the surrounding launch and host checker are supplied. Read the matching README, complete the expressions, then compare the solution.
+
 ## What executes where
 
 - `@flyc.kernel` traces native `fx.make_layout`, `fx.crd2idx`, `fx.composition`, `fx.coalesce`, and divide operations. Static algebra can simplify at compile time.
@@ -52,7 +66,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all thirteen worked lessons:
+Run all thirteen lessons and the four focused divide tutorials:
 
 ```bash
 pixi run lessons-check

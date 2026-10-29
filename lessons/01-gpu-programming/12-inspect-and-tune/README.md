@@ -2,6 +2,30 @@
 
 Correctness comes first. Now compare a 32-bit copy atom with a 128-bit copy atom under the same ownership layout and input size. The purpose is to learn how to collect evidence, not to promise that wider is always faster.
 
+## Follow the same view-to-copy flow
+
+The inputs already have contiguous 1-D layouts. First expose their 256-element windows, then select this block's windows:
+
+```python
+window_layout = fx.make_layout(256, 1)
+source_windows = fx.logical_divide(source, window_layout)
+destination_windows = fx.logical_divide(out, window_layout)
+source_window = fx.slice(source_windows, (None, block_id))
+destination_window = fx.slice(destination_windows, (None, block_id))
+```
+
+Next give each selected window the indexing expected by the copy plan:
+
+```python
+tile_layout = fx.make_layout((4, 64), (1, 4))
+source_tile = fx.make_view(fx.get_iter(source_window), tile_layout)
+destination_tile = fx.make_view(fx.get_iter(destination_window), tile_layout)
+```
+
+These pointers already include the selected block's offset. `make_view` changes the indexing of each 256-element window; it does not copy data or add the block offset again.
+
+Finally build ownership and the copy atom, partition `source_tile` and `destination_tile` into `source_part` and `destination_part`, and call `fx.copy(atom, source_part, destination_part)`. Each stage has a named intermediate; the read/write happens at the final copy.
+
 ## Hold ownership constant
 
 Each block has 64 threads and owns 256 float32 values. Each thread owns four adjacent values. `make_layout_tv` combines thread shape `(1,64)` and value shape `(4,1)` into tile shape `(4,64)` and adjacent thread/value ownership.

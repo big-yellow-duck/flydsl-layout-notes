@@ -7,18 +7,27 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(source: fx.Tensor, out: fx.Tensor):
-    thread_id = fx.thread_idx.x
+    # 1. Reuse the incoming 1-D tensor views: they already have the right layout.
     block_id = fx.block_idx.x
+    tile_layout = fx.make_layout(8, 1)
+    # 2. Expose source and destination windows, then select this block's tiles.
+    # TODO 1: Fill in source_windows; see README.md.
+    source_windows = None
+    if source_windows is None:
+        raise NotImplementedError("Fill in source_windows.")
+    destination_windows = fx.logical_divide(out, tile_layout)
+    # TODO 2: Fill in source_tile; see README.md.
+    source_tile = None
+    if source_tile is None:
+        raise NotImplementedError("Fill in source_tile.")
+    destination_tile = fx.slice(destination_windows, (None, block_id))
+
+    # 3. Assign the eight local positions to eight threads.
+    thread_id = fx.thread_idx.x
     thread_layout = fx.make_ordered_layout(8, 0)
-    local_index = fx.idx2crd(thread_id, thread_layout)
-    # TODO: Expose 8-element windows and select this block's window.
-    divided = None  # TODO: see README.md
-    if divided is None:
-        raise NotImplementedError("Fill in divided.")
-    block_tile = None  # TODO: see README.md
-    if block_tile is None:
-        raise NotImplementedError("Fill in block_tile.")
-    out[block_id * 8 + thread_id] = block_tile[local_index]
+    local_coordinate = fx.idx2crd(thread_id, thread_layout)
+    # 4. Load and store through the selected views; their bases are already set.
+    destination_tile[local_coordinate] = source_tile[local_coordinate]
 
 
 @flyc.jit

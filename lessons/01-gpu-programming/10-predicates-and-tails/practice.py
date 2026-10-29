@@ -11,24 +11,30 @@ from flydsl._mlir.dialects import scf
 def exercise_kernel(
     left: fx.Tensor, right: fx.Tensor, out: fx.Tensor, count: fx.Constexpr
 ):
-    thread_id = fx.thread_idx.x
-    block_id = fx.block_idx.x
     padded_count = ((count + 7) // 8) * 8
-    # A coordinate tensor has an integer iterator, not a pointer to allocation.
-    coordinates = fx.make_view(fx.make_int_tuple(0), fx.make_layout(padded_count, 1))
+    # 1. Reuse left/right/out as memory views. Build a separate index-only view.
+    coordinate_layout = fx.make_layout(padded_count, 1)
+    index_origin = fx.make_int_tuple(0)
+    coordinates = fx.make_view(index_origin, coordinate_layout)
+    # 2. Expose coordinate windows and select this block's window.
+    block_id = fx.block_idx.x
     coordinate_tiles = fx.logical_divide(coordinates, fx.make_layout(8, 1))
     block_coordinates = fx.slice(coordinate_tiles, (None, block_id))
+    # 3. Assign two local positions to each thread.
+    thread_id = fx.thread_idx.x
     ownership = fx.make_layout((4, 2), (2, 1))
     for value_id in range(2):
         local_index = fx.crd2idx(fx.make_coord(thread_id, value_id), ownership)
         global_index = fx.get_scalar(block_coordinates[local_index])
-        # TODO: Predicate the reads as well as the write.
-        valid = None  # TODO: bound the logical index
+        # 4. Check bounds before touching either input or the output.
+        # TODO 1: Fill in valid; see README.md.
+        valid = None
         if valid is None:
             raise NotImplementedError("Fill in valid.")
         # Python if cannot branch on a runtime GPU value in this tracing API.
         branch = scf.IfOp(valid.ir_value(), [], has_else=False)
         with ir.InsertionPoint(branch.then_block):
+            # 5. Load, compute, and store only this valid position.
             result = left[global_index] + right[global_index]
             out[global_index] = result
             scf.yield_([])

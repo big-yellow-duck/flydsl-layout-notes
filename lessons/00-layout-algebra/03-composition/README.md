@@ -80,13 +80,15 @@ Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise
 
 ### Native APIs and output
 
-The supplied `thread_layout = fx.make_ordered_layout(fx.get_shape(b), (0,1))` has shape `(4,2)` and strides `(1,4)`. `coordinate = fx.idx2crd(q, thread_layout)` assigns each thread a coordinate in B's domain. Follow the chain: thread ID → B coordinate → B's output (A's scalar logical coordinate) → data offset. The thread layout describes ownership; B describes which logical positions in A those owners visit.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+
+The supplied `thread_layout = fx.make_ordered_layout(fx.get_shape(b), (0,1))` has shape `(4,2)` and strides `(1,4)`. `coordinate = fx.idx2crd(thread_id, thread_layout)` assigns each thread a coordinate in B's domain. Follow the chain: thread ID → B coordinate → B's output (A's scalar logical coordinate) → data offset. The thread layout describes ownership; B describes which logical positions in A those owners visit.
 
 This exercise invokes FlyDSL's symbolic composition operation. The host checks the intermediate sequence `0,2,4,6,1,3,5,7` as well as the final sequence `0..7`. `solve()` returns the eight final offsets. The intermediate values must fit A's logical size, not its storage span.
 
 ### Complete the kernel
 
-1. Trace thread `q=1`: its coordinate is `(1,0)`, so B emits 2, which A expands to `(0,1)`, giving offset 1.
+1. Trace thread `thread_id=1`: its coordinate is `(1,0)`, so B emits 2, which A expands to `(0,1)`, giving offset 1.
 2. Fill `composed` with `fx.composition(a, b)`.
 3. Fill `intermediate` with `fx.crd2idx(coordinate, b)`.
 4. Fill `final_offset` with `fx.crd2idx(coordinate, composed)`. Keep the separate `fx.crd2idx(intermediate, a)` store as a cross-check.

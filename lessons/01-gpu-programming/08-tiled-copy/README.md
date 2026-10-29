@@ -2,7 +2,19 @@
 
 An ownership layout describes who accesses which positions. A tiled copy combines that distribution with a **copy atom**, the primitive transfer operation.
 
-## Build the plan before moving data
+## 1. Describe the tile and attach its storage
+
+Both input tensors contain exactly one tile, so no block-window selection is needed. Start with the data views:
+
+```python
+tile_layout = fx.make_layout((2, 4), (1, 2))
+source_tile = fx.make_view(fx.get_iter(source), tile_layout)
+destination_tile = fx.make_view(fx.get_iter(out), tile_layout)
+```
+
+`source` and `out` supply two existing allocations. `get_iter` gets each view's storage pointer; `make_view` attaches the tile indexing. `tile_layout` contains no data. Creating these views does not copy or allocate anything.
+
+## 2. Assign ownership and build the copy plan
 
 Our eight values are viewed as a compact `(2,4):(1,2)` tile: axis 0 contains the two adjacent values per thread, and axis 1 locates the four threads.
 
@@ -18,7 +30,7 @@ The separate layouts describe how thread and value coordinates occupy the same t
 
 `UniversalCopy32b` transfers 32 bits per atom: one float32, not 32 bytes. The overall plan assigns two float32 values to each thread, so a thread has more work than one atom invocation.
 
-## Partitioning does not perform a load
+## 3. Select each thread’s views, then copy
 
 ```python
 thread_copy = plan.get_slice(thread_id)
@@ -37,6 +49,8 @@ fx.copy(atom, source_part, destination_part)
 Thread 2's source view addresses offsets 4 and 5. Its destination view addresses offsets 4 and 5 in a different allocation. Their correspondence is established by the shared plan. Partition shapes can contain atom and repetition modes; you need not hand-construct those compiler layouts.
 
 The input values are `3*index + 7`, so thread 2 copies 19 and 22. A copy preserves values; it does not add the source and destination offsets.
+
+The sequence is **create the tile views → assign ownership → partition each thread's views → copy**. Partitioning is how this lesson narrows the work to each thread; there is no need to manufacture another block tile when the input is already exactly one tile.
 
 ## Practice
 

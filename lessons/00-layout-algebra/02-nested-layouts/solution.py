@@ -12,19 +12,19 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     data_layout = fx.make_layout(((2, 2), 3), ((1, 4), 8))
     thread_layout = fx.make_ordered_layout(fx.get_shape(data_layout), ((0, 1), 2))
-    # TASK: Count all positions, expand q with its hierarchy, and map it.
+    # Compute: Count all positions, expand thread_id with its hierarchy, and map it.
     logical_size = fx.size(data_layout)
-    coordinate = fx.idx2crd(q, thread_layout)
+    coordinate = fx.idx2crd(thread_id, thread_layout)
     memory_offset = fx.crd2idx(coordinate, data_layout)
-    out[q * 6] = fx.get_scalar(logical_size)
-    out[q * 6 + 1] = fx.get_scalar(coordinate[0][0])
-    out[q * 6 + 2] = fx.get_scalar(coordinate[0][1])
-    out[q * 6 + 3] = fx.get_scalar(coordinate[1])
-    out[q * 6 + 4] = fx.get_scalar(memory_offset)
-    out[q * 6 + 5] = fx.get_scalar(fx.crd2idx(q, data_layout))
+    out[thread_id * 6] = fx.get_scalar(logical_size)
+    out[thread_id * 6 + 1] = fx.get_scalar(coordinate[0][0])
+    out[thread_id * 6 + 2] = fx.get_scalar(coordinate[0][1])
+    out[thread_id * 6 + 3] = fx.get_scalar(coordinate[1])
+    out[thread_id * 6 + 4] = fx.get_scalar(memory_offset)
+    out[thread_id * 6 + 5] = fx.get_scalar(fx.crd2idx(thread_id, data_layout))
 
 
 @flyc.jit
@@ -42,8 +42,8 @@ def solve():
     # Host code only checks and formats results; it does not implement layouts.
     expected_offsets = [0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21]
     expected = [
-        [12, q % 2, (q // 2) % 2, q // 4, offset, offset]
-        for q, offset in enumerate(expected_offsets)
+        [12, thread_id % 2, (thread_id // 2) % 2, thread_id // 4, offset, offset]
+        for thread_id, offset in enumerate(expected_offsets)
     ]
     assert rows == expected, rows
     count, a, b, c, offset, _direct = rows[7]

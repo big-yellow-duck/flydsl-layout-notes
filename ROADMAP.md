@@ -21,7 +21,7 @@ The course now has two sections. Work through each lesson's README and practice 
 - [11-vector-addition](lessons/01-gpu-programming/11-vector-addition/README.md)
 - [12-inspect-and-tune](lessons/01-gpu-programming/12-inspect-and-tune/README.md)
 
-All thirteen worked solutions compile and run on the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. The last lesson runs a small event-timed benchmark; its results are observations, not pass/fail performance thresholds.
+All thirteen lesson solutions and four focused divide tutorials compile and run on the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. The last lesson runs a small event-timed benchmark; its results are observations, not pass/fail performance thresholds.
 
 The vector-add lesson uses per-value guarded scalar accesses for both full tiles and tails. The full-tile fragment lesson separately teaches tiled copies. A full-block vectorized path plus a guarded tail path is a useful next optimization, not a prerequisite for correctness.
 

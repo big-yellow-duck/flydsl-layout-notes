@@ -7,14 +7,21 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(source: fx.Tensor, out: fx.Tensor):
-    thread_id = fx.thread_idx.x
+    # 1. Reuse the incoming 1-D tensor views: they already have the right layout.
     block_id = fx.block_idx.x
+    tile_layout = fx.make_layout(8, 1)
+    # 2. Expose source and destination windows, then select this block's tiles.
+    source_windows = fx.logical_divide(source, tile_layout)
+    destination_windows = fx.logical_divide(out, tile_layout)
+    source_tile = fx.slice(source_windows, (None, block_id))
+    destination_tile = fx.slice(destination_windows, (None, block_id))
+
+    # 3. Assign the eight local positions to eight threads.
+    thread_id = fx.thread_idx.x
     thread_layout = fx.make_ordered_layout(8, 0)
-    local_index = fx.idx2crd(thread_id, thread_layout)
-    # TODO: Expose 8-element windows and select this block's window.
-    divided = fx.logical_divide(source, fx.make_layout(8, 1))
-    block_tile = fx.slice(divided, (None, block_id))
-    out[block_id * 8 + thread_id] = block_tile[local_index]
+    local_coordinate = fx.idx2crd(thread_id, thread_layout)
+    # 4. Load and store through the selected views; their bases are already set.
+    destination_tile[local_coordinate] = source_tile[local_coordinate]
 
 
 @flyc.jit

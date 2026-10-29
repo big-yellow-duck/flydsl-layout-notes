@@ -20,7 +20,7 @@ Pinned FlyDSL links preserve the reference snapshot. NVIDIA's `latest` pages may
 
 Migrated and validated on 2026-10-29 using the installed **FlyDSL 0.4.1** source and `pixi.lock`, with ROCm 10, PyTorch 2.13.0+rocm10.0.0, and AMD Radeon 860M Graphics (`gfx1152`). The earlier upstream reference snapshot above is background; executable API signatures were checked against the pinned installed package.
 
-- `pixi run lessons-check` compiles and executes all thirteen worked solutions. The layout lessons use thread-dependent coordinates and check their full small domains. Later lessons verify copies, fragments, exact-sized inputs with guarded tails, and both benchmark variants.
+- `pixi run lessons-check` compiles and executes all thirteen lesson solutions and four focused divide tutorials. The layout lessons use thread-dependent coordinates and check their full small domains. Later lessons verify copies, fragments, exact-sized inputs with guarded tails, and both benchmark variants.
 - `pixi run gpu-check` also checks row/column layouts, aliasing, subset and nested composition, coalescing examples, and actual loads from sliced 1-D and 2-D tensor views.
 - Lesson 05 checks every original matrix element across native logical, zipped, tiled, and flat divide at corresponding explicit coordinates, including exact coverage.
 - Host code allocates buffers and compares GPU outputs with expected tables. No CPU layout interpreter or manually constructed substitute for composition/coalescing/divide remains.

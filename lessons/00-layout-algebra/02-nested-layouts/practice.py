@@ -1,4 +1,4 @@
-# ruff: noqa: F841 -- Supplied inputs are used when the learner fills the TODOs.
+# ruff: noqa: F841 -- Inputs become used when TODOs are filled.
 """Practice: Trace nested coordinates.
 
 Run from the repository root:
@@ -13,31 +13,28 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     data_layout = fx.make_layout(((2, 2), 3), ((1, 4), 8))
     thread_layout = fx.make_ordered_layout(fx.get_shape(data_layout), ((0, 1), 2))
-    # TASK: Count all positions, expand q with its hierarchy, and map it.
-    # TODO 1: Fill in logical_size using the native API described in README.md.
+    # Compute: Count all positions, expand thread_id with its hierarchy, and map it.
+    # TODO 1: Fill in logical_size; see README.md.
     logical_size = None
-    logical_size = fx.size(data_layout)
     if logical_size is None:
-        raise NotImplementedError("Fill in logical_size in exercise_kernel().")
-    # TODO 2: Fill in coordinate using the native API described in README.md.
+        raise NotImplementedError("Fill in logical_size.")
+    # TODO 2: Fill in coordinate; see README.md.
     coordinate = None
-    coordinate = fx.idx2crd(q,thread_layout)
     if coordinate is None:
-        raise NotImplementedError("Fill in coordinate in exercise_kernel().")
-    # TODO 3: Fill in memory_offset using the native API described in README.md.
+        raise NotImplementedError("Fill in coordinate.")
+    # TODO 3: Fill in memory_offset; see README.md.
     memory_offset = None
-    memory_offset = fx.crd2idx(coordinate, data_layout)
     if memory_offset is None:
-        raise NotImplementedError("Fill in memory_offset in exercise_kernel().")
-    out[q * 6] = fx.get_scalar(logical_size)
-    out[q * 6 + 1] = fx.get_scalar(coordinate[0][0])
-    out[q * 6 + 2] = fx.get_scalar(coordinate[0][1])
-    out[q * 6 + 3] = fx.get_scalar(coordinate[1])
-    out[q * 6 + 4] = fx.get_scalar(memory_offset)
-    out[q * 6 + 5] = fx.get_scalar(fx.crd2idx(q, data_layout))
+        raise NotImplementedError("Fill in memory_offset.")
+    out[thread_id * 6] = fx.get_scalar(logical_size)
+    out[thread_id * 6 + 1] = fx.get_scalar(coordinate[0][0])
+    out[thread_id * 6 + 2] = fx.get_scalar(coordinate[0][1])
+    out[thread_id * 6 + 3] = fx.get_scalar(coordinate[1])
+    out[thread_id * 6 + 4] = fx.get_scalar(memory_offset)
+    out[thread_id * 6 + 5] = fx.get_scalar(fx.crd2idx(thread_id, data_layout))
 
 
 @flyc.jit
@@ -55,8 +52,8 @@ def solve():
     # Host code only checks and formats results; it does not implement layouts.
     expected_offsets = [0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21]
     expected = [
-        [12, q % 2, (q // 2) % 2, q // 4, offset, offset]
-        for q, offset in enumerate(expected_offsets)
+        [12, thread_id % 2, (thread_id // 2) % 2, thread_id // 4, offset, offset]
+        for thread_id, offset in enumerate(expected_offsets)
     ]
     assert rows == expected, rows
     count, a, b, c, offset, _direct = rows[7]

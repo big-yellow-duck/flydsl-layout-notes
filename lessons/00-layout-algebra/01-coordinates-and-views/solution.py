@@ -12,18 +12,18 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     data_layout = fx.make_layout((2, 4), (4, 1))
     # Ordered compact strides enumerate the first mode fastest: (1, 2).
     thread_layout = fx.make_ordered_layout(fx.get_shape(data_layout), (0, 1))
-    # TASK: Decode the thread ID through thread_layout, then apply the data layout.
-    coordinate = fx.idx2crd(q, thread_layout)
+    # Compute: Decode the thread ID through thread_layout, then apply the data layout.
+    coordinate = fx.idx2crd(thread_id, thread_layout)
     memory_offset = fx.crd2idx(coordinate, data_layout)
-    out[q * 4] = fx.get_scalar(coordinate[0])
-    out[q * 4 + 1] = fx.get_scalar(coordinate[1])
-    out[q * 4 + 2] = fx.get_scalar(memory_offset)
+    out[thread_id * 4] = fx.get_scalar(coordinate[0])
+    out[thread_id * 4 + 1] = fx.get_scalar(coordinate[1])
+    out[thread_id * 4 + 2] = fx.get_scalar(memory_offset)
     # Native scalar mapping must agree with the two explicit steps.
-    out[q * 4 + 3] = fx.get_scalar(fx.crd2idx(q, data_layout))
+    out[thread_id * 4 + 3] = fx.get_scalar(fx.crd2idx(thread_id, data_layout))
 
 
 @flyc.jit

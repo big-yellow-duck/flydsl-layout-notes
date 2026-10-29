@@ -12,20 +12,20 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     original = fx.make_layout((2, 3), (3, 6))
-    # First-mode-fastest ownership makes q the original scalar logical index.
+    # First-mode-fastest ownership makes thread_id the original scalar logical index.
     thread_layout = fx.make_ordered_layout(fx.get_shape(original), (0, 1))
-    coordinate = fx.idx2crd(q, thread_layout)
-    # TASK: Map the original tuple and the same scalar index after coalescing.
+    coordinate = fx.idx2crd(thread_id, thread_layout)
+    # Compute: Map the original tuple and the same scalar index after coalescing.
     # The coalesced layout may have a different shape; do not reuse the tuple.
     simplified = fx.coalesce(original)
     original_offset = fx.crd2idx(coordinate, original)
-    simplified_offset = fx.crd2idx(q, simplified)
-    out[q * 4] = fx.get_scalar(original_offset)
-    out[q * 4 + 1] = fx.get_scalar(simplified_offset)
-    out[q * 4 + 2] = fx.get_scalar(fx.size(simplified))
-    out[q * 4 + 3] = fx.get_scalar(fx.cosize(simplified))
+    simplified_offset = fx.crd2idx(thread_id, simplified)
+    out[thread_id * 4] = fx.get_scalar(original_offset)
+    out[thread_id * 4 + 1] = fx.get_scalar(simplified_offset)
+    out[thread_id * 4 + 2] = fx.get_scalar(fx.size(simplified))
+    out[thread_id * 4 + 3] = fx.get_scalar(fx.cosize(simplified))
 
 
 @flyc.jit

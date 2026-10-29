@@ -55,17 +55,19 @@ Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise
 
 ### Native APIs and output
 
-The supplied `thread_layout = fx.make_ordered_layout(fx.get_shape(original), (0,1))` assigns the six threads to `(2,3)` coordinates with strides `(1,2)`. `coordinate = fx.idx2crd(q, thread_layout)` decodes that ownership map. For example, thread 3 owns `(1,1)`, whose original data offset is 9.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
 
-Coalescing changes the data coordinate structure from `(2,3)` to `6`, so do not pass the old tuple to the simplified layout. Evaluate the original at `coordinate` and the simplified layout at scalar q. These refer to the same logical position because the thread layout uses first-mode-fastest order. A different thread order would require converting its coordinate to the original scalar logical index before applying the simplified layout.
+The supplied `thread_layout = fx.make_ordered_layout(fx.get_shape(original), (0,1))` assigns the six threads to `(2,3)` coordinates with strides `(1,2)`. `coordinate = fx.idx2crd(thread_id, thread_layout)` decodes that ownership map. For example, thread 3 owns `(1,1)`, whose original data offset is 9.
 
-The kernel also records `fx.size(simplified)` and `fx.cosize(simplified)`; expect 6 and 16. Coalescing preserves the mapping at each scalar coordinate, not just the set of offsets. The layout algebra is compile-time work for these static layouts; evaluation at thread-dependent q runs on the GPU.
+Coalescing changes the data coordinate structure from `(2,3)` to `6`, so do not pass the old tuple to the simplified layout. Evaluate the original at `coordinate` and the simplified layout at scalar thread_id. These refer to the same logical position because the thread layout uses first-mode-fastest order. A different thread order would require converting its coordinate to the original scalar logical index before applying the simplified layout.
+
+The kernel also records `fx.size(simplified)` and `fx.cosize(simplified)`; expect 6 and 16. Coalescing preserves the mapping at each scalar coordinate, not just the set of offsets. The layout algebra is compile-time work for these static layouts; evaluation at the runtime `thread_id` runs on the GPU.
 
 ### Complete the kernel
 
 1. Predict the result: `6 = 2*3`, so the merged layout should be `6:3`.
 2. Fill `simplified` with `fx.coalesce(original)`; let the compiler construct the result.
-3. Fill `original_offset` with `fx.crd2idx(coordinate, original)` and `simplified_offset` with `fx.crd2idx(q, simplified)`. The tuple and scalar represent the same logical position here.
+3. Fill `original_offset` with `fx.crd2idx(coordinate, original)` and `simplified_offset` with `fx.crd2idx(thread_id, simplified)`. The tuple and scalar represent the same logical position here.
 4. Keep the stores and checker. The returned pair of lists must contain the same ordered offsets `[0,3,6,9,12,15]`.
 
 ### Run and check

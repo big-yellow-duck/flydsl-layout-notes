@@ -10,10 +10,12 @@ def exercise_kernel(out: fx.Tensor):
     thread_id = fx.thread_idx.x
     # A coordinate is (thread_id, value_id); each of four threads owns two values.
     # TODO: Build adjacent and interleaved ownership layouts.
-    adjacent = None  # TODO: see README.md
+    # TODO 1: Fill in adjacent; see README.md.
+    adjacent = None
     if adjacent is None:
         raise NotImplementedError("Fill in adjacent.")
-    interleaved = None  # TODO: see README.md
+    # TODO 2: Fill in interleaved; see README.md.
+    interleaved = None
     if interleaved is None:
         raise NotImplementedError("Fill in interleaved.")
     for value_id in range(2):

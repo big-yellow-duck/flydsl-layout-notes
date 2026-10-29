@@ -7,7 +7,7 @@ Learn coordinate mappings, tile windows, block selection, and thread/value owner
 - [02-nested-layouts](02-nested-layouts/README.md)
 - [03-composition](03-composition/README.md)
 - [04-coalescing](04-coalescing/README.md)
-- [05-logical-divide](05-logical-divide/README.md)
+- [05-logical-divide](05-logical-divide/README.md) — four focused tutorials: logical, zipped, tiled, and flat
 - [06-select-block-tile](06-select-block-tile/README.md)
 - [07-thread-value-layouts](07-thread-value-layouts/README.md)
 

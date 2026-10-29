@@ -2,6 +2,8 @@
 
 A thread ID need not identify just one element. Introduce a second coordinate, `value_id`, to identify a value owned by that thread. Four threads with two values each still cover an eight-element tile.
 
+The kernel follows **describe ownership → select this thread's value coordinates → map them to tile positions → record the positions**. It has no input data to load yet. The following lesson attaches an ownership plan to real source and destination views.
+
 ## Two ownership plans
 
 ```python

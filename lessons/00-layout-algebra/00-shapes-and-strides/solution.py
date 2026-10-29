@@ -12,18 +12,18 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     data_layout = fx.make_layout((3, 4), (5, 1))
     # Each GPU thread visits one explicit coordinate, first mode fastest.
     thread_layout = fx.make_ordered_layout((3, 4), (0, 1))
-    coordinate = fx.idx2crd(q, thread_layout)
-    # TASK: Map the coordinate, count logical positions, and measure the span.
+    coordinate = fx.idx2crd(thread_id, thread_layout)
+    # Compute: Map the coordinate, count logical positions, and measure the span.
     element_offset = fx.crd2idx(coordinate, data_layout)
     logical_size = fx.size(data_layout)
     storage_span = fx.cosize(data_layout)
-    out[q * 3] = fx.get_scalar(element_offset)
-    out[q * 3 + 1] = fx.get_scalar(logical_size)
-    out[q * 3 + 2] = fx.get_scalar(storage_span)
+    out[thread_id * 3] = fx.get_scalar(element_offset)
+    out[thread_id * 3 + 1] = fx.get_scalar(logical_size)
+    out[thread_id * 3 + 2] = fx.get_scalar(storage_span)
 
 
 @flyc.jit

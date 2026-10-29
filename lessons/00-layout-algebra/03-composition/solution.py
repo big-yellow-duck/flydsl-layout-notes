@@ -12,20 +12,20 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     a = fx.make_layout((2, 4), (4, 1))
     b = fx.make_layout((4, 2), (2, 1))
     # Assign threads to B's coordinate domain, first mode fastest.
     thread_layout = fx.make_ordered_layout(fx.get_shape(b), (0, 1))
-    coordinate = fx.idx2crd(q, thread_layout)
-    # TASK: Build the compiler's composed layout; B runs first.
+    coordinate = fx.idx2crd(thread_id, thread_layout)
+    # Compute: Build the compiler's composed layout; B runs first.
     composed = fx.composition(a, b)
     intermediate = fx.crd2idx(coordinate, b)
     final_offset = fx.crd2idx(coordinate, composed)
-    out[q * 3] = fx.get_scalar(intermediate)
-    out[q * 3 + 1] = fx.get_scalar(final_offset)
+    out[thread_id * 3] = fx.get_scalar(intermediate)
+    out[thread_id * 3 + 1] = fx.get_scalar(final_offset)
     # Compare native composition with explicit two-stage native evaluation.
-    out[q * 3 + 2] = fx.get_scalar(fx.crd2idx(intermediate, a))
+    out[thread_id * 3 + 2] = fx.get_scalar(fx.crd2idx(intermediate, a))
 
 
 @flyc.jit
@@ -42,7 +42,9 @@ def solve():
     rows = out.cpu().reshape(8, 3).tolist()
     # Host code only checks and formats results; it does not implement layouts.
     intermediates = [0, 2, 4, 6, 1, 3, 5, 7]
-    assert rows == [[value, q, q] for q, value in enumerate(intermediates)], rows
+    assert rows == [
+        [value, thread_id, thread_id] for thread_id, value in enumerate(intermediates)
+    ], rows
     return [row[1] for row in rows]
 
 

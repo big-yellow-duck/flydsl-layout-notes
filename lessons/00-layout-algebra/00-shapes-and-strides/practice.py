@@ -1,4 +1,4 @@
-# ruff: noqa: F841 -- Supplied inputs are used when the learner fills the TODOs.
+# ruff: noqa: F841 -- Inputs become used when TODOs are filled.
 """Practice: Measure a padded layout.
 
 Run from the repository root:
@@ -13,30 +13,27 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(out: fx.Tensor):
-    q = fx.thread_idx.x
+    thread_id = fx.thread_idx.x
     data_layout = fx.make_layout((3, 4), (5, 1))
     # Each GPU thread visits one explicit coordinate, first mode fastest.
-    thread_layout = fx.make_ordered_layout((3,4), (0,1))
-    coordinate  = fx.idx2crd(q, thread_layout)
-    # TASK: Map the coordinate, count logical positions, and measure the span.
-    # TODO 1: Fill in element_offset using the native API described in README.md.
+    thread_layout = fx.make_ordered_layout((3, 4), (0, 1))
+    coordinate = fx.idx2crd(thread_id, thread_layout)
+    # Compute: Map the coordinate, count logical positions, and measure the span.
+    # TODO 1: Fill in element_offset; see README.md.
     element_offset = None
-    element_offset = fx.crd2idx(coordinate, data_layout)
     if element_offset is None:
-        raise NotImplementedError("Fill in element_offset in exercise_kernel().")
-    # TODO 2: Fill in logical_size using the native API described in README.md.
+        raise NotImplementedError("Fill in element_offset.")
+    # TODO 2: Fill in logical_size; see README.md.
     logical_size = None
-    logical_size = fx.size(data_layout)
     if logical_size is None:
-        raise NotImplementedError("Fill in logical_size in exercise_kernel().")
-    # TODO 3: Fill in storage_span using the native API described in README.md.
+        raise NotImplementedError("Fill in logical_size.")
+    # TODO 3: Fill in storage_span; see README.md.
     storage_span = None
-    storage_span = fx.cosize(data_layout)
     if storage_span is None:
-        raise NotImplementedError("Fill in storage_span in exercise_kernel().")
-    out[q * 3] = fx.get_scalar(element_offset)
-    out[q * 3 + 1] = fx.get_scalar(logical_size)
-    out[q * 3 + 2] = fx.get_scalar(storage_span)
+        raise NotImplementedError("Fill in storage_span.")
+    out[thread_id * 3] = fx.get_scalar(element_offset)
+    out[thread_id * 3 + 1] = fx.get_scalar(logical_size)
+    out[thread_id * 3 + 2] = fx.get_scalar(storage_span)
 
 
 @flyc.jit

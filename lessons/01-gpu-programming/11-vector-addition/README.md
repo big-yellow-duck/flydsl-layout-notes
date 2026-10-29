@@ -2,7 +2,17 @@
 
 Assemble block selection, thread/value ownership, coordinate views, and predicates into a complete operation: `out[index] = left[index] + right[index]` for every valid index.
 
-## The full path
+## Follow the kernel in order
+
+1. Reuse `left`, `right`, and `out` as memory views: their incoming contiguous 1-D layouts already fit the computation.
+2. Create a separate coordinate-only view, divide it, and select this block's coordinate window.
+3. Apply the `(thread_id, value_id)` ownership layout to find local positions and their global indices.
+4. Check whether each global index is valid.
+5. Inside that bounds branch, load the two input values, add them, and store the result.
+
+The coordinate view is only for deriving indices. Its padded shape does **not** enlarge either input allocation. Real reads and writes use the original memory views after the predicate succeeds. This avoids creating padded data views that could look safe to read unconditionally.
+
+## The launch and input contract
 
 | Layer | Responsibility |
 | --- | --- |

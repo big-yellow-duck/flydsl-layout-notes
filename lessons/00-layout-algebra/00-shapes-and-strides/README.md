@@ -59,12 +59,14 @@ Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise
 
 ### Native APIs and output
 
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+
 The kernel separates thread ownership from data storage:
 
 ```python
-q = fx.thread_idx.x
+thread_id = fx.thread_idx.x
 thread_layout = fx.make_ordered_layout((3, 4), (0, 1))
-coordinate = fx.idx2crd(q, thread_layout)
+coordinate = fx.idx2crd(thread_id, thread_layout)
 data_layout = fx.make_layout((3, 4), (5, 1))
 element_offset = fx.crd2idx(coordinate, data_layout)
 ```

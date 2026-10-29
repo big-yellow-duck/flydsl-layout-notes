@@ -7,21 +7,25 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(source: fx.Tensor, out: fx.Tensor):
-    thread_id = fx.thread_idx.x
+    # 1. Each input is one complete tile: attach the tile's indexing to its storage.
+    tile_layout = fx.make_layout((2, 4), (1, 2))
+    source_tile = fx.make_view(fx.get_iter(source), tile_layout)
+    destination_tile = fx.make_view(fx.get_iter(out), tile_layout)
+
+    # 2. Assign two adjacent values to each of four threads.
     thread_layout = fx.make_layout((1, 4), (4, 1))
     value_layout = fx.make_layout((2, 1), (1, 2))
     tile_shape, thread_value_layout = fx.make_layout_tv(thread_layout, value_layout)
     atom = fx.make_copy_atom(fx.UniversalCopy32b(), fx.Float32)
-    # TODO: Build the shared plan and select this thread's part of it.
     plan = fx.make_tiled_copy(atom, thread_value_layout, tile_shape)
+
+    # 3. Select this thread's source and destination views.
+    thread_id = fx.thread_idx.x
     thread_copy = plan.get_slice(thread_id)
-    # The tile is (value position, thread position), with contiguous value pairs.
-    tile_layout = fx.make_layout((2, 4), (1, 2))
-    source_tile = fx.make_view(fx.get_iter(source), tile_layout)
-    destination_tile = fx.make_view(fx.get_iter(out), tile_layout)
     source_part = thread_copy.partition_S(source_tile)
     destination_part = thread_copy.partition_D(destination_tile)
-    # Partitioning describes views; this operation actually moves values.
+
+    # 4. Move the values. None of the setup above reads or writes them.
     fx.copy(atom, source_part, destination_part)
 
 

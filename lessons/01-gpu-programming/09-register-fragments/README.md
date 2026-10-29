@@ -2,7 +2,33 @@
 
 A global tensor view addresses existing GPU memory. A register fragment allocates per-thread temporary storage. Both have layouts, but they play different roles in the computation.
 
-## Follow one thread's values
+## 1. Create the three tile views
+
+There is one full tile in each input. The destination holds one full tile too:
+
+```python
+tile_layout = fx.make_layout((2, 4), (1, 2))
+left_tile = fx.make_view(fx.get_iter(left), tile_layout)
+right_tile = fx.make_view(fx.get_iter(right), tile_layout)
+destination_tile = fx.make_view(fx.get_iter(out), tile_layout)
+```
+
+Each view combines an existing storage pointer with the same indexing rule. These are three separate allocations with corresponding logical positions. No values have been read yet.
+
+## 2. Assign ownership and partition the views
+
+Reuse lesson 08's copy plan, then specialize it to this thread:
+
+```python
+thread_copy = plan.get_slice(thread_id)
+left_part = thread_copy.partition_S(left_tile)
+right_part = thread_copy.partition_S(right_tile)
+destination_part = thread_copy.partition_D(destination_tile)
+```
+
+`left_part` and `right_part` describe the input positions this thread owns. `destination_part` describes where to write its results. Naming each view separately keeps pointer setup distinct from thread partitioning.
+
+## 3. Follow one thread through load, compute, and store
 
 Reuse lesson 08's tiled copy. Thread 2 owns positions 4 and 5. Inputs are `left[index] = index` and `right[index] = 2*index + 10`.
 
@@ -28,6 +54,8 @@ fx.copy(atom, left_registers, destination_part)
 `make_fragment_like` creates suitable fragment storage for the partition. It does not load its values. We reuse the left fragment for the result after its input value has been consumed. Each thread owns its fragment; no inter-thread communication or barrier is needed for this elementwise operation.
 
 Register fragments express storage intent. A compiler may optimize values or spill under register pressure; an allocation in source alone is not proof of physical register usage. Lesson 12 introduces inspecting generated output.
+
+The full sequence is **create views → assign ownership → partition → allocate fragments → load → compute → store**. Only the copies and register arithmetic manipulate values; constructing the global views and partitions does not load them.
 
 ## Practice
 

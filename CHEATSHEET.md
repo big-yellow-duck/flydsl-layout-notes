@@ -51,6 +51,6 @@ Inside a FlyDSL kernel, construct with `fx.make_layout(shape, stride)` and map w
 
 To assign threads in first-mode-fastest order for a flat 2-D shape, use `fx.idx2crd(q, fx.make_ordered_layout(shape, (0,1)))`. `idx2crd` uses the supplied layout's strides; it is not a shape-only expansion when passed the data layout. Nested shapes need a matching nested order, as in lesson 02.
 
-Run `pixi run lessons-check` for the thirteen native worked solutions or `pixi run gpu-check` for additional mapping and sliced-view checks.
+Run `pixi run lessons-check` for the lesson solutions and focused divide tutorials or `pixi run gpu-check` for additional mapping and sliced-view checks.
 
 A thread layout maps coordinates to thread IDs; invert it with `fx.idx2crd(thread_id, thread_layout)`, then map that coordinate through the data layout. The launch can remain one-dimensional. With `make_ordered_layout`, order entries are speed ranks per axis (0 fastest), not explicit strides or an axis permutation list. Lesson 05 uses `(1,0,3,2)` for axes `(local_row,local_column,tile_row,tile_column)`.

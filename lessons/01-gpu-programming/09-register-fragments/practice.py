@@ -7,29 +7,35 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(left: fx.Tensor, right: fx.Tensor, out: fx.Tensor):
-    thread_id = fx.thread_idx.x
+    # 1. Each input is one complete tile: attach the tile's indexing to its storage.
+    tile_layout = fx.make_layout((2, 4), (1, 2))
+    left_tile = fx.make_view(fx.get_iter(left), tile_layout)
+    right_tile = fx.make_view(fx.get_iter(right), tile_layout)
+    destination_tile = fx.make_view(fx.get_iter(out), tile_layout)
+
+    # 2. Assign two adjacent values to each of four threads.
     thread_layout = fx.make_layout((1, 4), (4, 1))
     value_layout = fx.make_layout((2, 1), (1, 2))
     tile_shape, thread_value_layout = fx.make_layout_tv(thread_layout, value_layout)
     atom = fx.make_copy_atom(fx.UniversalCopy32b(), fx.Float32)
-    # TODO: Build the shared plan and select this thread's part of it.
     plan = fx.make_tiled_copy(atom, thread_value_layout, tile_shape)
+
+    # 3. Select this thread's source and destination views.
+    thread_id = fx.thread_idx.x
     thread_copy = plan.get_slice(thread_id)
-    # The tile is (value position, thread position), with contiguous value pairs.
-    tile_layout = fx.make_layout((2, 4), (1, 2))
-    left_part = thread_copy.partition_S(fx.make_view(fx.get_iter(left), tile_layout))
-    right_part = thread_copy.partition_S(fx.make_view(fx.get_iter(right), tile_layout))
-    destination_part = thread_copy.partition_D(
-        fx.make_view(fx.get_iter(out), tile_layout)
-    )
-    # Allocation creates per-thread storage; it does not load global memory.
+    left_part = thread_copy.partition_S(left_tile)
+    right_part = thread_copy.partition_S(right_tile)
+    destination_part = thread_copy.partition_D(destination_tile)
+
+    # 4. Allocate per-thread storage, then load both inputs into it.
     left_registers = fx.make_fragment_like(left_part)
     right_registers = fx.make_fragment_like(right_part)
     fx.copy(atom, left_part, left_registers)
     fx.copy(atom, right_part, right_registers)
+    # 5. Compute on the loaded values, then store the result.
     for value_id in range(2):
-        # TODO: Compute in registers after both loads.
-        result = None  # TODO: see README.md
+        # TODO 1: Fill in result; see README.md.
+        result = None
         if result is None:
             raise NotImplementedError("Fill in result.")
         left_registers[value_id] = result

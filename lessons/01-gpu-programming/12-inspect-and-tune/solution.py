@@ -10,25 +10,32 @@ import torch
 
 @flyc.kernel
 def exercise_kernel(source: fx.Tensor, out: fx.Tensor, width: fx.Constexpr):
+    # 1. Reuse the incoming contiguous 1-D views.
+    window_layout = fx.make_layout(256, 1)
+    source_windows = fx.logical_divide(source, window_layout)
+    destination_windows = fx.logical_divide(out, window_layout)
+    # 2. Select this block's 256-element windows.
     block_id = fx.block_idx.x
-    thread_id = fx.thread_idx.x
-    source_tile = fx.slice(
-        fx.logical_divide(source, fx.make_layout(256, 1)), (None, block_id)
-    )
-    destination_tile = fx.slice(
-        fx.logical_divide(out, fx.make_layout(256, 1)), (None, block_id)
-    )
+    source_window = fx.slice(source_windows, (None, block_id))
+    destination_window = fx.slice(destination_windows, (None, block_id))
+    # Describe each selected window as four values by 64 thread positions.
+    tile_layout = fx.make_layout((4, 64), (1, 4))
+    source_tile = fx.make_view(fx.get_iter(source_window), tile_layout)
+    destination_tile = fx.make_view(fx.get_iter(destination_window), tile_layout)
+
+    # 3. Build a copy plan: same ownership, different atom width.
     thread_layout = fx.make_layout((1, 64), (64, 1))
     value_layout = fx.make_layout((4, 1), (1, 4))
     tile_shape, ownership = fx.make_layout_tv(thread_layout, value_layout)
-    # TODO: width is in bits; each float32 is 32 bits.
     atom = fx.make_copy_atom(fx.UniversalCopy(width), fx.Float32)
     plan = fx.make_tiled_copy(atom, ownership, tile_shape)
+    thread_id = fx.thread_idx.x
     thread_copy = plan.get_slice(thread_id)
-    layout = fx.make_layout((4, 64), (1, 4))
-    src = thread_copy.partition_S(fx.make_view(fx.get_iter(source_tile), layout))
-    dst = thread_copy.partition_D(fx.make_view(fx.get_iter(destination_tile), layout))
-    fx.copy(atom, src, dst)
+    source_part = thread_copy.partition_S(source_tile)
+    destination_part = thread_copy.partition_D(destination_tile)
+
+    # 4. Copy this thread's values.
+    fx.copy(atom, source_part, destination_part)
 
 
 @flyc.jit

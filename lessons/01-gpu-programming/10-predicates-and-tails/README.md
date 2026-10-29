@@ -2,15 +2,27 @@
 
 For 19 elements and 8-element tiles, launch three blocks. The third tile has only three valid positions. The layout still describes a full tile; it does not check allocation bounds.
 
+## Follow the kernel in order
+
+1. Reuse `left`, `right`, and `out` as memory views: their incoming contiguous 1-D layouts already fit the computation.
+2. Create a separate coordinate-only view, divide it, and select this block's coordinate window.
+3. Apply the `(thread_id, value_id)` ownership layout to find local positions and their global indices.
+4. Check whether each global index is valid.
+5. Inside that bounds branch, load the two input values, add them, and store the result.
+
+The coordinate view is only for deriving indices. Its padded shape does **not** enlarge either input allocation. Real reads and writes use the original memory views after the predicate succeeds. This avoids creating padded data views that could look safe to read unconditionally.
+
 ## Coordinates can be a tensor without an allocation
 
 ```python
-coordinates = fx.make_view(fx.make_int_tuple(0), fx.make_layout(24, 1))
+coordinate_layout = fx.make_layout(24, 1)
+index_origin = fx.make_int_tuple(0)
+coordinates = fx.make_view(index_origin, coordinate_layout)
 coordinate_tiles = fx.logical_divide(coordinates, fx.make_layout(8, 1))
 block_coordinates = fx.slice(coordinate_tiles, (None, block_id))
 ```
 
-The integer iterator starts at zero. Indexing this coordinate view produces an index, rather than loading a float from memory. Its padded domain covers the launch: 24 positions. This makes it possible to ask which positions are valid without accessing either input allocation.
+`coordinate_layout` describes indexing. `index_origin` is an integer iterator, not a memory pointer: it starts at zero. Indexing this coordinate view produces an index, rather than loading a float from memory. Its padded domain covers the launch: 24 positions. This makes it possible to ask which positions are valid without accessing either input allocation.
 
 Use ownership `(4,2):(2,1)` to get each thread's local positions, then index `block_coordinates` to obtain their global indices.
 

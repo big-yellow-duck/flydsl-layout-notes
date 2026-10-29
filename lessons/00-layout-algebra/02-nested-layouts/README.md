@@ -50,13 +50,15 @@ Size 12, rank 2, offset 12.
 
 ## Practice
 
-Trace every scalar coordinate of `((2,2),3):((1,4),8)` on 12 GPU threads. The returned checkpoint for `q=7` is `(12, ((1,1),1), 13)`.
+Trace every scalar coordinate of `((2,2),3):((1,4),8)` on 12 GPU threads. The returned checkpoint for `thread_id=7` is `(12, ((1,1),1), 13)`.
 
 Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
 
 ### Native APIs and output
 
-`thread_layout` maps logical coordinates to owning thread IDs; `data_layout` maps the same coordinates to storage offsets. `fx.idx2crd(q, thread_layout)` decodes the thread ID. Each thread owns one position.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+
+`thread_layout` maps logical coordinates to owning thread IDs; `data_layout` maps the same coordinates to storage offsets. `fx.idx2crd(thread_id, thread_layout)` decodes the thread ID. Each thread owns one position.
 
 `fx.make_ordered_layout(fx.get_shape(data_layout), ((0,1),2))` constructs the compact nested thread layout `((2,2),3):((1,2),4)`. The order ranks leaf strides from fastest to slowest. Inverting that compact mapping expands a logical scalar while preserving the shape tree. Inverting the gapped data layout is a different operation.
 
@@ -64,9 +66,9 @@ Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise
 
 ### Complete the kernel
 
-1. Predict the hierarchy at `q=7`: split by 4, then split the remainder by 2.
+1. Predict the hierarchy at `thread_id=7`: split by 4, then split the remainder by 2.
 2. Fill `logical_size` with `fx.size(data_layout)`.
-3. Fill `coordinate` with `fx.idx2crd(q, thread_layout)`.
+3. Fill `coordinate` with `fx.idx2crd(thread_id, thread_layout)`.
 4. Fill `memory_offset` with `fx.crd2idx(coordinate, data_layout)`. Keep the stores and full-domain checker.
 
 ### Run and check
@@ -84,7 +86,7 @@ An unfinished starter exits with `Practice not finished: ...` during tracing. Fi
 
 ### Troubleshooting and another case
 
-An answer of 2 for size confuses rank with logical size. Check `q=4`: `((0,0),1)` maps to 8. In a scratch kernel compare scalar offsets with the flat layout `(2,2,3):(1,4,8)`.
+An answer of 2 for size confuses rank with logical size. Check `thread_id=4`: `((0,0),1)` maps to 8. In a scratch kernel compare scalar offsets with the flat layout `(2,2,3):(1,4,8)`.
 
 Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
 
