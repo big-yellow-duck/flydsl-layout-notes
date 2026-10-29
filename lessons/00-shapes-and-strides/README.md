@@ -11,7 +11,7 @@ L(row,col) = row*4 + col*1
 
 The first axis has 3 positions, the second has 4. `(2,1)` maps to `2*4 + 1 = 9`.
 
-![Row-major and column-major offset grids](../assets/shapes-strides.svg)
+![Row-major and column-major offset grids](../../assets/shapes-strides.svg)
 
 ## Same shape, different indexing blueprint
 
@@ -51,4 +51,8 @@ Offset 13, size 12, cosize 14. The row pitch introduces holes at offsets 4 and 9
 
 </details>
 
-[Next: coordinates and views →](01-coordinates-and-views.md)
+[Next: coordinates and views →](../01-coordinates-and-views/README.md)
+
+## Practice
+
+Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.

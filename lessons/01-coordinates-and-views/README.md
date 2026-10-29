@@ -48,4 +48,8 @@ Expand 5 as `(5 % 3, 5 // 3) = (2,1)`. Offset is `2*2 + 1 = 5`. The matching inp
 
 </details>
 
-[← Shapes and strides](00-shapes-and-strides.md) · [Next: nested layouts →](02-nested-layouts.md)
+[← Shapes and strides](../00-shapes-and-strides/README.md) · [Next: nested layouts →](../02-nested-layouts/README.md)
+
+## Practice
+
+Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.

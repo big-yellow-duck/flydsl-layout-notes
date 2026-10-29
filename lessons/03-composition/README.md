@@ -13,7 +13,7 @@ B runs first. Its output is a **scalar logical coordinate for A**, not a physica
 
 Use `A = (2,4):(4,1)` and `B = (4,2):(2,1)`. These retain the `(2,4)` versus `(4,2)` shape contrast from our discussion.
 
-![Composition through a scalar logical coordinate](../assets/composition.svg)
+![Composition through a scalar logical coordinate](../../assets/composition.svg)
 
 Let B's coordinate be `(u,v)`:
 
@@ -72,4 +72,8 @@ B emits 6; A expands it to `(0,3)` and returns offset 3. Composition connects th
 
 </details>
 
-[← Nested layouts](02-nested-layouts.md) · [Next: coalescing →](04-coalescing.md)
+[← Nested layouts](../02-nested-layouts/README.md) · [Next: coalescing →](../04-coalescing/README.md)
+
+## Practice
+
+Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.

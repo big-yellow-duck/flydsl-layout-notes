@@ -35,7 +35,7 @@ Think **tile pattern + repetition pattern**, then pass the combined logical indi
 
 Take row-major `A = (4,8):(8,1)` and tile shape `(2,4)`. There are `(2,2)` tiles.
 
-![Matrix tiles, selected window, and nested coordinate](../assets/logical-divide.svg)
+![Matrix tiles, selected window, and nested coordinate](../../assets/logical-divide.svg)
 
 For local coordinates `(m,n)` and tile coordinates `(p,q)`:
 
@@ -84,4 +84,8 @@ Original `(1,7)`, offset 15. Logical coordinate `((1,0),(3,1))`; flat coordinate
 
 </details>
 
-[← Coalescing](04-coalescing.md) · [Continue with the roadmap →](../ROADMAP.md)
+[← Coalescing](../04-coalescing/README.md) · [Continue with the roadmap →](../../ROADMAP.md)
+
+## Practice
+
+Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.

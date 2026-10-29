@@ -10,7 +10,7 @@ L((a,b),c) = a + 4*b + 8*c
 
 There are two top-level modes: `(2,2)` and `3`. Total size is `2*2*3 = 12`. There are three leaf axes, but the top-level rank is 2.
 
-![Nested layout hierarchy and offsets](../assets/nested-layout.svg)
+![Nested layout hierarchy and offsets](../../assets/nested-layout.svg)
 
 ## Worked example
 
@@ -48,4 +48,8 @@ Size 12, rank 2, offset 12.
 
 </details>
 
-[← Coordinates and views](01-coordinates-and-views.md) · [Next: composition →](03-composition.md)
+[← Coordinates and views](../01-coordinates-and-views/README.md) · [Next: composition →](../03-composition/README.md)
+
+## Practice
+
+Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.

@@ -11,7 +11,7 @@ size(coalesced) = size(original)
 
 The coordinate tree may change. An old nested tuple coordinate is not necessarily valid for the result.
 
-![Compatible and incompatible modes for coalescing](../assets/coalescing.svg)
+![Compatible and incompatible modes for coalescing](../../assets/coalescing.svg)
 
 ## When can two adjacent leaf modes merge?
 
@@ -47,4 +47,8 @@ Yes: `6:3`, because `6 = 2*3`. Offsets remain `0,3,6,9,12,15`.
 
 </details>
 
-[← Composition](03-composition.md) · [Next: logical divide →](05-logical-divide.md)
+[← Composition](../03-composition/README.md) · [Next: logical divide →](../05-logical-divide/README.md)
+
+## Practice
+
+Run `python3 practice.py`, complete `solve()`, and compare with `solution.py` after the checks pass. Both use the repository’s CPU layout model; the FlyDSL examples above require a tracing context.
