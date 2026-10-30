@@ -25,6 +25,8 @@ Migrated and validated on 2026-10-29 using the installed **FlyDSL 0.4.1** source
 - Lesson 05 checks every original matrix element across native logical, zipped, tiled, and flat divide at corresponding explicit coordinates, including exact coverage.
 - Host code allocates buffers and compares GPU outputs with expected tables. No CPU layout interpreter or manually constructed substitute for composition/coalescing/divide remains.
 
+The visual lesson expansion was rechecked on 2026-10-30 with `pixi run gpu-check`: all 17 solutions and the additional mapping/view checks passed with FlyDSL 0.4.1 on AMD Radeon 860M Graphics (`gfx1152`). Diagram sources are kept in `tools/`, with SVGs embedded in lessons and PNG previews alongside them.
+
 Static algebra may be evaluated during compilation. These checks establish the tested mappings and view accesses, not a general performance guarantee. The vector-add lesson covers counts 1, 7, 8, 9, 19, 32, 257, and 4099. Lesson 12 provides event timings and generated-code inspection; bandwidth is workload-specific.
 
 ## Deliberate limits

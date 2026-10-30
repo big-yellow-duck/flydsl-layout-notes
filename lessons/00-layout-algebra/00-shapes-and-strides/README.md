@@ -1,8 +1,8 @@
 # 00 · Shapes and strides
 
-**Mental model:** shape tells you the valid coordinates; stride tells you the offset change for one step along each coordinate axis.
+A layout starts with two choices: **shape** gives the valid coordinates, and **stride** gives the offset change for one step along each axis. Begin with a small matrix, then change its strides to see how the same coordinates reach different positions.
 
-We write a layout as `Shape:Stride`. For ordinary integer strides:
+A layout is written as `Shape:Stride`. For ordinary integer strides:
 
 ```text
 L = (3,4):(4,1)
@@ -11,7 +11,9 @@ L(row,col) = row*4 + col*1
 
 The first axis has 3 positions, the second has 4. `(2,1)` maps to `2*4 + 1 = 9`.
 
-![Row-major and column-major offset grids](../../../assets/shapes-strides.svg)
+![Row-major and column-major offset grids](../../../assets/00-layout-algebra/00-shapes-and-strides/shapes-strides.svg)
+
+Follow one step down or right in each grid. The coordinate axes stay the same; the change in the printed offset reveals the stride.
 
 ## Same shape, different indexing blueprint
 
@@ -20,7 +22,7 @@ The first axis has 3 positions, the second has 4. `(2,1)` maps to `2*4 + 1 = 9`.
 | `(3,4):(4,1)` | +4 | +1 | 9 |
 | `(3,4):(1,3)` | +1 | +3 | 5 |
 
-We draw the first coordinate vertically and the second horizontally. The stride chooses the memory order; the shape alone does not.
+In these diagrams, the first coordinate runs vertically and the second horizontally. The stride chooses the memory order; the shape alone does not.
 
 ```python
 # Inside a FlyDSL tracing context
@@ -41,7 +43,7 @@ offset = fx.crd2idx(fx.make_coord(2, 1), row_major)  # 9
 
 Gaps are possible; repeated offsets are possible too. A zero stride means stepping along that axis leaves the offset unchanged.
 
-**Trap:** strides here count elements, not bytes. For a float32 tensor, element offset 9 corresponds to byte displacement 36 from its base pointer. A layout by itself has no dtype or allocation.
+**Common mistake:** strides here count elements, not bytes. For a float32 tensor, element offset 9 corresponds to byte displacement 36 from its base pointer. A layout by itself has no dtype or allocation.
 
 **Check yourself:** for `(3,4):(5,1)`, what are `L(2,3)`, size, and cosize?
 
@@ -53,13 +55,13 @@ Offset 13, size 12, cosize 14. The row pitch introduces holes at offsets 4 and 9
 
 ## Practice
 
-Measure every coordinate of `(3,4):(5,1)` with 12 GPU threads. The checkpoint remains `(offset_at_2_3, logical_size, storage_span) = (13,12,14)`.
+Measure every coordinate of `(3,4):(5,1)` with 12 GPU threads. The expected checkpoint is `(offset_at_2_3, logical_size, storage_span) = (13,12,14)`.
 
-Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 
-Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. The `out` tensor records the calculated offsets for the host checker. This exercise evaluates an indexing rule; input data views and loads are introduced in later lessons.
 
 The kernel separates thread ownership from data storage:
 
@@ -101,6 +103,6 @@ An unfinished starter exits with `Practice not finished: ...` during tracing. Fi
 
 If span equals size, revisit the padding holes; span includes the highest offset plus one. Try strides `(4,1)` in a scratch copy and predict which columns change.
 
-Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
+For the variation, make a scratch copy and update its launch size and expected results together. Compute the mapping with FlyDSL operations and use the expected values only in the host checker. Static layout construction may fold during compilation; evaluation uses `fx.thread_idx.x` to check every position in this example.
 
 [Next: coordinates and views →](../01-coordinates-and-views/README.md)

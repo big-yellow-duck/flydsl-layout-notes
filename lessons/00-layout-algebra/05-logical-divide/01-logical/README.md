@@ -1,12 +1,16 @@
 # 1. `logical_divide`
 
-**Goal:** take a 4-row × 8-column matrix, expose 2-row × 4-column windows, and read tile `(1,1)`.
+Start with a 4-row × 8-column matrix and divide it into 2-row × 4-column windows. In this tutorial, follow the coordinates that select tile `(1,1)`, then load its eight values using a local thread layout.
 
 Keep each original axis together. The row axis becomes `(local_row, tile_row)`; the column axis becomes `(local_col, tile_col)`.
 
+![logical_divide coordinate grouping and selection of tile (1,1). Gold cells mark original offsets 20 through 23 and 28 through 31. Thread 6 selects local coordinate (1,2), reads offset 30, and loads value 130.](../../../../assets/00-layout-algebra/05-logical-divide/01-logical/divide-logical-selection.svg)
+
+Read the gold window first, then the coordinate grouping on the right. In the diagram, `(r,c)` means local position and `(R,C)` means tile position. Fixing `R=C=1` keeps the eight gold positions; it does not move them into a packed allocation.
+
 ## Follow these four steps
 
-`source` is the GPU tensor passed into the kernel. The host creates it as 32 values in a one-dimensional view. We want to interpret those same values as a matrix.
+`source` is the GPU tensor passed into the kernel. The host creates it as 32 values in a one-dimensional view. The first step gives that existing storage a matrix view.
 
 ```python
 # 1. Describe the matrix indexing.
@@ -90,7 +94,7 @@ You only need a four-coordinate thread layout when assigning threads across **al
 
 ## Practice
 
-Open [practice.py](practice.py). The matrix setup, local thread layout, launch, and checker are supplied. Fill the two expressions if unfinished:
+Open [practice.py](practice.py) and implement the two expressions below. The matrix setup, local thread layout, launch, and checker are supplied, so the exercise focuses on exposing windows and selecting a tile:
 
 1. `windows = fx.logical_divide(matrix, (2,4))`
 2. `tile = fx.slice(windows, ((None, 1), (None, 1)))`

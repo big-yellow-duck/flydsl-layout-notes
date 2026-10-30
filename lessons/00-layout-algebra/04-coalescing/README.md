@@ -1,6 +1,6 @@
 # 04 · Coalescing: simplify the blueprint
 
-**Mental model from our discussion:** like flattening an indexing blueprint while preserving the offset sequence. No tensor values move. Unlike NumPy's `flatten()`, this operation does not copy array data.
+Coalescing simplifies a layout while preserving the offset returned for each scalar logical coordinate. Start by writing that offset sequence, then check whether adjacent modes can be replaced by one stride. The operation changes the indexing rule and leaves stored values in place.
 
 For valid **scalar logical coordinates** q, coalescing preserves:
 
@@ -11,7 +11,9 @@ size(coalesced) = size(original)
 
 The coordinate tree may change. An old nested tuple coordinate is not necessarily valid for the result.
 
-![Compatible and incompatible modes for coalescing](../../../assets/coalescing.svg)
+![Compatible and incompatible modes for coalescing](../../../assets/00-layout-algebra/04-coalescing/coalescing.svg)
+
+Read each row from left to right in scalar-coordinate order. A single stride can reproduce the top sequence; the bottom sequence changes its step size. Coalescing must preserve that order, not just cover the same cells.
 
 ## When can two adjacent leaf modes merge?
 
@@ -37,7 +39,7 @@ For the nested layout `((2,2),3):((1,4),8)`, the first two leaves cannot merge. 
 simple = fx.coalesce(fx.make_layout((2, 4), (1, 2)))  # 8:1
 ```
 
-**Trap:** flattening a tuple hierarchy and merging all modes are different steps. Coalescing may stop with several modes.
+**Common mistake:** flattening a tuple hierarchy and merging all modes are different steps. Coalescing may stop with several modes.
 
 **Check yourself:** can `(2,3):(3,6)` coalesce? What is the result?
 
@@ -51,11 +53,11 @@ Yes: `6:3`, because `6 = 2*3`. Offsets remain `0,3,6,9,12,15`.
 
 Ask FlyDSL to coalesce `(2,3):(3,6)` and compare both mappings over all six scalar coordinates.
 
-Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 
-Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. The `out` tensor records the calculated offsets for the host checker. This exercise evaluates an indexing rule; input data views and loads are introduced in later lessons.
 
 The supplied `thread_layout = fx.make_ordered_layout(fx.get_shape(original), (0,1))` assigns the six threads to `(2,3)` coordinates with strides `(1,2)`. `coordinate = fx.idx2crd(thread_id, thread_layout)` decodes that ownership map. For example, thread 3 owns `(1,1)`, whose original data offset is 9.
 
@@ -87,6 +89,6 @@ An unfinished starter exits with `Practice not finished: ...` during tracing. Fi
 
 If the simplified sequence is `0..5`, the stride was lost. Try the size-1 example and the unmergeable row-major layout from the table above; the GPU regression check covers both.
 
-Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
+For the variation, make a scratch copy and update its launch size and expected results together. Compute the mapping with FlyDSL operations and use the expected values only in the host checker. Static layout construction may fold during compilation; evaluation uses `fx.thread_idx.x` to check every position in this example.
 
 [← Composition](../03-composition/README.md) · [Next: logical divide →](../05-logical-divide/README.md)

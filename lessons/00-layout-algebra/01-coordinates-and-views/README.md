@@ -1,6 +1,6 @@
 # 01 · Coordinates and views
 
-**Mental model:** a coordinate names a logical position; an offset names a position relative to a base pointer. They are different kinds of numbers.
+A **coordinate** names a logical position. An **offset** measures a position relative to a view's base. This lesson follows the conversion from a scalar coordinate to a tuple, then to an offset, and finally to a memory address.
 
 ## Why can a 2-D layout accept one integer?
 
@@ -26,7 +26,11 @@ L(q)          = (q % 2)*4 + (q // 2)
 
 So `L(3) = L(1,1) = 5`. Scalar coordinate 3 is **not** memory offset 3.
 
-This is the bridge we need for composition: the output of one layout can be a scalar coordinate for another, even when their shapes differ.
+![Scalar coordinate 3 expands to (1,1), which strides map to element offset 5. Paired grids distinguish logical enumeration from memory offsets.](../../../assets/00-layout-algebra/01-coordinates-and-views/coordinates-and-offsets.svg)
+
+Follow the gold cell in both grids: the logical position stays `(1,1)` while the numbers that name it change. A memory view then combines the resulting offset with its storage pointer.
+
+This conversion also explains composition in lesson 03: the output of one layout can be a scalar coordinate for another, even when their shapes differ.
 
 ## A tensor view adds storage
 
@@ -42,7 +46,7 @@ The incoming shape need not match the new shape. The new layout must describe th
 
 Making another layout or view does not rearrange the allocation. Later, a load/store/copy uses that view to access data. A register fragment is actual storage and will come later.
 
-**Trap:** do not assume a general layout has a unique inverse from memory offsets to coordinates. Holes may be unreachable, and zero strides may give several coordinates the same offset. Shape-based scalar enumeration is not an inverse of every stride mapping.
+**Common mistake:** do not assume a general layout has a unique inverse from memory offsets to coordinates. Holes may be unreachable, and zero strides may give several coordinates the same offset. Shape-based scalar enumeration is not an inverse of every stride mapping.
 
 **Check yourself:** what is `L(5)` for `(3,2):(2,1)`?
 
@@ -56,15 +60,15 @@ Expand 5 as `(5 % 3, 5 // 3) = (2,1)`. Offset is `2*2 + 1 = 5`. The matching inp
 
 Expand each scalar logical coordinate of `(2,4):(4,1)` and map the resulting tuple to an offset. Eight threads cover `thread_id=0..7`.
 
-Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 
-Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. The `out` tensor records the calculated offsets for the host checker. This exercise evaluates an indexing rule; input data views and loads are introduced in later lessons.
 
 `thread_layout` maps logical coordinates to owning thread IDs; `data_layout` maps the same coordinates to storage offsets. `fx.idx2crd(thread_id, thread_layout)` decodes the thread ID. Each thread owns one position.
 
-`thread_layout = fx.make_ordered_layout(fx.get_shape(data_layout), (0,1))` makes a compact first-mode-fastest thread layout with strides `(1,2)`. **`idx2crd` uses strides:** applying it to the data layout would interpret thread_id as a memory index, not as a scalar logical coordinate. Applying it to the compact thread layout performs the shape expansion we want.
+`thread_layout = fx.make_ordered_layout(fx.get_shape(data_layout), (0,1))` makes a compact first-mode-fastest thread layout with strides `(1,2)`. **`idx2crd` uses strides:** applying it to the data layout would interpret thread_id as a memory index, not as a scalar logical coordinate. Applying it to the compact thread layout performs the first-mode-fastest shape expansion.
 
 `solve()` returns eight `((row,column), offset)` pairs; the first two are `((0,0),0)` and `((1,0),4)`.
 
@@ -92,6 +96,6 @@ An unfinished starter exits with `Practice not finished: ...` during tracing. Fi
 
 The offset sequence must begin `0,4,1,5`; do not sort it. In a scratch copy, change the data strides to `(1,2)`: the expanded coordinates stay the same while the offsets change.
 
-Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
+For the variation, make a scratch copy and update its launch size and expected results together. Compute the mapping with FlyDSL operations and use the expected values only in the host checker. Static layout construction may fold during compilation; evaluation uses `fx.thread_idx.x` to check every position in this example.
 
 [← Shapes and strides](../00-shapes-and-strides/README.md) · [Next: nested layouts →](../02-nested-layouts/README.md)

@@ -1,6 +1,6 @@
 # 12 · Inspect generated code and measure copy widths
 
-Correctness comes first. Now compare a 32-bit copy atom with a 128-bit copy atom under the same ownership layout and input size. The purpose is to learn how to collect evidence, not to promise that wider is always faster.
+Copy width is a parameter that can be studied while keeping ownership and input size fixed. This lesson compares 32-bit and 128-bit copy atoms in three steps: check both results, inspect the generated memory instructions, and measure execution with GPU events. Use those observations to explain the behavior of each specialization.
 
 ## Follow the same view-to-copy flow
 
@@ -38,6 +38,10 @@ atom = fx.make_copy_atom(fx.UniversalCopy(width), fx.Float32)
 
 32 bits is one float32; 128 bits is four float32 values, or 16 bytes. The test uses aligned PyTorch allocations, contiguous per-thread groups, block offsets that are multiples of 256 elements, and a count divisible by 256. These conditions matter. This example does not attempt a wide copy on an arbitrary misaligned slice or a partial tail.
 
+![Thread 2 owns offsets 8 through 11 for both copy widths. A 32-bit atom requests one float32 per transfer; a 128-bit atom requests a group of four. Final instructions and elapsed times must be inspected separately.](../../../assets/01-gpu-programming/12-inspect-and-tune/copy-width-comparison.svg)
+
+Both rows assign the same four positions to thread 2. The diagram changes the requested transfer grouping while keeping ownership fixed; generated instructions and timings supply the evidence about the result.
+
 ## Practice
 
 Fill `atom` with the expression above. The checker compares each variant's complete output against the source before timing. Keep that correctness check when experimenting.
@@ -61,7 +65,7 @@ rg 'global_load|global_store|buffer_load|buffer_store' /tmp/flydsl-lesson12-isa 
 
 FlyDSL's dump includes intermediate IR and, when available, final GPU assembly. Use separate processes and dump directories, as above: specializations share a kernel name and can overwrite each other's dumps in one directory. Inspect the specializations separately: first find their copy operations and requested widths in the early IR, then follow lowering to the final memory instructions. A requested copy width is not proof of a particular instruction until you inspect the generated output. The compiler can combine or simplify operations.
 
-### Observed on this machine
+### Observed instructions on the reference GPU
 
 Validated on Radeon 860M (`gfx1152`), FlyDSL 0.4.1, ROCm 10. The separate final-ISA dumps showed:
 
@@ -93,6 +97,6 @@ pixi run python lessons/01-gpu-programming/12-inspect-and-tune/practice.py
 pixi run python lessons/01-gpu-programming/12-inspect-and-tune/solution.py
 ```
 
-The practice file deliberately raises `Practice not finished` until its TODO expressions are completed. Keep the host checker and supplied launch. Compare with the [worked solution](solution.py) after your attempt. These programs execute on the GPU; the host only prepares inputs and checks or times results.
+In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
 
 [← Previous lesson](../11-vector-addition/README.md)

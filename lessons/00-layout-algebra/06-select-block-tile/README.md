@@ -1,10 +1,14 @@
 # 06 · Select a block tile
 
-A divided view exposes all windows. Now use the GPU block ID to choose one window, then use the thread ID to choose a position within it.
+A divided view exposes every tile window. A GPU launch distributes those windows across blocks: the block ID selects one window, and the thread ID selects a position inside it. This lesson follows that two-stage selection through a complete copy.
 
 ## From one window to a grid of windows
 
 The input contains 32 float32 values. A tile has 8 values, so launch 4 blocks with 8 threads each. The launch is one-dimensional; the view supplies the window interpretation.
+
+![Four blocks select eight-element windows. Block 2 has base offset 16; thread 3 accesses local position 3, original offset 19, and source value 119.](../../../assets/00-layout-algebra/06-select-block-tile/block-tile-selection.svg)
+
+Read one colored row as one selected block window. The block chooses the base; the thread indexes locally within that view.
 
 ```python
 # source and out already have the needed one-dimensional layouts.
@@ -63,6 +67,6 @@ pixi run python lessons/00-layout-algebra/06-select-block-tile/practice.py
 pixi run python lessons/00-layout-algebra/06-select-block-tile/solution.py
 ```
 
-The practice file deliberately raises `Practice not finished` until its TODO expressions are completed. Keep the host checker and supplied launch. Compare with the [worked solution](solution.py) after your attempt. These programs execute on the GPU; the host only prepares inputs and checks or times results.
+In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
 
 [← Previous lesson](../05-logical-divide/README.md) · [Next lesson →](../07-thread-value-layouts/README.md)

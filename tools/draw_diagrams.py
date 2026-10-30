@@ -29,6 +29,12 @@ class Canvas:
     def text(self, x, y, value, size=20, color=INK, bold=False, center=False):
         value = str(value)
         font_path = FONT_DIR / ("DejaVuSans-Bold.ttf" if bold else "DejaVuSans.ttf")
+        if not font_path.exists():
+            candidates = [
+                Path("/usr/share/fonts/dejavu-sans-fonts") / font_path.name,
+                Path("/usr/share/fonts/google-noto") / ("NotoSans-Bold.ttf" if bold else "NotoSans-Regular.ttf"),
+            ]
+            font_path = next((path for path in candidates if path.exists()), font_path)
         font = ImageFont.truetype(str(font_path), size * 2)
         width = self.draw.textlength(value, font=font) / 2
         if center:
@@ -51,7 +57,7 @@ class Canvas:
         self.text(x+w/2, y+(h-24)/2, value, 20, bold=True, center=True)
 
     def save(self, name):
-        OUT.mkdir(exist_ok=True)
+        (OUT / name).parent.mkdir(parents=True, exist_ok=True)
         (OUT / f"{name}.svg").write_text("\n".join(self.parts + ["</svg>"]) + "\n")
         self.im.save(OUT / f"{name}.png", optimize=True)
 
@@ -65,7 +71,7 @@ def shape_stride():
             for col in range(4):
                 c.cell(start+col*80,155+row*60,row*stride[0]+col*stride[1],color,w=70,h=50)
         c.text(start,350,f"(2,1) maps to {2*stride[0]+stride[1]}",20)
-    c.save("shapes-strides")
+    c.save("00-layout-algebra/00-shapes-and-strides/shapes-strides")
 
 
 def nested():
@@ -89,7 +95,7 @@ def nested():
         c.box(x,378,280,68,[BLUE,TEAL,GOLD][i])
         c.text(x+140,388,f"c = {i}",16,center=True)
         c.text(x+140,414,values,20,bold=True,center=True)
-    c.save("nested-layout")
+    c.save("00-layout-algebra/02-nested-layouts/nested-layout")
 
 
 def composition():
@@ -108,7 +114,7 @@ def composition():
     c.text(40,305,"B chooses a logical position in A; A supplies its memory offset.",22,bold=True)
     c.text(40,350,"R(u,v) = u + 4v    →    equivalent layout (4,2):(1,4)",23)
     c.text(40,399,"Different shapes are fine. No values move during composition.",19,color=MUTED)
-    c.save("composition")
+    c.save("00-layout-algebra/03-composition/composition")
 
 
 def coalescing():
@@ -120,7 +126,7 @@ def coalescing():
     for i,v in enumerate([0,4,1,5,2,6,3,7]): c.cell(40+i*65,296,v,GOLD,w=58)
     c.text(600,302,"No single constant stride",19)
     c.text(40,399,"Same offset set does not mean the same mapping.",23,bold=True)
-    c.save("coalescing")
+    c.save("00-layout-algebra/04-coalescing/coalescing")
 
 
 def divide():
@@ -142,7 +148,7 @@ def divide():
     c.text(40,408,"Logical coordinate: ((m,p),(n,q)) = ((1,1),(2,1))",22)
     c.text(40,450,"Flat coordinate: (m,n,p,q) = (1,2,1,1)",22)
     c.text(40,511,"Same storage and tile access; different grouping of coordinates.",20,color=MUTED)
-    c.save("logical-divide")
+    c.save("00-layout-algebra/05-logical-divide/logical-divide")
 
 
 def ownership():
@@ -156,7 +162,7 @@ def ownership():
     for i in range(8):
         c.cell(40+i*110,337,i,colors[i%4],w=99,h=55)
         c.text(40+i*110+49,405,f"T{i%4}, V{i//4}",17,center=True)
-    c.save("thread-ownership")
+    c.save("00-layout-algebra/07-thread-value-layouts/thread-ownership")
 
 
 if __name__ == "__main__":

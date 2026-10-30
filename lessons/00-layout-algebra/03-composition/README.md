@@ -1,6 +1,6 @@
 # 03 · Composition: indexing a layout
 
-**Mental model from our discussion:** A describes a data view; B describes how we want to index that view. A GPU thread/value plan is one later use of B.
+Composition connects two indexing rules. Let A map logical positions to data offsets, and let B choose which logical positions in A to visit. The composed layout follows B first, then A. A thread/value ownership plan is one later use of this pattern.
 
 ```text
 R = composition(A,B)
@@ -11,9 +11,11 @@ B runs first. Its output is a **scalar logical coordinate for A**, not a physica
 
 ## Different shapes work
 
-Use `A = (2,4):(4,1)` and `B = (4,2):(2,1)`. These retain the `(2,4)` versus `(4,2)` shape contrast from our discussion.
+Use `A = (2,4):(4,1)` and `B = (4,2):(2,1)`. Their shapes differ, so follow the intermediate scalar carefully: it connects the two mappings without matching their axes.
 
-![Composition through a scalar logical coordinate](../../../assets/composition.svg)
+![Composition through a scalar logical coordinate](../../../assets/00-layout-algebra/03-composition/composition.svg)
+
+Follow the arrows from left to right. B emits the intermediate scalar `q=5`; A expands that scalar using its own shape before returning offset 6. The middle number names a logical position in A.
 
 Let B's coordinate be `(u,v)`:
 
@@ -43,7 +45,7 @@ R = fx.composition(A, B)  # equivalent mapping to (4,2):(1,4)
 
 ## Must B cover all of A?
 
-**No.** For example, `B_small = 2:2` emits only `0,2`. Passing those through A gives offsets `0,1`: a valid subset of the eight logical positions.
+A composition can select a subset. For example, `B_small = 2:2` emits only `0,2`. Passing those through A gives offsets `0,1`: a valid subset of the eight logical positions.
 
 For an in-bounds view, every emitted B index must lie in A's logical domain (`0 <= B(c) < size(A)` in these scalar examples). Full coverage is a separate requirement if the application needs every element. Also, the composition must meet the algebra/compiler's representability and divisibility constraints; matching sizes or checking bounds alone does not prove every arbitrary pair will compile.
 
@@ -62,7 +64,7 @@ R is equivalent to (2,3):(4,8)
 
 For `(u,v)=(1,2)`: B emits 10, A interprets `((0,1),2)`, final offset 20. The nested grouping introduces no data movement.
 
-**Trap:** multiplying A and B strides component by component does not compute composition. The intermediate scalar coordinate must be interpreted through A's shape.
+**Common mistake:** multiplying A and B strides component by component does not compute composition. The intermediate scalar coordinate must be interpreted through A's shape.
 
 **Check yourself:** in the first example, compute `R(3,0)` and explain why B does not need shape `(2,4)`.
 
@@ -76,11 +78,11 @@ B emits 6; A expands it to `(0,3)` and returns offset 3. Composition connects th
 
 Build `fx.composition(A,B)` for `A=(2,4):(4,1)` and `B=(4,2):(2,1)`, then evaluate it for all eight coordinates of B.
 
-Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 
-Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. The `out` tensor records the calculated offsets for the host checker. This exercise evaluates an indexing rule; input data views and loads are introduced in later lessons.
 
 The supplied `thread_layout = fx.make_ordered_layout(fx.get_shape(b), (0,1))` has shape `(4,2)` and strides `(1,4)`. `coordinate = fx.idx2crd(thread_id, thread_layout)` assigns each thread a coordinate in B's domain. Follow the chain: thread ID → B coordinate → B's output (A's scalar logical coordinate) → data offset. The thread layout describes ownership; B describes which logical positions in A those owners visit.
 
@@ -110,6 +112,6 @@ An unfinished starter exits with `Practice not finished: ...` during tracing. Fi
 
 Reversing A and B happens to produce the same final sequence in this example, so trace the intermediate stage too. Try native composition with `fx.make_layout(2,2)` as B, or use the nested example above; the GPU regression check covers both.
 
-Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
+For the variation, make a scratch copy and update its launch size and expected results together. Compute the mapping with FlyDSL operations and use the expected values only in the host checker. Static layout construction may fold during compilation; evaluation uses `fx.thread_idx.x` to check every position in this example.
 
 [← Nested layouts](../02-nested-layouts/README.md) · [Next: coalescing →](../04-coalescing/README.md)

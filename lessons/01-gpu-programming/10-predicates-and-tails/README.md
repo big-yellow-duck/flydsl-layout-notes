@@ -1,6 +1,10 @@
 # 10 · Protect the last partial tile
 
-For 19 elements and 8-element tiles, launch three blocks. The third tile has only three valid positions. The layout still describes a full tile; it does not check allocation bounds.
+When the element count is not a multiple of the tile size, the final block has only part of a tile to process. For **19 elements and 8-element tiles**, three blocks cover the work, but only three positions in the last block are valid. Use a per-value predicate to guard every input read and output write.
+
+![Blocks 0 and 1 are full. In block 2, indices 16, 17, and 18 are valid and indices 19 through 23 must skip both reads and writes. Thread 1 owns one valid and one invalid position.](../../../assets/01-gpu-programming/10-predicates-and-tails/tail-predicates.svg)
+
+The last row makes the boundary visible: thread 1 straddles it, so check each value slot separately. Gray cells describe candidate indices with no valid input element.
 
 ## Follow the kernel in order
 
@@ -65,7 +69,7 @@ True, incorrectly. The last valid index is 18. An array of count elements has va
 
 </details>
 
-This deliberately uses scalar guarded loads rather than applying a wide unmasked copy atom to a partial tile. We combine it into the complete vector-add launch next.
+This deliberately uses scalar guarded loads rather than applying a wide unmasked copy atom to a partial tile. Lesson 11 combines the same predicate with a complete vector-add launch.
 
 ## Run and compare
 
@@ -76,6 +80,6 @@ pixi run python lessons/01-gpu-programming/10-predicates-and-tails/practice.py
 pixi run python lessons/01-gpu-programming/10-predicates-and-tails/solution.py
 ```
 
-The practice file deliberately raises `Practice not finished` until its TODO expressions are completed. Keep the host checker and supplied launch. Compare with the [worked solution](solution.py) after your attempt. These programs execute on the GPU; the host only prepares inputs and checks or times results.
+In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
 
 [← Previous lesson](../09-register-fragments/README.md) · [Next lesson →](../11-vector-addition/README.md)

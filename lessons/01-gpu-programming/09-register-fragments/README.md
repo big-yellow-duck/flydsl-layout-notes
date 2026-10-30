@@ -1,6 +1,6 @@
 # 09 · Load, compute, and store with register fragments
 
-A global tensor view addresses existing GPU memory. A register fragment allocates per-thread temporary storage. Both have layouts, but they play different roles in the computation.
+Arithmetic needs values to work on after a load and before a store. A **register fragment** provides per-thread temporary storage for those values. This lesson loads two input pairs, adds matching slots, and stores the resulting pair. Global views describe the memory accesses; fragments hold the intermediate values.
 
 ## 1. Create the three tile views
 
@@ -32,6 +32,10 @@ destination_part = thread_copy.partition_D(destination_tile)
 
 Reuse lesson 08's tiled copy. Thread 2 owns positions 4 and 5. Inputs are `left[index] = index` and `right[index] = 2*index + 10`.
 
+![Thread 2 loads left values 4 and 5 and right values 18 and 20 into separate fragments, adds them to obtain 22 and 25, then stores those values at destination offsets 4 and 5.](../../../assets/01-gpu-programming/09-register-fragments/register-fragments-flow.svg)
+
+Follow each input into its fragment, then follow the result back to the destination. The fragment allocation and the copy into it are separate steps.
+
 | Stage | Thread 2's values |
 | --- | --- |
 | Global left view | Addresses values 4, 5 |
@@ -51,7 +55,7 @@ for value_id in range(2):
 fx.copy(atom, left_registers, destination_part)
 ```
 
-`make_fragment_like` creates suitable fragment storage for the partition. It does not load its values. We reuse the left fragment for the result after its input value has been consumed. Each thread owns its fragment; no inter-thread communication or barrier is needed for this elementwise operation.
+`make_fragment_like` creates suitable fragment storage for the partition. It does not load its values. The kernel reuses the left fragment for the result after its input value has been consumed. Each thread owns its fragment; no inter-thread communication or barrier is needed for this elementwise operation.
 
 Register fragments express storage intent. A compiler may optimize values or spill under register pressure; an allocation in source alone is not proof of physical register usage. Lesson 12 introduces inspecting generated output.
 
@@ -80,6 +84,6 @@ pixi run python lessons/01-gpu-programming/09-register-fragments/practice.py
 pixi run python lessons/01-gpu-programming/09-register-fragments/solution.py
 ```
 
-The practice file deliberately raises `Practice not finished` until its TODO expressions are completed. Keep the host checker and supplied launch. Compare with the [worked solution](solution.py) after your attempt. These programs execute on the GPU; the host only prepares inputs and checks or times results.
+In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
 
 [← Previous lesson](../08-tiled-copy/README.md) · [Next lesson →](../10-predicates-and-tails/README.md)

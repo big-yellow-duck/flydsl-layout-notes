@@ -60,6 +60,7 @@ class Figure:
 
     def save(self, name):
         base = ROOT / "assets" / name
+        base.parent.mkdir(parents=True, exist_ok=True)
         base.with_suffix(".svg").write_text("\n".join(self.svg + ["</svg>"]) + "\n")
         self.image.save(base.with_suffix(".png"))
 
@@ -84,7 +85,7 @@ def main():
     fig.text(
         70, 605, "Blue = logical indices 0 through 7: all four rows, first two columns."
     )
-    fig.save("divide-comparison-before")
+    fig.save("00-layout-algebra/05-logical-divide/divide-comparison-before")
 
     fig = Figure(780, "After: same storage, different tile windows")
     fig.text(
@@ -113,7 +114,7 @@ def main():
             fig.cell(512 + col * 65, 542 + row * 47, 8 * row + col, COLORS[0], 65)
     fig.text(32, 660, "Offsets: 0, 1, 2, 3, 8, 9, 10, 11", 17)
     fig.text(512, 745, "Offsets: 0, 1, 8, 9, 16, 17, 24, 25", 17)
-    fig.save("divide-comparison-after")
+    fig.save("00-layout-algebra/05-logical-divide/divide-comparison-after")
 
 
 if __name__ == "__main__":

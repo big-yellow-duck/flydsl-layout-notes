@@ -1,10 +1,14 @@
 # 08 · Turn an ownership plan into a copy
 
-An ownership layout describes who accesses which positions. A tiled copy combines that distribution with a **copy atom**, the primitive transfer operation.
+An ownership layout identifies the positions each thread handles. To move their data, combine that layout with a **copy atom**, the primitive transfer operation. This lesson builds a tiled copy, selects each thread's source and destination views, and transfers one eight-element tile.
+
+![Source and destination allocations share the same ownership colors. Thread 2 copies values 19 and 22 from source offsets 4 and 5 to destination offsets 4 and 5.](../../../assets/01-gpu-programming/08-tiled-copy/tiled-copy-flow.svg)
+
+Each color owns two positions in both allocations. The cells show data values; the labels underneath identify offsets and owners. View construction and partitioning describe the work; `fx.copy` transfers the values.
 
 ## 1. Describe the tile and attach its storage
 
-Both input tensors contain exactly one tile, so no block-window selection is needed. Start with the data views:
+The source and destination each contain exactly one tile, so no block-window selection is needed. Start with the data views:
 
 ```python
 tile_layout = fx.make_layout((2, 4), (1, 2))
@@ -16,7 +20,7 @@ destination_tile = fx.make_view(fx.get_iter(out), tile_layout)
 
 ## 2. Assign ownership and build the copy plan
 
-Our eight values are viewed as a compact `(2,4):(1,2)` tile: axis 0 contains the two adjacent values per thread, and axis 1 locates the four threads.
+The eight values are viewed as a compact `(2,4):(1,2)` tile: axis 0 contains the two adjacent values per thread, and axis 1 locates the four threads.
 
 ```python
 thread_layout = fx.make_layout((1, 4), (4, 1))
@@ -50,7 +54,7 @@ Thread 2's source view addresses offsets 4 and 5. Its destination view addresses
 
 The input values are `3*index + 7`, so thread 2 copies 19 and 22. A copy preserves values; it does not add the source and destination offsets.
 
-The sequence is **create the tile views → assign ownership → partition each thread's views → copy**. Partitioning is how this lesson narrows the work to each thread; there is no need to manufacture another block tile when the input is already exactly one tile.
+The sequence is **create the tile views → assign ownership → partition each thread's views → copy**. Partitioning narrows the work to each thread. Since the input contains exactly one tile, the example can begin with its tile views directly.
 
 ## Practice
 
@@ -75,6 +79,6 @@ pixi run python lessons/01-gpu-programming/08-tiled-copy/practice.py
 pixi run python lessons/01-gpu-programming/08-tiled-copy/solution.py
 ```
 
-The practice file deliberately raises `Practice not finished` until its TODO expressions are completed. Keep the host checker and supplied launch. Compare with the [worked solution](solution.py) after your attempt. These programs execute on the GPU; the host only prepares inputs and checks or times results.
+In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
 
 [← Previous lesson](../../00-layout-algebra/07-thread-value-layouts/README.md) · [Next lesson →](../09-register-fragments/README.md)

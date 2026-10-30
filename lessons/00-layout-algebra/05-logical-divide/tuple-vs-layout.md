@@ -28,7 +28,7 @@ logical_index = row + 4 * column
 
 These are two labels for positions in the same matrix. They are not generally the same number.
 
-![Original matrix shown once with storage offsets and once with scalar logical indices; logical indices 0–7 cover the first two columns](../../../assets/divide-comparison-before.svg)
+![Original matrix shown once with storage offsets and once with scalar logical indices; logical indices 0–7 cover the first two columns](../../../assets/00-layout-algebra/05-logical-divide/divide-comparison-before.svg)
 
 The highlighted positions in the lower grid are logical indices `0..7`. Their **storage offsets**, read from the upper grid, are `0,8,16,24,1,9,17,25` in logical-index order.
 
@@ -36,7 +36,7 @@ The highlighted positions in the lower grid are logical indices `0..7`. Their **
 
 Every number below is a **storage offset**, not a logical index. Matching colors identify positions in the same tile within each example. The smaller grids isolate each example's first window; they do not represent newly allocated or packed data.
 
-![Tuple division creates four 2-by-4 windows; layout-pattern division creates four 4-by-2 windows over the unchanged original storage](../../../assets/divide-comparison-after.svg)
+![Tuple division creates four 2-by-4 windows; layout-pattern division creates four 4-by-2 windows over the unchanged original storage](../../../assets/00-layout-algebra/05-logical-divide/divide-comparison-after.svg)
 
 ## Left: tuple `(2,4)` splits the original axes
 
@@ -140,4 +140,4 @@ These result layouts were compiled and their mappings checked with FlyDSL 0.4.1 
 
 [Back to logical divide](README.md)
 
-Graphics source: [`tools/draw_divide_comparison.py`](../../../tools/draw_divide_comparison.py). Regenerate with `python tools/draw_divide_comparison.py` from the repository root (requires Pillow). SVGs are embedded here; matching PNG previews are in `assets/`.
+Graphics source: [`tools/draw_divide_comparison.py`](../../../tools/draw_divide_comparison.py). Regenerate with `python tools/draw_divide_comparison.py` from the repository root (requires Pillow). SVGs are embedded here; matching PNG previews are in `assets/00-layout-algebra/05-logical-divide/`.

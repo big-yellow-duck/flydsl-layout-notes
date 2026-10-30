@@ -15,7 +15,7 @@ Each tutorial has its own explanation, unfinished practice kernel, and GPU-teste
 
 Every focused tutorial follows the same four steps: describe the matrix layout, create its view, divide it into windows, and select one tile. Eight threads then read the selected tile using the same simple local thread layout. Their host checkers validate all eight loaded values; the combined exercise checks all 32 original positions across the variants.
 
-The existing [practice.py](practice.py) and [solution.py](solution.py) remain as a **combined comparison exercise** after the four tutorials. The practice files provide TODOs for the divide and slice expressions. All practice files have been reset for a fresh attempt.
+After the four tutorials, use [practice.py](practice.py) and [solution.py](solution.py) for a **combined comparison exercise**. Implement the divide and slice expressions, then compare corresponding positions across all four coordinate groupings.
 
 ## First understand one-dimensional windowing
 
@@ -50,7 +50,7 @@ The **tuple tiler** `(2,4)` independently splits the original row axis into grou
 
 A **layout tiler** such as `fx.make_layout((2,4),(1,2))` instead describes a pattern in the original layout's scalar logical domain. For this matrix it creates different windows. The [visual tuple-versus-layout comparison](tuple-vs-layout.md) shows the before and after:
 
-![Tuple and layout tilers produce different windows over the same matrix](../../../assets/divide-comparison-after.svg)
+![Tuple and layout tilers produce different windows over the same matrix](../../../assets/00-layout-algebra/05-logical-divide/divide-comparison-after.svg)
 
 Tiler choice and coordinate grouping are separate decisions. The four tutorials hold the tuple tiler fixed to isolate the grouping differences. The shapes below apply to this original layout and this tiler, not every possible use of these APIs.
 
@@ -156,14 +156,14 @@ pixi run python lessons/00-layout-algebra/05-logical-divide/01-logical/practice.
 pixi run python lessons/00-layout-algebra/05-logical-divide/01-logical/solution.py
 ```
 
-Each subsequent tutorial lists its own run commands. After completing all four, revisit the original combined exercise:
+Each subsequent tutorial lists its own run commands. After completing all four, complete the combined exercise:
 
 ```bash
 pixi run python lessons/00-layout-algebra/05-logical-divide/practice.py
 pixi run python lessons/00-layout-algebra/05-logical-divide/solution.py
 ```
 
-Its checkpoint remains the selected tile's offsets `[20,21,22,23,28,29,30,31]`. The focused tutorials additionally load values from an input containing `100 + offset`, so their checkpoint is `[120,121,122,123,128,129,130,131]`.
+The combined exercise returns the selected tile's offsets `[20,21,22,23,28,29,30,31]`. The focused tutorials additionally load values from an input containing `100 + offset`, so their checkpoint is `[120,121,122,123,128,129,130,131]`.
 
 `pixi run lessons-check` runs the full course including all four focused tutorials. `pixi run gpu-check` adds the extra regression mappings and sliced-view checks.
 

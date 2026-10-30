@@ -1,6 +1,6 @@
 # 02 · Nested layouts
 
-**Mental model:** parentheses preserve hierarchy. One top-level mode can contain its own smaller coordinate system.
+A coordinate can have structure inside one of its axes. **Nested layouts** preserve that structure with parentheses: one top-level mode can contain its own smaller coordinate system. Trace the shape and stride trees together to calculate each leaf's contribution to the offset.
 
 ```text
 L = ((2,2),3):((1,4),8)
@@ -10,7 +10,9 @@ L((a,b),c) = a + 4*b + 8*c
 
 There are two top-level modes: `(2,2)` and `3`. Total size is `2*2*3 = 12`. There are three leaf axes, but the top-level rank is 2.
 
-![Nested layout hierarchy and offsets](../../../assets/nested-layout.svg)
+![Nested layout hierarchy and offsets](../../../assets/00-layout-algebra/02-nested-layouts/nested-layout.svg)
+
+Read the tree from the top down: the left branch expands into `(a,b)`, while the right branch stays `c`. The offset groups below show what happens when only `c` changes.
 
 ## Worked example
 
@@ -30,7 +32,7 @@ offset: 1 + 4 + 8 = 13
 
 Writing `(2,2,3):(1,4,8)` removes the grouping while keeping the same leaf order and scalar-coordinate mapping. It does not guarantee a single mode: the sequence has gaps.
 
-Nested modes become useful names for levels such as `(value-within-thread, thread)` or `(position-within-tile, tile-number)`. The algebra does not assign those meanings automatically; we choose them.
+Nested modes become useful names for levels such as `(value-within-thread, thread)` or `(position-within-tile, tile-number)`. Those names come from how a kernel uses the axes; the algebra itself records only their structure and mapping.
 
 ```python
 # Inside a FlyDSL tracing context
@@ -38,7 +40,7 @@ layout = fx.make_layout(((2, 2), 3), ((1, 4), 8))
 offset = fx.crd2idx(fx.make_coord((1, 1), 2), layout)  # 21
 ```
 
-**Trap:** matching shape and stride trees matters. `((2,2),3)` pairs with `((1,4),8)`, not the differently nested `(1,(4,8))`.
+**Common mistake:** matching shape and stride trees matters. `((2,2),3)` pairs with `((1,4),8)`, not the differently nested `(1,(4,8))`.
 
 **Check yourself:** what are the size, rank, and offset of `((0,1),1)`?
 
@@ -52,11 +54,11 @@ Size 12, rank 2, offset 12.
 
 Trace every scalar coordinate of `((2,2),3):((1,4),8)` on 12 GPU threads. The returned checkpoint for `thread_id=7` is `(12, ((1,1),1), 13)`.
 
-Open [`practice.py`](practice.py) and complete the numbered TODOs in **`exercise_kernel()`**. The allocation, launch, stores, and host checker are supplied; the algebra belongs inside the kernel's FlyDSL tracing context.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 
-Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. This lesson studies indexing, so it needs no input storage view. The `out` tensor only records results for the host checker. Creating an extra data view would not help explain this operation.
+Read the kernel as **describe the data mapping → assign thread coordinates → evaluate the mapping → record results**. The `out` tensor records the calculated offsets for the host checker. This exercise evaluates an indexing rule; input data views and loads are introduced in later lessons.
 
 `thread_layout` maps logical coordinates to owning thread IDs; `data_layout` maps the same coordinates to storage offsets. `fx.idx2crd(thread_id, thread_layout)` decodes the thread ID. Each thread owns one position.
 
@@ -88,6 +90,6 @@ An unfinished starter exits with `Practice not finished: ...` during tracing. Fi
 
 An answer of 2 for size confuses rank with logical size. Check `thread_id=4`: `((0,0),1)` maps to 8. In a scratch kernel compare scalar offsets with the flat layout `(2,2,3):(1,4,8)`.
 
-Use a scratch copy for extensions and update its launch size and expected results together. Do not replace computations with the expected constants. Static layout construction may fold during compilation; mappings depend on `fx.thread_idx.x` and are checked across the complete small domain.
+For the variation, make a scratch copy and update its launch size and expected results together. Compute the mapping with FlyDSL operations and use the expected values only in the host checker. Static layout construction may fold during compilation; evaluation uses `fx.thread_idx.x` to check every position in this example.
 
 [← Coordinates and views](../01-coordinates-and-views/README.md) · [Next: composition →](../03-composition/README.md)

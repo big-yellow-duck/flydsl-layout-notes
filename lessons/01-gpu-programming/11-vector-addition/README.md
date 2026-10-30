@@ -1,6 +1,10 @@
 # 11 · Launch a bounds-safe vector addition
 
-Assemble block selection, thread/value ownership, coordinate views, and predicates into a complete operation: `out[index] = left[index] + right[index]` for every valid index.
+Vector addition brings the preceding steps together: select a block's coordinate window, assign positions to thread/value slots, check each index, then compute `out[index] = left[index] + right[index]`. Follow a nine-element input to see how one launch handles both a full tile and a partial tile.
+
+![For count 9, two blocks cover 16 candidate positions. All eight positions in block 0 are valid; only thread 0 slot 0 in block 1, global index 8, is valid.](../../../assets/01-gpu-programming/11-vector-addition/vector-add-launch.svg)
+
+Use count 9 to trace the whole launch. Colors identify thread owners within each block; `V0` and `V1` identify their two slots. Only positions that pass the per-value check reach the arithmetic.
 
 ## Follow the kernel in order
 
@@ -27,7 +31,7 @@ Inputs are contiguous one-dimensional float32 tensors on the same GPU. The lesso
 
 ## Why the tail-safe path uses scalar accesses
 
-Lesson 09 demonstrates full-tile copies into register fragments. Here each thread's individual values may cross the boundary, so we retain lesson 10's native per-value branch around scalar loads and stores. Values loaded this way are GPU computation values too; a fragment allocation is not required for every arithmetic operation.
+Lesson 09 demonstrates full-tile copies into register fragments. Here each thread's individual values may cross the boundary, so the kernel uses lesson 10's native per-value branch around scalar loads and stores. Values loaded this way are GPU computation values too; a fragment allocation is not required for every arithmetic operation.
 
 This is the simple correct path for both full tiles and tails. A later optimization can use tiled copies for full blocks and dispatch a separate guarded tail path. Do not make a wide copy cross the end of an input merely because most of its values are valid.
 
@@ -56,6 +60,6 @@ pixi run python lessons/01-gpu-programming/11-vector-addition/practice.py
 pixi run python lessons/01-gpu-programming/11-vector-addition/solution.py
 ```
 
-The practice file deliberately raises `Practice not finished` until its TODO expressions are completed. Keep the host checker and supplied launch. Compare with the [worked solution](solution.py) after your attempt. These programs execute on the GPU; the host only prepares inputs and checks or times results.
+In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
 
 [← Previous lesson](../10-predicates-and-tails/README.md) · [Next lesson →](../12-inspect-and-tune/README.md)
