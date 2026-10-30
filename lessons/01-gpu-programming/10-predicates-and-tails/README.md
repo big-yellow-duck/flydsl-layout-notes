@@ -14,19 +14,29 @@ The last row makes the boundary visible: thread 1 straddles it, so check each va
 4. Check whether each global index is valid.
 5. Inside that bounds branch, load the two input values, add them, and store the result.
 
-The coordinate view is only for deriving indices. Its padded shape does **not** enlarge either input allocation. Real reads and writes use the original memory views after the predicate succeeds. This avoids creating padded data views that could look safe to read unconditionally.
+The coordinate view is only for deriving indices. Start with the actual count of 19; division creates enough complete coordinate windows to cover it. This does **not** enlarge either input allocation. Real reads and writes use the original memory views after the predicate succeeds.
 
 ## Coordinates can be a tensor without an allocation
 
 ```python
-coordinate_layout = fx.make_layout(24, 1)
+coordinate_layout = fx.make_layout(count, 1)  # count = 19
 index_origin = fx.make_int_tuple(0)
 coordinates = fx.make_view(index_origin, coordinate_layout)
 coordinate_tiles = fx.logical_divide(coordinates, fx.make_layout(8, 1))
 block_coordinates = fx.slice(coordinate_tiles, (None, block_id))
 ```
 
-`coordinate_layout` describes indexing. `index_origin` is an integer iterator, not a memory pointer: it starts at zero. Indexing this coordinate view produces an index, rather than loading a float from memory. Its padded domain covers the launch: 24 positions. This makes it possible to ask which positions are valid without accessing either input allocation.
+`coordinate_layout` describes indexing. `index_origin` is an integer iterator, not a memory pointer: it starts at zero. Indexing this coordinate view produces an index, rather than loading a float from memory.
+
+For this contiguous 1-D layout, `logical_divide` rounds up the number of windows. Dividing `19:1` by `8:1` produces `(8,3):(1,8)`: eight local positions in each of three windows. The last window therefore describes candidate indices 16 through 23, while only 16 through 18 belong to the inputs. The extra positions come from the divided coordinate layout; there is no padded input buffer or separate `padded_count` calculation.
+
+The launcher uses native ceiling division to launch those three blocks:
+
+```python
+grid=(fx.ceildiv(count, 8), 1, 1), block=(4, 1, 1)
+```
+
+Ceiling division answers “how many blocks cover 19 elements?” The per-value predicate answers “which positions in those blocks contain data?”
 
 Use ownership `(4,2):(2,1)` to get each thread's local positions, then index `block_coordinates` to obtain their global indices.
 
@@ -57,7 +67,7 @@ Do not load first and only guard the store. An output allocation with spare capa
 
 ## Practice
 
-Fill `valid` with the bound comparison. Keep all memory accesses inside the supplied branch. The checker uses exact-sized input arrays and eight sentinel output elements after the logical result. It checks the 19 sums and verifies the sentinels are unchanged.
+Fill `valid` with the bound comparison. Keep all memory accesses inside the supplied branch. `solve()` runs one case, `count = 19`, using exact-sized input arrays and eight sentinel output elements after the logical result. It checks all 19 sums and verifies the sentinels are unchanged. The checkpoint is `19 sums checked; 8 output sentinels unchanged`.
 
 Sentinels detect invalid writes; they do not prove the absence of every invalid read. The code structure supplies that guarantee here: both loads are inside the same bounds branch. All valid positions have exactly one owner under the thread/value layout.
 
@@ -81,5 +91,7 @@ pixi run python lessons/01-gpu-programming/10-predicates-and-tails/solution.py
 ```
 
 In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
+
+References: [FlyDSL divide operations](https://rocm.docs.amd.com/projects/FlyDSL/en/latest/layout_system_guide.html#divide-operations) and [native arithmetic, including `fx.ceildiv`](https://rocm.docs.amd.com/projects/FlyDSL/en/latest/kernel_authoring_guide.html#arithmetic-and-numeric-types). The nondivisible `19:1 / 8:1` mapping is checked against the pinned FlyDSL 0.4.1 implementation.
 
 [← Previous lesson](../09-register-fragments/README.md) · [Next lesson →](../11-vector-addition/README.md)

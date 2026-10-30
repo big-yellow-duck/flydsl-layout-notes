@@ -277,7 +277,7 @@ def tails():
     d.text(
         32,
         595,
-        "The coordinate view can describe 24 indices; each input allocation has only 19 values.",
+        "Divide 19:1 by 8:1 -> (8,3):(1,8): 24 candidate indices, 19 input values.",
         18,
     )
     d.text(

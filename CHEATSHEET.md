@@ -12,6 +12,7 @@
 | Coverage | Application choice, not required for composition | B can select a subset of A |
 | Coalesce | Preserve scalar-coordinate offset sequence | `(2,4):(1,2)` → `8:1` |
 | Logical divide | Expose within-tile and tile-number modes | `16:1 / 4:1` → `(4,4):(1,4)` |
+| Partial 1-D tile | Divide rounds up; predicate guards data accesses | `19:1 / 8:1` → `(8,3):(1,8)`; valid if index < 19 |
 | Slice | Fix a coordinate; keep `None` modes | `(None,2)` selects tile 2 |
 
 ## Three calculations to remember
