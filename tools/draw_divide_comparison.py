@@ -25,6 +25,8 @@ class Figure:
         candidates = [
             "/usr/share/fonts/google-noto/NotoSans-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/google-noto-vf/NotoSans[wght].ttf",
+            "/usr/share/fonts/liberation-sans-fonts/LiberationSans-Regular.ttf",
         ]
         font = ImageFont.truetype(
             next(p for p in candidates if Path(p).exists()), size * 2

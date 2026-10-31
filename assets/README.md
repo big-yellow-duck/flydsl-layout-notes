@@ -26,7 +26,13 @@ assets/
     ├── 09-register-fragments/
     ├── 10-predicates-and-tails/
     ├── 11-vector-addition/
-    └── 12-inspect-and-tune/
+    ├── 12-inspect-and-tune/
+    └── 13-matmul/
+        ├── 00-naive/
+        ├── 01-coalesced-access/
+        ├── 02-register-tiling/
+        ├── 03-shared-memory/
+        └── 04-matrix-instructions/
 ```
 
 Shared illustrations stay with the lesson that introduces their concept. For example, the course overview uses the logical-divide figure from lesson 05; it links to that asset directly.

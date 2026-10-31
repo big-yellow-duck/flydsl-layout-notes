@@ -55,3 +55,11 @@ To assign threads in first-mode-fastest order for a flat 2-D shape, use `fx.idx2
 Run `pixi run lessons-check` for the lesson solutions and focused divide tutorials or `pixi run gpu-check` for additional mapping and sliced-view checks.
 
 A thread layout maps coordinates to thread IDs; invert it with `fx.idx2crd(thread_id, thread_layout)`, then map that coordinate through the data layout. The launch can remain one-dimensional. With `make_ordered_layout`, order entries are speed ranks per axis (0 fastest), not explicit strides or an axis permutation list. Lesson 05 uses `(1,0,3,2)` for axes `(local_row,local_column,tile_row,tile_column)`.
+
+## BF16 matmul reminders
+
+For the [1024³ matmul series](lessons/01-gpu-programming/13-matmul/README.md), flat row-major element offsets are `A: row*K+inner`, `B: inner*N+column`, `C: row*N+column`. Widen BF16 loads before scalar FP32 arithmetic; round once when storing BF16 output.
+
+`fx.make_rmem_tensor(layout, fx.Float32)` allocates private accumulator slots; initialize them with `fill(0)`. `fx.SharedAllocator().allocate(fx.Array[fx.BFloat16, 256]).peek().view(layout)` creates a workgroup LDS view. Use `fx.gpu.barrier()` both after cooperative staging and before overwriting a tile still in use.
+
+On the series' gfx11 wave32 targets, `fx.rocdl.WMMA(16,16,16,fx.BFloat16,fx.Float32)` describes one matrix operation; `fx.make_mma_atom`, `fx.make_tiled_mma`, and `fx.make_tiled_copy_A/B/C` derive its fragments and copies. MMA B uses logical `(N,K)`: row-major physical `(K,N)` storage has operand strides `(1,N)`. This is a view, not a transpose allocation. See lesson 04 for the target-specific lane convention.

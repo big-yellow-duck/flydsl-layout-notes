@@ -99,4 +99,4 @@ pixi run python lessons/01-gpu-programming/12-inspect-and-tune/solution.py
 
 In the starter exercise, an incomplete expression raises `Practice not finished` during tracing. Complete the TODOs, run the checker, then compare the [worked solution](solution.py). The supplied launch and checker define the example: the kernel performs the GPU work, while the host prepares buffers and validates the result.
 
-[← Previous lesson](../11-vector-addition/README.md)
+[← Previous lesson](../11-vector-addition/README.md) · [Next: BF16 matmul →](../13-matmul/README.md)

@@ -25,6 +25,7 @@ python3 tools/draw_diagrams.py
 python3 tools/draw_divide_comparison.py
 python3 tools/draw_thread_value_layouts.py
 python3 tools/draw_lesson_visuals.py
+python3 tools/draw_matmul_lessons.py
 ```
 
 The lesson-specific generators reuse the drawing helpers in `tools/`. `draw_lesson_visuals.py` covers coordinates, divide selections, block windows, copies, fragments, tails, launches, and copy widths.

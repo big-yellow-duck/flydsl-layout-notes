@@ -2,14 +2,14 @@
 
 Learn how FlyDSL maps coordinates to memory and distributes work across GPU threads. **A layout is an indexing rule:** it maps a coordinate to an offset. Layout algebra transforms that rule; loads, stores, and copies use it to access data.
 
-The course begins with small mappings that can be traced by hand, then builds toward GPU copies, vector addition, and measurement. Familiarity with Python and array indexing is useful; each lesson introduces the layout concepts needed for its example.
+The course begins with small mappings that can be traced by hand, then builds toward GPU copies, vector addition, measurement, and BF16 matrix multiplication. Familiarity with Python and array indexing is useful; each lesson introduces the layout concepts needed for its example.
 
 ## Learning path
 
 | Section | Lessons | What you learn |
 | --- | --- | --- |
 | [00 · Layout algebra](lessons/00-layout-algebra/README.md) | 00–07 | Shapes, coordinates, composition, coalescing, tiling, block windows, thread/value ownership |
-| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–12 | Tiled copies, register fragments, predicates, vector addition, ISA inspection and measurement |
+| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through matrix instructions |
 
 Start with layout algebra; lessons 06 and 07 still develop the coordinate and ownership fundamentals. Actual copy plans begin in lesson 08.
 
@@ -58,7 +58,7 @@ A memory view combines a storage iterator (a typed pointer) with a layout. Use `
 
 The early algebra lessons intentionally stop at mapping coordinates to offsets. Copy lessons begin with their data views. Tail lessons use a separate coordinate-only view to decide whether a memory access is valid. The combined divide exercise is an explicit cross-check, while the four focused tutorials show one direct access path each.
 
-The 17 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
+The 22 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
 
 ## What executes where
 
@@ -78,7 +78,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all thirteen lessons and the four focused divide tutorials:
+Run all 22 worked programs: thirteen foundational lessons, four focused divide tutorials, and five matmul stages:
 
 ```bash
 pixi run lessons-check
@@ -92,8 +92,21 @@ pixi run gpu-check
 
 The GPU check covers padding, aliasing, scalar and nested coordinates, full and subset composition, coalescing (including size-1 and unmergeable cases), every position across all four 2-D divide groupings, and actual loads through sliced 1-D and 2-D tensor views. The selected matrix tile returns values from offsets `20,21,22,23,28,29,30,31`.
 
-Originally validated on AMD Radeon 860M Graphics (`gfx1152`). On 2026-10-31, the shared environment passed all 17 solutions and the additional GPU checks on AMD Radeon 8060S Graphics (`gfx1151`) with Pixi 0.67.2. The updated shared lock has not yet been rerun on gfx1152. The checks include copy plans, register fragments, guarded vector addition, and a small copy-width benchmark.
+Originally validated on AMD Radeon 860M Graphics (`gfx1152`). On 2026-10-31, the shared environment passed all 22 solutions and the additional GPU checks on AMD Radeon 8060S Graphics (`gfx1151`) with Pixi 0.67.2. The updated shared lock has not yet been rerun on gfx1152. The five new BF16 matmul stages also passed on gfx1151 at M=N=K=1024; their gfx1152 hardware validation is pending. The checks include copy plans, register fragments, guarded vector addition, and a small copy-width benchmark.
 
 On the gfx1151 setup, GPU event durations reported zero, including for a standalone PyTorch operation. Lesson 12 still checks copy correctness and reports timing and bandwidth as unavailable instead of dividing by zero. Lesson 12 explains how to dump generated ISA and interpret timing results.
 
 **After completing the divide tutorials:** [select a block tile](lessons/00-layout-algebra/06-select-block-tile/README.md), then [assign multiple values per thread](lessons/00-layout-algebra/07-thread-value-layouts/README.md).
+
+## Practice BF16 matmul optimization
+
+After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → coalesced access → register tiling → LDS staging → matrix instructions. Every stage uses **M=N=K=1024**, row-major BF16 inputs/output, and FP32 accumulation. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py
+pixi run matmul-bench
+# GPU computation timed with synchronized host batches when events return zero:
+pixi run matmul-bench --timing host
+```
+
+The separate benchmark compares all five GPU kernels with GPU `torch.matmul` on the same inputs and preallocated output. CPU arithmetic is only the untimed correctness reference. GPU event timing that reports zero is marked unavailable; the explicit host-clock alternative includes dispatch and synchronization. See the [roadmap](ROADMAP.md#matmul-continuation-planned) for planned pipelining, tuning, and a measured hipBLAS/hipBLASLt challenge.
