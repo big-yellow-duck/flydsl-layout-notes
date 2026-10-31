@@ -35,6 +35,21 @@ Every exercise runs **M = N = K = 1024**: row-major BF16 inputs, FP32 accumulati
 
 Sixteen output sentinels must remain unchanged. Output data starts as NaN, so incomplete writes fail the reference comparison. The sentinel checks writes; full-tile dimension constraints make all input reads in these programs valid. No tails are implemented here.
 
+## Compare this kernel with GPU PyTorch
+
+Running this lesson's solution, or a completed practice, prints a timing table after the correctness checkpoint. The two rows compare **this file's kernel** with **GPU `torch.matmul`**, reporting milliseconds and effective TFLOP/s. A completed practice benchmarks your implementation, not the worked solution. Both implementations use the same 1024×1024 BF16 GPU inputs and preallocated BF16 GPU output; CPU reference arithmetic and allocations stay outside timing.
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/01-coalesced-access/solution.py
+# Select the timing method explicitly or skip performance measurement:
+pixi run python lessons/01-gpu-programming/13-matmul/01-coalesced-access/solution.py --timing host
+pixi run python lessons/01-gpu-programming/13-matmul/01-coalesced-access/practice.py --check-only
+```
+
+The default `--timing auto` tries GPU events first. If either row has an unavailable event duration, **both rows** are retimed with synchronized host batches, and the fallback is printed. Host timing still runs GPU computation but includes dispatch and synchronization overhead. `--timing gpu-event` disables fallback and reports unavailable values if events return zero. Each implementation gets three warm-ups and five batches of 20 launches; `--repeats` changes launches per batch. TFLOP/s is `2 * 1024**3 / (milliseconds * 1e9)`. Higher throughput means less time for this fixed operation count; it does not imply a universal speedup.
+
+`pixi run gpu-check` and `pixi run lessons-check` run correctness only for the matmul stages. For the full-series comparison and measurement limits, see the [benchmark guide](../README.md#compare-the-stages).
+
 **Check yourself:** Does swapping the quotient and remainder change the dot product for C[0,1]?
 
 <details><summary>Answer</summary>

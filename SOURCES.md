@@ -62,6 +62,14 @@ One illustrative host-clock run (median of five batches of 20, three warm-ups, w
 
 The PyTorch BLAS backend was not identified, so these results are not labeled a hipBLAS/hipBLASLt comparison. Pipelining, further tuning, and the named-library challenge remain planned. Performance has no pass/fail threshold.
 
+## Per-lesson matmul comparisons
+
+Each matmul solution and completed practice runs its own kernel against GPU `torch.matmul` after correctness, using the shared helper in `examples/matmul_benchmark.py`. Inputs/output remain BF16 on the GPU at M=N=K=1024. It reports milliseconds and effective TFLOP/s, excludes allocation and compilation, and takes the median of five batches after three warm-ups. `--repeats` defaults to 20 launches per batch.
+
+Default `--timing auto` first tries GPU events; if any compared implementation has unavailable event timing, every row is retimed with synchronized host batches. This prevents mixing timing methods within a comparison. The fallback and host overhead are printed. Explicit `--timing gpu-event` preserves unavailable results without fallback; `--timing host` selects host timing directly. `--check-only` omits performance measurement. Course-wide checks set this mode for matmul automatically.
+
+These changes were checked on gfx1151 with the same pinned environment: all five solutions and temporary completed practices printed their own kernel/PyTorch tables, unfinished starters retained their expected message, and the full 22-solution GPU checker passed without matmul benchmarking. The automatic fallback, explicit timing modes, TFLOP/s calculation, and correctness-only behavior were checked. No diagram or GPU kernel arithmetic changed.
+
 ## Deliberate limits
 
 The lessons use static positive shapes, nonnegative integer strides, and regular tiles. Most layout examples divide evenly; lesson 10 also checks native division of a contiguous 19-element coordinate layout into eight-position windows. Swizzles, basis-valued strides, dynamic shape constraints, general complement construction, and the full composition divisibility algorithm are later topics. Passing these examples does not establish support for arbitrary layouts or tilers.

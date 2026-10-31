@@ -22,7 +22,7 @@ The course now has two sections. Work through each lesson's README and practice 
 - [12-inspect-and-tune](lessons/01-gpu-programming/12-inspect-and-tune/README.md)
 - [13-matmul](lessons/01-gpu-programming/13-matmul/README.md): BF16 GPU optimization, stages 00–04 complete
 
-All 22 worked programs (13 foundational lessons, four focused divide tutorials, and five matmul stages) compile and run on gfx1151 with the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. Lesson 12 runs a small copy benchmark; matmul performance comparisons run separately with `pixi run matmul-bench`. Results are observations, not pass/fail performance thresholds.
+All 22 worked programs (13 foundational lessons, four focused divide tutorials, and five matmul stages) compile and run on gfx1151 with the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. Lesson 12 runs a small copy benchmark; individual matmul files print local timing comparisons, and `pixi run matmul-bench` compares the full series. Results are observations, not pass/fail performance thresholds.
 
 The vector-add lesson uses per-value guarded scalar accesses for both full tiles and tails. The full-tile fragment lesson separately teaches tiled copies. A full-block vectorized path plus a guarded tail path is a useful next optimization, not a prerequisite for correctness.
 
@@ -38,7 +38,7 @@ All five exercises and the GPU PyTorch baseline use **M=N=K=1024**, contiguous B
 | [03 · Shared memory](lessons/01-gpu-programming/13-matmul/03-shared-memory/README.md) | Cooperative LDS staging and two synchronization points | Complete; gfx1151 checked |
 | [04 · Matrix instructions](lessons/01-gpu-programming/13-matmul/04-matrix-instructions/README.md) | gfx11 wave32 BF16 WMMA and FP32 fragments | Complete; gfx1151 checked |
 
-Correctness stays in `pixi run gpu-check`; timed comparisons stay in `pixi run matmul-bench`. The baseline is GPU `torch.matmul` on the same BF16 buffers with a preallocated GPU output. The harness reports unavailable event timing honestly and offers explicit synchronized host timing. Host timing still runs GPU computation and includes dispatch/synchronization overhead. The underlying PyTorch BLAS backend is not yet identified. The new lessons have not yet been hardware-validated on gfx1152.
+The course-wide `pixi run gpu-check` runs matmul correctness only. Individual matmul solutions and completed practices print their own GPU PyTorch timing/TFLOP/s comparison after checking correctness; `--check-only` skips it. `pixi run matmul-bench` compares all five stages together. The baseline is GPU `torch.matmul` on the same BF16 buffers with a preallocated GPU output. Default automatic timing retimes all compared implementations with synchronized host batches if any event duration is unavailable; the actual method is printed. Explicit event-only and host modes are also available. Host timing still runs GPU computation and includes dispatch/synchronization overhead. The underlying PyTorch BLAS backend is not yet identified. The new lessons have not yet been hardware-validated on gfx1152.
 
 ## Matmul continuation (planned)
 

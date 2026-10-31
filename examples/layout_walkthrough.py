@@ -14,7 +14,12 @@ def main():
     solutions = sorted(lessons.rglob("solution.py"))
     for solution in solutions:
         print(f"{solution.parent.relative_to(lessons)}:", flush=True)
-        runpy.run_path(str(solution), run_name="__main__")
+        # Matmul CLIs benchmark by default; the course suite requests correctness only.
+        runpy.run_path(
+            str(solution),
+            run_name="__main__",
+            init_globals={"_COURSE_CHECK_ONLY": True},
+        )
     print(
         f"All {len(solutions)} native FlyDSL solutions passed on {torch.cuda.get_device_name()}."
     )

@@ -30,6 +30,8 @@ The full problem divides into a 64×64 grid of 16×16 output tiles. LDS and WMMA
 
 ## Compare the stages
 
+Each lesson solution and completed practice now prints its own kernel versus GPU `torch.matmul` table after correctness, with milliseconds and TFLOP/s. Practice files time the learner's kernel. Use `--check-only` to skip timing for an individual file; the course-wide checkers already do this for matmul. The shared implementation lives in `examples/matmul_benchmark.py`.
+
 The benchmark runs all five **GPU** kernels and **GPU `torch.matmul`** on the same BF16 input tensors and a preallocated BF16 GPU output. It verifies each implementation before timing. CPU arithmetic is only the untimed correctness reference. The PyTorch baseline uses `torch.matmul(left, right, out=out)` with both inputs and `out` on `device="cuda"` through ROCm.
 
 ```bash
@@ -40,7 +42,9 @@ pixi run matmul-bench --timing host
 
 The fixed shape is 1024×1024×1024 for every row. All implementations get three warm-up launches before timing, which also excludes compilation. The result is the median of five batches of 20 launches using warm repeated buffers. `--repeats` changes the number of launches per batch, not the problem shape. The reported operation count is `2*M*N*K`, and effective TFLOP/s is this count divided by elapsed seconds and 10¹².
 
-Default `gpu-event` timing uses GPU events on the current/default stream. Zero median event duration produces `ms: null`, `effective_TFLOP_s: null`, and an unavailable status. It never becomes infinite throughput or a pass/fail performance assertion. On the tested gfx1151 setup, events can report zero even for completed GPU work.
+Default `auto` timing tries GPU events, then retimes every compared implementation with synchronized host batches if any median is unavailable. The output reports the requested and actual timing method and the reason for fallback. Both rows in a lesson always use the same method.
+
+Explicit `--timing gpu-event` uses GPU events on the current/default stream without fallback. Zero median event duration produces `ms: null`, `effective_TFLOP_s: null`, and an unavailable status. It never becomes infinite throughput or a pass/fail performance assertion. On the tested gfx1151 setup, events can report zero even for completed GPU work.
 
 Explicit `host` timing uses a monotonic CPU clock around GPU launches, with GPU synchronization before and after each batch. **Computation still runs on the GPU.** This measurement includes Python dispatch, launch gaps, and batch synchronization, so it measures host-observed execution cost rather than isolated device time. Compare rows only under the same timing method and rerun to assess variation. The output records the GPU, architecture, versions, method, and scope; it prints no automatic winner.
 

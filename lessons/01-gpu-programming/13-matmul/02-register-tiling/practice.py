@@ -1,5 +1,8 @@
 """BF16 matmul: 02-register-tiling. See README.md for the exercise."""
 
+import runpy
+from pathlib import Path
+
 import flydsl.compiler as flyc
 import flydsl.expr as fx
 import torch
@@ -95,7 +98,12 @@ def solve():
 
 
 if __name__ == "__main__":
-    try:
-        print("Exercise passed:", solve())
-    except NotImplementedError as error:
-        raise SystemExit(f"Practice not finished: {error}") from None
+    benchmark = runpy.run_path(
+        str(Path(__file__).resolve().parents[4] / "examples/matmul_benchmark.py")
+    )
+    benchmark["lesson_main"](
+        run,
+        solve,
+        Path(__file__).parent.name,
+        check_only=globals().get("_COURSE_CHECK_ONLY", False),
+    )
