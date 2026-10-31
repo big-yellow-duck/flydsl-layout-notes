@@ -1,7 +1,6 @@
 export ROCM_PATH="$(rocm-sdk path --root)"
 export ROCM_HOME="${ROCM_PATH}"
 export HIP_PATH="${ROCM_PATH}"
-export PYTORCH_ROCM_ARCH="gfx1152"
 export CMAKE_GENERATOR="Ninja"
 export CMAKE_PREFIX_PATH="$(rocm-sdk path --cmake):${CMAKE_PREFIX_PATH:-}"
 export PATH="$(rocm-sdk path --bin):${PATH}"

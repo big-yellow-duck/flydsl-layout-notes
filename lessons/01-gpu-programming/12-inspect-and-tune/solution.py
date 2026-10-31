@@ -62,7 +62,10 @@ def measure(source, out, width, count):
         end.record()
         end.synchronize()
         samples.append(start.elapsed_time(end) / 20)
-    return statistics.median(samples)
+    # Some GPU/driver combinations report zero even for completed work.
+    # Keep correctness checks useful without inventing a bandwidth result.
+    milliseconds = statistics.median(samples)
+    return milliseconds if milliseconds > 0 else None
 
 
 def solve(widths=(32, 128)):
@@ -77,12 +80,21 @@ def solve(widths=(32, 128)):
         torch.testing.assert_close(out, source)
         milliseconds = measure(source, out, width, count)
         # Effective read+write traffic, not a measurement of DRAM transactions.
-        bandwidth = 2 * count * source.element_size() / (milliseconds * 1e6)
+        bandwidth = (
+            2 * count * source.element_size() / (milliseconds * 1e6)
+            if milliseconds is not None
+            else None
+        )
         results.append(
             {
                 "atom_bits": width,
-                "ms": round(milliseconds, 4),
-                "effective_GB_s": round(bandwidth, 2),
+                "ms": round(milliseconds, 4) if milliseconds is not None else None,
+                "effective_GB_s": round(bandwidth, 2)
+                if bandwidth is not None
+                else None,
+                "timing_status": "ok"
+                if milliseconds is not None
+                else "GPU event timing unavailable",
             }
         )
     return results

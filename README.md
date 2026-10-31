@@ -26,10 +26,13 @@ The examples keep layout construction, thread ownership, and memory access visib
 
 ## Set up and start
 
-The included Pixi environment pins FlyDSL 0.4.1, ROCm 10, and PyTorch 2.13.0+rocm10.0.0 for Linux x86-64 and AMD `gfx1152` (Radeon 860M). Install [Pixi](https://pixi.sh/), ensure the host GPU driver and `/dev/kfd` and render-node permissions are available, then run:
+The included Pixi environment pins FlyDSL 0.4.1, ROCm 10, and PyTorch 2.13.0+rocm10.0.0 for Linux x86-64 (glibc 2.35 or newer). The same lock includes ROCm and PyTorch device packages for both AMD `gfx1151` and `gfx1152` (including Radeon 860M), so both machines use the same commands. Activation does not set `PYTORCH_ROCM_ARCH`; kernels target the detected GPU.
+
+Install [Pixi](https://pixi.sh/) (setup checked with 0.67.2), ensure the host GPU driver and `/dev/kfd` and render-node permissions are available, then run:
 
 ```bash
 pixi install --locked
+pixi run gpu-check
 pixi run python lessons/00-layout-algebra/00-shapes-and-strides/practice.py
 ```
 
@@ -41,7 +44,7 @@ After your attempt, compare with the worked solution:
 pixi run python lessons/00-layout-algebra/00-shapes-and-strides/solution.py
 ```
 
-Exercises require the GPU environment; plain system Python is not enough. The first install downloads the ROCm SDK and PyTorch and can be large. Other GPU architectures need matching ROCm device packages and architecture configuration. With an already configured FlyDSL/ROCm PyTorch environment, use `python` in place of `pixi run python`.
+Exercises require the GPU environment; plain system Python is not enough. The first install downloads the ROCm SDK and PyTorch and can be large. To support another AMD GPU, add its matching `device-gfx...` extra to both `rocm` and `torch` in `pixi.toml`, run `pixi lock` and `pixi install --locked`, then validate with `pixi run gpu-check` on that GPU. Included device packages do not imply that every GPU has been tested. With an already configured FlyDSL/ROCm PyTorch environment, use `python` in place of `pixi run python`.
 
 ## How to read a kernel
 
@@ -89,6 +92,8 @@ pixi run gpu-check
 
 The GPU check covers padding, aliasing, scalar and nested coordinates, full and subset composition, coalescing (including size-1 and unmergeable cases), every position across all four 2-D divide groupings, and actual loads through sliced 1-D and 2-D tensor views. The selected matrix tile returns values from offsets `20,21,22,23,28,29,30,31`.
 
-Validated on AMD Radeon 860M Graphics (`gfx1152`) with the pinned environment. The checks include copy plans, register fragments, guarded vector addition, and a small copy-width benchmark. Lesson 12 explains how to dump generated ISA and interpret timing results.
+Originally validated on AMD Radeon 860M Graphics (`gfx1152`). On 2026-10-31, the shared environment passed all 17 solutions and the additional GPU checks on AMD Radeon 8060S Graphics (`gfx1151`) with Pixi 0.67.2. The updated shared lock has not yet been rerun on gfx1152. The checks include copy plans, register fragments, guarded vector addition, and a small copy-width benchmark.
+
+On the gfx1151 setup, GPU event durations reported zero, including for a standalone PyTorch operation. Lesson 12 still checks copy correctness and reports timing and bandwidth as unavailable instead of dividing by zero. Lesson 12 explains how to dump generated ISA and interpret timing results.
 
 **After completing the divide tutorials:** [select a block tile](lessons/00-layout-algebra/06-select-block-tile/README.md), then [assign multiple values per thread](lessons/00-layout-algebra/07-thread-value-layouts/README.md).

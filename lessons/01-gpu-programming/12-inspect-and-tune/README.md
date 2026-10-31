@@ -46,7 +46,7 @@ Both rows assign the same four positions to thread 2. The diagram changes the re
 
 Fill `atom` with the expression above. The checker compares each variant's complete output against the source before timing. Keep that correctness check when experimenting.
 
-The benchmark warms up each specialization, then takes the median of five batches of 20 launches using GPU events. Compilation occurs before timing. Effective bandwidth is `2 * count * sizeof(float32) / elapsed_seconds`, counting one read and one write. It is an application-level byte rate, not a measurement of physical DRAM transactions.
+The benchmark warms up each specialization, then takes the median of five batches of 20 launches using GPU events. Compilation occurs before timing. If the median GPU event duration is zero, the checker still verifies the copied values and reports `ms` and `effective_GB_s` as `None` with `timing_status: GPU event timing unavailable`; those results cannot be used to compare performance. Effective bandwidth is `2 * count * sizeof(float32) / elapsed_seconds`, counting one read and one write. It is an application-level byte rate, not a measurement of physical DRAM transactions.
 
 Repeated buffers can be cached. Event intervals can include gaps between host launches, and GPU clocks, contention, and thermal state affect results. There is deliberately no assertion that one width must win. Repeat runs and compare distributions before making a performance claim.
 
