@@ -32,13 +32,15 @@ All five exercises and the GPU PyTorch baseline use **M=N=K=1024**, contiguous B
 
 | Stage | Learning goal | Status |
 | --- | --- | --- |
-| [00 · Naive](lessons/01-gpu-programming/13-matmul/00-naive/README.md) | Row/column dot products and FP32 accumulation | Complete; gfx1151 checked |
-| [01 · Coalesced access](lessons/01-gpu-programming/13-matmul/01-coalesced-access/README.md) | Adjacent threads access adjacent B columns | Complete; gfx1151 checked |
+| [00 · Naive](lessons/01-gpu-programming/13-matmul/00-naive/README.md) | Native block/thread views, row/column dot products, and FP32 accumulation | Complete; gfx1151 checked |
+| [01 · Contiguous K access](lessons/01-gpu-programming/13-matmul/01-coalesced-access/README.md) | Column-major B gives both per-thread K views stride 1 | Complete; gfx1151 checked |
 | [02 · Register tiling](lessons/01-gpu-programming/13-matmul/02-register-tiling/README.md) | Four outputs per thread and B reuse | Complete; gfx1151 checked |
 | [03 · Shared memory](lessons/01-gpu-programming/13-matmul/03-shared-memory/README.md) | Cooperative LDS staging and two synchronization points | Complete; gfx1151 checked |
 | [04 · Matrix instructions](lessons/01-gpu-programming/13-matmul/04-matrix-instructions/README.md) | gfx11 wave32 BF16 WMMA and FP32 fragments | Complete; gfx1151 checked |
 
-The course-wide `pixi run gpu-check` runs matmul correctness only. Individual matmul solutions and completed practices print their own GPU PyTorch timing/TFLOP/s comparison after checking correctness; `--check-only` skips it. `pixi run matmul-bench` compares all five stages together. The baseline is GPU `torch.matmul` on the same BF16 buffers with a preallocated GPU output. Default automatic timing retimes all compared implementations with synchronized host batches if any event duration is unavailable; the actual method is printed. Explicit event-only and host modes are also available. Host timing still runs GPU computation and includes dispatch/synchronization overhead. The underlying PyTorch BLAS backend is not yet identified. The new lessons have not yet been hardware-validated on gfx1152.
+The course-wide `pixi run gpu-check` runs matmul correctness only. Individual matmul solutions and completed practices print their own GPU PyTorch timing/TFLOP/s comparison after checking correctness; `--check-only` skips it. `pixi run matmul-bench` compares all five stages together. The baseline is GPU `torch.matmul` on the same BF16 buffers with a preallocated GPU output. Stage 01 uses column-major B; other stages use row-major B. Full-series results are grouped by B layout and include a matching PyTorch baseline for each. Packing is outside timing. Default automatic timing retimes all compared implementations with synchronized host batches if any event duration is unavailable; the actual method is printed. Explicit event-only and host modes are also available. Host timing still runs GPU computation and includes dispatch/synchronization overhead. The underlying PyTorch BLAS backend is not yet identified. The new lessons have not yet been hardware-validated on gfx1152.
+
+Stages 01–04 use the same named native-view path as the naive lesson. Register tiling selects 4×1 per-thread output windows with `flat_divide`; LDS and WMMA select matching 16-wide K windows. Global block views retain row stride 1024, while packed LDS views use stride 16. The READMEs trace those domains and distinguish staging ownership from compute/WMMA ownership.
 
 ## Matmul continuation (planned)
 

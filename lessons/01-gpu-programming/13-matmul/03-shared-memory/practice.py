@@ -17,61 +17,68 @@ def exercise_kernel(
     n: fx.Constexpr,
     k: fx.Constexpr,
 ):
-    # 1. Reuse contiguous input views; each block owns a 16 x 16 output tile.
-    # Flat views make scalar indices explicit row-major storage offsets.
-    left = fx.make_view(fx.get_iter(left), fx.make_layout(m * k, 1))
-    right = fx.make_view(fx.get_iter(right), fx.make_layout(k * n, 1))
-    out = fx.make_view(fx.get_iter(out), fx.make_layout(m * n, 1))
-    tid = fx.thread_idx.x
-    row_base = fx.block_idx.y * 16
-    col_base = fx.block_idx.x * 16
-    # 2. Allocate two 16 x 16 BF16 tiles in workgroup-local memory (LDS).
+    # 1. Describe the global row-major matrices.
+    left_global_view = fx.make_view(fx.get_iter(left), fx.make_layout((m, k), (k, 1)))
+    right_global_view = fx.make_view(fx.get_iter(right), fx.make_layout((k, n), (n, 1)))
+    out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
+    block_row = fx.block_idx.y
+    block_col = fx.block_idx.x
+    # 2. Expose 16-wide K windows; select the output tile once.
+    left_tiled_view = fx.flat_divide(left_global_view, (16, 16))
+    right_tiled_view = fx.flat_divide(right_global_view, (16, 16))
+    out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
+    out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+    # Allocate separate physical LDS storage, then attach ordinary 2-D layouts.
     allocator = fx.SharedAllocator()
-    shared_a = (
+    left_shared_view = (
         allocator.allocate(fx.Array[fx.BFloat16, 256])
         .peek()
-        .view(fx.make_layout(256, 1))
+        .view(fx.make_layout((16, 16), (16, 1)))
     )
-    shared_b = (
+    right_shared_view = (
         allocator.allocate(fx.Array[fx.BFloat16, 256])
         .peek()
-        .view(fx.make_layout(256, 1))
+        .view(fx.make_layout((16, 16), (16, 1)))
     )
-    row_local = (tid // 16) * 4
-    col_local = tid % 16
+    copy_layout = fx.make_ordered_layout((16, 16), (1, 0))  # noqa: F841 -- used by the practice TODOs
+    # 3. A (4,16) thread layout selects a four-row group and one column.
+    thread_layout = fx.make_ordered_layout((4, 16), (1, 0))
+    thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
+    out_thread_tiled_view = fx.flat_divide(out_block_view, (4, 1))
+    out_thread_view = fx.slice(
+        out_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
+    )
+    left_thread_tiled_view = fx.flat_divide(left_shared_view, (4, 16))
+    left_thread_view = fx.slice(  # noqa: F841 -- used by the practice TODOs
+        left_thread_tiled_view, (None, None, thread_coordinate[0], 0)
+    )
+    right_column = fx.slice(right_shared_view, (None, thread_coordinate[1]))
     accumulators = fx.make_rmem_tensor(fx.make_layout(4, 1), fx.Float32)
     accumulators.fill(0)
+    # 4. Stage, synchronize, consume, then synchronize before overwriting LDS.
     for tile_k in range(k // 16):
-        # 3. All 64 threads cooperatively load both tiles, four values each.
-        for slot in fx.range_constexpr(4):
-            # TODO 1: Fill in position; see README.md.
-            position = None
-            if position is None:
-                raise NotImplementedError("Fill in position.")
-            tile_row = position // 16
-            tile_col = position % 16
-            shared_a[position] = left[
-                (row_base + tile_row) * k + tile_k * 16 + tile_col
-            ]
-            shared_b[position] = right[
-                (tile_k * 16 + tile_row) * n + col_base + tile_col
-            ]
+        left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
+        right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+        # The copy coordinate is local to both the global window and its LDS tile.
+        for load_slot in fx.range_constexpr(4):
+            # TODO 1: Fill in copy_coordinate; see README.md.
+            copy_coordinate = None
+            if copy_coordinate is None:
+                raise NotImplementedError("Fill in copy_coordinate.")
+            left_shared_view[copy_coordinate] = left_block_view[copy_coordinate]
+            right_shared_view[copy_coordinate] = right_block_view[copy_coordinate]
         fx.gpu.barrier()
-        # 4. Reuse staged values to update four FP32 accumulators per thread.
         for inner in range(16):
-            b = fx.Float32(shared_b[inner * 16 + col_local])
+            b = fx.Float32(right_column[inner])
             for slot in fx.range_constexpr(4):
                 # TODO 2: Fill in a; see README.md.
                 a = None
                 if a is None:
                     raise NotImplementedError("Fill in a.")
                 accumulators[slot] = accumulators[slot] + a * b
-        # Every consumer must finish before any thread overwrites this LDS tile.
         fx.gpu.barrier()
     for slot in fx.range_constexpr(4):
-        out[(row_base + row_local + slot) * n + col_base + col_local] = accumulators[
-            slot
-        ].to(fx.BFloat16)
+        out_thread_view[fx.make_coord(slot, 0)] = accumulators[slot].to(fx.BFloat16)
 
 
 @flyc.jit

@@ -100,7 +100,7 @@ On the gfx1151 setup, GPU event durations reported zero, including for a standal
 
 ## Practice BF16 matmul optimization
 
-After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → coalesced access → register tiling → LDS staging → matrix instructions. Every stage uses **M=N=K=1024**, row-major BF16 inputs/output, and FP32 accumulation. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
+After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → matrix instructions. Every stage uses **M=N=K=1024**, BF16 inputs/output, and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py
@@ -109,4 +109,4 @@ pixi run matmul-bench
 pixi run matmul-bench --timing host
 ```
 
-Each matmul solution and completed practice prints its own timing and TFLOP/s comparison against GPU `torch.matmul`. The separate benchmark compares all five GPU kernels with GPU `torch.matmul` on the same inputs and preallocated output. CPU arithmetic is only the untimed correctness reference. Default automatic timing falls back to synchronized host batches for every compared implementation when any event duration is unavailable. The fallback is labeled and includes dispatch and synchronization. Use `--timing gpu-event` to disable fallback or `--check-only` to skip timing. See the [roadmap](ROADMAP.md#matmul-continuation-planned) for planned pipelining, tuning, and a measured hipBLAS/hipBLASLt challenge.
+Each matmul solution and completed practice prints its own timing and TFLOP/s comparison against GPU `torch.matmul`. The separate benchmark compares all five GPU kernels against GPU `torch.matmul` grouped by matching physical B layout, with identical logical inputs and preallocated output. Input packing stays outside timing. CPU arithmetic is only the untimed correctness reference. Default automatic timing falls back to synchronized host batches for every compared implementation when any event duration is unavailable. The fallback is labeled and includes dispatch and synchronization. Use `--timing gpu-event` to disable fallback or `--check-only` to skip timing. See the [roadmap](ROADMAP.md#matmul-continuation-planned) for planned pipelining, tuning, and a measured hipBLAS/hipBLASLt challenge.

@@ -17,34 +17,48 @@ def exercise_kernel(
     n: fx.Constexpr,
     k: fx.Constexpr,
 ):
-    # 1. Reuse contiguous input views; each block owns a 16 x 16 output tile.
-    # Flat views make scalar indices explicit row-major storage offsets.
-    left = fx.make_view(fx.get_iter(left), fx.make_layout(m * k, 1))
-    right = fx.make_view(fx.get_iter(right), fx.make_layout(k * n, 1))
-    out = fx.make_view(fx.get_iter(out), fx.make_layout(m * n, 1))
-    tid = fx.thread_idx.x
-    row_base = fx.block_idx.y * 16  # noqa: F841 -- used by the practice TODOs
-    col_base = fx.block_idx.x * 16
-    # 2. Each thread owns four rows at one column; reuse B across those rows.
-    # TODO 1: Fill in row; see README.md.
-    row = None
-    if row is None:
-        raise NotImplementedError("Fill in row.")
-    col = col_base + tid % 16
+    # 1. Describe the global row-major matrices.
+    left_global_view = fx.make_view(fx.get_iter(left), fx.make_layout((m, k), (k, 1)))
+    right_global_view = fx.make_view(fx.get_iter(right), fx.make_layout((k, n), (n, 1)))
+    out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
+    block_row = fx.block_idx.y
+    block_col = fx.block_idx.x
+
+    # 2. Select this block's full-K input windows and 16 x 16 output window.
+    left_tiled_view = fx.flat_divide(left_global_view, (16, k))
+    right_tiled_view = fx.flat_divide(right_global_view, (k, 16))
+    out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
+    left_block_view = fx.slice(left_tiled_view, (None, None, block_row, 0))
+    right_block_view = fx.slice(right_tiled_view, (None, None, 0, block_col))
+    out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+
+    # 3. A (4,16) thread layout selects a four-row group and one column.
+    thread_layout = fx.make_ordered_layout((4, 16), (1, 0))
+    thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
+    out_thread_tiled_view = fx.flat_divide(out_block_view, (4, 1))
+    out_thread_view = fx.slice(
+        out_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
+    )
+    left_thread_tiled_view = fx.flat_divide(left_block_view, (4, k))  # noqa: F841 -- used by the practice TODOs
+    # TODO 1: Fill in left_thread_view; see README.md.
+    left_thread_view = None
+    if left_thread_view is None:
+        raise NotImplementedError("Fill in left_thread_view.")
+    right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))
     accumulators = fx.make_rmem_tensor(fx.make_layout(4, 1), fx.Float32)
     accumulators.fill(0)
+    # 4. One B load supplies all four owned output rows at this K position.
     for inner in range(k):
-        b = fx.Float32(right[inner * n + col])  # noqa: F841 -- used by the practice TODOs
+        b = fx.Float32(right_column[inner])  # noqa: F841 -- used by the practice TODOs
         for slot in fx.range_constexpr(4):
-            a = fx.Float32(left[(row + slot) * k + inner])  # noqa: F841 -- used by the practice TODOs
+            a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])  # noqa: F841 -- used by the practice TODOs
             # TODO 2: Fill in updated; see README.md.
             updated = None
             if updated is None:
                 raise NotImplementedError("Fill in updated.")
             accumulators[slot] = updated
-    # 3. Each output element has exactly one writer.
     for slot in fx.range_constexpr(4):
-        out[(row + slot) * n + col] = accumulators[slot].to(fx.BFloat16)
+        out_thread_view[fx.make_coord(slot, 0)] = accumulators[slot].to(fx.BFloat16)
 
 
 @flyc.jit
@@ -62,7 +76,7 @@ def run(
 
 
 def solve():
-    # Fixed comparison workload: 64 x 64 output tiles, each with 64 K tiles.
+    # Fixed workload: 64 x 64 output tiles, with a full-K reduction per thread.
     shapes = [(1024, 1024, 1024)]
     generator = torch.Generator().manual_seed(13)
     checkpoint = None

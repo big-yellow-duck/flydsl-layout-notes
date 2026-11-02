@@ -1,43 +1,111 @@
-# 01 · Put neighboring threads on neighboring columns
+# 01 · Make both dot-product inputs contiguous along K
 
-The [naive kernel](../00-naive/README.md) is correct, but its thread order need not match contiguous storage. Keep the same **1024×1024×1024** problem, 16×16 output tiles, 256-thread blocks, K loop, and arithmetic. Change only the mapping from thread ID to output coordinate.
+Keep **M=N=K=1024**, BF16 inputs/output, FP32 arithmetic, one output per thread, and the native tiling from the [naive lesson](../00-naive/README.md). Change B's **physical storage** to column-major. A remains row-major. Each thread then walks through its A row and B column with stride 1 along K.
 
-![Two output-grid crops labeled with thread IDs: column-first ownership above and row-first ownership below.](../../../../assets/01-gpu-programming/13-matmul/01-coalesced-access/thread-order.svg)
+This lesson lives in `01-coalesced-access`, but distinguishes two different properties. **Contiguous K access** describes successive loop positions within one thread. **Coalescing** describes the addresses neighboring GPU lanes request at the same instruction. This simple kernel demonstrates the first property. Packing B column-major does not make both operands coalesced across lanes under one-output-per-thread ownership.
 
-Read each cell as an owning thread ID, not an output value or storage offset. The picture shows rows 0–1 and columns 0–7 of block `(0,0)`; the block still covers all 256 outputs.
+![A crop of B labeled with physical storage offsets. Reading down a column advances by 1024 in row-major storage and by 1 in column-major storage.](../../../../assets/01-gpu-programming/13-matmul/01-coalesced-access/b-column-major.svg)
 
-## Map the lane to a column
+Read down the gold column in each grid. The logical B coordinates stay the same; their storage offsets change. The first four cells along K are adjacent only in the right-hand representation.
 
-Previously thread 1 owned `(1,0)` and thread 16 owned `(0,1)`. Use this mapping instead:
+## 1. Pack a real column-major B on the GPU
+
+The host creates the same logical BF16 matrix as before, then packs it before launching:
 
 ```python
-row = row_base + tid // 16
-col = col_base + tid % 16
+left = a_cpu.cuda()
+right = b_cpu.cuda().t().contiguous().t()
+assert right.shape == (k, n) and right.stride() == (1, k)
 ```
 
-Now thread 1 owns `(0,1)` and thread 16 owns `(1,0)`. At a fixed `inner`, threads 0–15 read B positions `(inner,0)` through `(inner,15)`. Their element offsets are `inner*1024 + 0..15`: consecutive BF16 values, separated by two bytes. They read the same A value at that K position because they share an output row. The second half of a wave32 computes the next output row and reads the same B column range.
+Trace the three operations on B. The first `.t()` gives a view of shape `(N,K)`. `.contiguous()` physically packs that transposed view. The final `.t()` returns a view of shape `(K,N)` with strides `(1,K)` over the new storage. The logical values are again `B[inner,column]`, not `B.T`. A single transpose would change the mathematical input; these two transposes preserve it while changing storage order.
 
-The output stores follow the same contiguous column order. This supplies a more favorable spatial access pattern for B and C. It does not establish a specific memory transaction count or a guaranteed speedup: caches, compiler decisions, and launch geometry still matter.
+At 1024³, `right.stride()` is `(1,1024)` in **elements**. This storage is column-major even though PyTorch's default row-major `is_contiguous()` would be false. The packing operation allocates/copies data; it is setup work outside every timed interval. The reported TFLOP/s measures the prepared-input multiplication, not packing plus multiplication.
 
-## Change ownership, preserve coverage
+## 2. Describe the actual storage with native global views
 
-Division by 16 selects one of 16 rows; remainder selects one of 16 columns. Every ID from 0 through 255 maps to a distinct output, so the block needs neither atomics nor inter-thread synchronization. All K reductions are still private to a thread.
+```python
+left_global_view = fx.make_view(fx.get_iter(left), fx.make_layout((m, k), (k, 1)))
+right_global_view = fx.make_view(fx.get_iter(right), fx.make_layout((k, n), (1, k)))
+out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
+```
 
-For block `(1,2)` in `(block_x,block_y)` order, the row base is 32 and column base is 16. Thread 1 owns `(32,17)`, whose output element offset is `32*1024 + 17 = 32785`. Bases select the tile once; they must not be added again to an already adjusted offset.
+| View | Shape | Strides in elements | Storage |
+| --- | --- | --- | --- |
+| `left_global_view` | `(1024,1024)` | `(1024,1)` | Row-major A |
+| `right_global_view` | `(1024,1024)` | `(1,1024)` | Column-major B |
+| `out_global_view` | `(1024,1024)` | `(1024,1)` | Row-major C |
 
-TODO 1 is `row`; TODO 2 is `col`. The flat views and the FP32 dot-product loop are supplied unchanged.
+`make_view` must agree with the physical allocation. Merely writing `(1,k)` over a row-major pointer does not move values into columns and would compute a different result. The CPU reference still uses the original logical matrices to catch that error, including on random, nonsymmetric inputs.
+
+## 3. Keep the same full-K tiled and block views
+
+```python
+left_tiled_view = fx.flat_divide(left_global_view, (16, k))
+right_tiled_view = fx.flat_divide(right_global_view, (k, 16))
+out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
+left_block_view = fx.slice(left_tiled_view, (None, None, block_row, 0))
+right_block_view = fx.slice(right_tiled_view, (None, None, 0, block_col))
+out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+```
+
+The tiled shapes remain A `(16,1024,64,1)`, B `(1024,16,1,64)`, C `(16,16,64,64)`. Shapes describe coordinate extents; changing storage strides does not change the number of tiles. Each block still spans all K rather than using K staging.
+
+For block `(x,y)=(1,2)`, A covers rows 32–47, B covers columns 16–31, and C covers their output window. Their selected block shapes/strides are:
+
+| Block view | Shape | Strides in elements |
+| --- | --- | --- |
+| `left_block_view` | `(16,1024)` | `(1024,1)` |
+| `right_block_view` | `(1024,16)` | `(1,1024)` |
+| `out_block_view` | `(16,16)` | `(1024,1)` |
+
+The two leading `None` entries retain local coordinates. Native slicing carries the chosen tile base; no handwritten global offset is needed.
+
+## 4. Select one output coordinate, A row, and B column per thread
+
+```python
+thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
+thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
+left_row = fx.slice(left_block_view, (thread_coordinate[0], None))
+right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))
+```
+
+The thread layout still maps local output coordinates to thread IDs; `idx2crd` inverts it. Thread 17 gets `(1,1)`, selecting global A row 33, B column 17, and output C `(33,17)` in the running block.
+
+Both `left_row` and `right_column` now have shape `1024` and **stride 1**. A row 33 starts at element offset 33792. In column-major B, column 17 starts at offset `17*1024=17408`. Increasing `inner` by one advances each address by one element. These offsets explain the views; the kernel only indexes `left_row[inner]` and `right_column[inner]`.
+
+## 5. Load, widen, reduce, and store
+
+```python
+accumulator = fx.Float32(0)
+for inner in range(k):
+    a = fx.Float32(left_row[inner])
+    b = fx.Float32(right_column[inner])
+    accumulator = accumulator + a * b
+out_block_view[thread_coordinate] = accumulator.to(fx.BFloat16)
+```
+
+The math is unchanged. Widen both BF16 values before multiplication, retain FP32 across all K, and round once at the output store. The selected output view retains the original block base and row stride. Each of the 256 threads writes one unique output, so no reduction between lanes or synchronization is introduced.
+
+## Contiguous per thread does not mean coalesced across lanes
+
+At the same `inner`, neighboring threads 0–15 compute the same output row and different columns. A is the same requested value for those threads. In column-major B, their requested addresses are `inner + column*K`, separated by 1024 elements, not adjacent. The B loads therefore do not acquire a coalesced lane pattern merely because each individual thread walks a contiguous column over time.
+
+A design that coalesces both operands could instead assign neighboring lanes to neighboring K positions and reduce their partial dot products together. That is a different ownership and arithmetic decomposition, beyond this one-output-per-thread exercise. Compare measured results without assuming this storage change must win.
+
+TODO 1 builds the 16×16 column-fast thread layout; TODO 2 obtains its inverse coordinate with `idx2crd`. B packing and its matching global layout are supplied. Keep the native full-K windows and FP32 load conversions around your expressions.
 
 ## Practice and checkpoint
 
 Complete the two numbered expressions in `practice.py`. Keep the supplied launch, initialization, stores, and checker. The unfinished starter reports `Practice not finished: ...` and exits with status 1.
 
-Every exercise runs **M = N = K = 1024**: row-major BF16 inputs, FP32 accumulation, and BF16 output. The checker evaluates all 1,048,576 outputs for two input patterns. The trace pattern uses `A[r,k] = ((r*1024+k) % 5)-2` and `B[k,c] = ((k*1024+c) % 7)-3`; the first four values of output row 0 are `[3, -6, -1, -3]`. A second pattern uses seeded random values quantized to BF16 before either implementation sees them. An independent CPU FP32 matrix product, rounded to BF16, supplies the untimed reference. Trace checks use `rtol=0, atol=0.001` to accommodate the small WMMA residue near zero; random checks use `rtol=0.016, atol=0.03125` for BF16 rounding and accumulation differences. These are exercise tolerances, not a numerical guarantee for arbitrary inputs.
+Every exercise runs **M = N = K = 1024**: row-major A, column-major B, FP32 accumulation, and row-major BF16 output. The checker evaluates all 1,048,576 outputs for two input patterns. The trace pattern uses `A[r,k] = ((r*1024+k) % 5)-2` and `B[k,c] = ((k*1024+c) % 7)-3`; the first four values of output row 0 are `[3, -6, -1, -3]`. A second pattern uses seeded random values quantized to BF16 before either implementation sees them. An independent CPU FP32 matrix product, rounded to BF16, supplies the untimed reference. Trace checks use `rtol=0, atol=0.001` to accommodate the small WMMA residue near zero; random checks use `rtol=0.016, atol=0.03125` for BF16 rounding and accumulation differences. These are exercise tolerances, not a numerical guarantee for arbitrary inputs.
 
 Sixteen output sentinels must remain unchanged. Output data starts as NaN, so incomplete writes fail the reference comparison. The sentinel checks writes; full-tile dimension constraints make all input reads in these programs valid. No tails are implemented here.
 
 ## Compare this kernel with GPU PyTorch
 
-Running this lesson's solution, or a completed practice, prints a timing table after the correctness checkpoint. The two rows compare **this file's kernel** with **GPU `torch.matmul`**, reporting milliseconds and effective TFLOP/s. A completed practice benchmarks your implementation, not the worked solution. Both implementations use the same 1024×1024 BF16 GPU inputs and preallocated BF16 GPU output; CPU reference arithmetic and allocations stay outside timing.
+Running this lesson's solution, or a completed practice, prints a timing table after the correctness checkpoint. The two rows compare **this file's kernel** with **GPU `torch.matmul`**, reporting milliseconds and effective TFLOP/s. A completed practice benchmarks your implementation, not the worked solution. Both implementations use the same 1024×1024 BF16 GPU inputs and preallocated BF16 GPU output; The PyTorch row uses the same column-major B and row-major A as this kernel. CPU reference arithmetic, allocations, and B packing stay outside timing.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/01-coalesced-access/solution.py
@@ -50,11 +118,11 @@ The default `--timing auto` tries GPU events first. If either row has an unavail
 
 `pixi run gpu-check` and `pixi run lessons-check` run correctness only for the matmul stages. For the full-series comparison and measurement limits, see the [benchmark guide](../README.md#compare-the-stages).
 
-**Check yourself:** Does swapping the quotient and remainder change the dot product for C[0,1]?
+**Check yourself:** Does changing only the FlyDSL B view to strides `(1,K)` convert a row-major allocation into column-major storage?
 
 <details><summary>Answer</summary>
 
-No. It changes which thread computes that output. The same A row and B column participate in its reduction. The complete output check must remain unchanged.
+No. `make_view` changes addressing, not the physical values. The host must supply column-major storage, or the layout will address different matrix values. Use the transpose/contiguous/transpose packing before launch, preserve logical shape `(K,N)`, and check against the original logical B.
 
 </details>
 

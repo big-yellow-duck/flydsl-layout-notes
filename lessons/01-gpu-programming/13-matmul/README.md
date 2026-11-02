@@ -1,18 +1,18 @@
 # 13 · Optimize BF16 matrix multiplication
 
-Build one GPU matrix product in five steps: a naive dot product, a more contiguous thread order, register reuse, LDS staging, and a matrix instruction. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has an illustrated walkthrough, two expression-sized practice TODOs, a worked solution, and a checker.
+Build one GPU matrix product in five steps: a naive dot product, a column-major B storage experiment, native four-row thread windows, LDS staging, and a matrix instruction. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has an illustrated walkthrough, two expression-sized practice TODOs, a worked solution, and a checker.
 
-All runnable exercises and comparisons use **M = N = K = 1024**. Inputs A and B are contiguous row-major BF16 matrices on the GPU. Kernels accumulate in FP32 and write a BF16 matrix C implementing `C = A @ B`. There is no bias, activation, transpose allocation, alpha/beta scaling, or timed allocation. Diagrams zoom into individual 16×16 tiles and thread fragments within this same workload.
+All runnable exercises and comparisons use **M = N = K = 1024**. A is row-major BF16. Stage 01 supplies a column-major BF16 B to make each thread's K walk contiguous; other stages supply row-major BF16 B. All tensors are on the GPU. Kernels accumulate in FP32 and write a BF16 matrix C implementing `C = A @ B`. There is no bias, activation, or alpha/beta scaling. Stage-01 B packing and all allocations are outside timing. Diagrams zoom into individual 16×16 tiles and thread fragments within this same workload.
 
-| Stage | What changes | Threads per 16×16 output tile |
+| Stage | What it teaches | Threads per 16×16 output tile |
 | --- | --- | --- |
-| [00 · Naive](00-naive/README.md) | One output per thread; explicit row-major offsets and FP32 reduction | 256 |
-| [01 · Coalesced access](01-coalesced-access/README.md) | Adjacent threads compute adjacent columns | 256 |
-| [02 · Register tiling](02-register-tiling/README.md) | Reuse one B value across four output rows | 64 |
-| [03 · Shared memory](03-shared-memory/README.md) | Cooperatively stage BF16 tiles in LDS; synchronize before use and reuse | 64 |
-| [04 · Matrix instructions](04-matrix-instructions/README.md) | Keep LDS staging and use wave32 BF16 WMMA with FP32 accumulator fragments | 32 |
+| [00 · Naive](00-naive/README.md) | Native global/tiled/block/thread views and one FP32 dot product per thread | 256 |
+| [01 · Contiguous K access](01-coalesced-access/README.md) | Column-major B makes both per-thread K walks contiguous | 256 |
+| [02 · Register tiling](02-register-tiling/README.md) | Select 4×1 thread output windows and reuse B | 64 |
+| [03 · Shared memory](03-shared-memory/README.md) | Select native K windows, stage them in LDS, and synchronize | 64 |
+| [04 · Matrix instructions](04-matrix-instructions/README.md) | Keep native K windows and LDS staging; use WMMA-compatible operand/fragment views | 32 |
 
-Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labels carefully: input values, storage offsets, thread IDs, and accumulator slots describe different things. Keep the same arithmetic and shape while changing one part of the implementation at a time. Changes in block size and instruction ownership are stated explicitly; they also affect resource usage.
+Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labels carefully: input values, storage offsets, thread IDs, and accumulator slots describe different things. Keep the same arithmetic and shape while changing one part of the implementation at a time. All stages use named `*_global_view`, `*_tiled_view`, `*_block_view`, and thread/fragment views instead of handwritten global storage offsets. Stages 00–02 select full-K input windows; stages 03–04 select 16-wide K windows. Changes in block size and instruction ownership are stated explicitly; they also affect resource usage.
 
 ## Practice workflow
 
@@ -32,7 +32,7 @@ The full problem divides into a 64×64 grid of 16×16 output tiles. LDS and WMMA
 
 Each lesson solution and completed practice now prints its own kernel versus GPU `torch.matmul` table after correctness, with milliseconds and TFLOP/s. Practice files time the learner's kernel. Use `--check-only` to skip timing for an individual file; the course-wide checkers already do this for matmul. The shared implementation lives in `examples/matmul_benchmark.py`.
 
-The benchmark runs all five **GPU** kernels and **GPU `torch.matmul`** on the same BF16 input tensors and a preallocated BF16 GPU output. It verifies each implementation before timing. CPU arithmetic is only the untimed correctness reference. The PyTorch baseline uses `torch.matmul(left, right, out=out)` with both inputs and `out` on `device="cuda"` through ROCm.
+The benchmark runs all five **GPU** kernels and **GPU `torch.matmul`** on identical logical BF16 inputs and a preallocated BF16 GPU output. The full-series benchmark groups kernels by physical B layout and runs a GPU PyTorch baseline for each group. Each JSON row includes `right_layout` and `right_stride`; compare a kernel against the PyTorch row in its matching layout group. It verifies each implementation before timing. CPU arithmetic is only the untimed correctness reference. The PyTorch baseline uses `torch.matmul(left, right, out=out)` with both inputs and `out` on `device="cuda"` through ROCm.
 
 ```bash
 pixi run matmul-bench
@@ -40,7 +40,7 @@ pixi run matmul-bench
 pixi run matmul-bench --timing host
 ```
 
-The fixed shape is 1024×1024×1024 for every row. All implementations get three warm-up launches before timing, which also excludes compilation. The result is the median of five batches of 20 launches using warm repeated buffers. `--repeats` changes the number of launches per batch, not the problem shape. The reported operation count is `2*M*N*K`, and effective TFLOP/s is this count divided by elapsed seconds and 10¹².
+The fixed shape is 1024×1024×1024 for every row. B packing is excluded from timing. A row-major baseline and a column-major baseline are separate records; their timings can differ. The stage-01 storage experiment teaches contiguous K accesses within each thread, not coalesced input requests across lanes. All implementations get three warm-up launches before timing, which also excludes compilation. The result is the median of five batches of 20 launches using warm repeated buffers. `--repeats` changes the number of launches per batch, not the problem shape. The reported operation count is `2*M*N*K`, and effective TFLOP/s is this count divided by elapsed seconds and 10¹².
 
 Default `auto` timing tries GPU events, then retimes every compared implementation with synchronized host batches if any median is unavailable. The output reports the requested and actual timing method and the reason for fallback. Both rows in a lesson always use the same method.
 

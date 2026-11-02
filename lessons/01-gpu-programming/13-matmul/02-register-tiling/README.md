@@ -1,38 +1,101 @@
-# 02 · Reuse a B value across four output rows
+# 02 · Select four output rows per thread with native views
 
-The [column-oriented ownership](../01-coalesced-access/README.md) gives each thread one output. Computing several outputs per thread allows reuse before returning to memory. Keep **M=N=K=1024** and a 16×16 output tile, but launch 64 threads and assign four rows at one column to each thread.
+The [previous lesson](../01-coalesced-access/README.md) assigns one output to each of 256 threads and experiments with column-major B. This stage returns to row-major A/B storage for register and later LDS tiling; its GPU PyTorch comparison uses that same row-major layout. This kernel still computes **1024³** BF16 matmul, but uses 64 threads per 16×16 output window. Each thread owns a **4×1 output window**, so one B value can update four independent FP32 sums.
 
-![Thread 1 loads one B value and uses it in four FP32 accumulator updates, one per output row.](../../../../assets/01-gpu-programming/13-matmul/02-register-tiling/register-reuse.svg)
+The access path stays visible:
 
-Follow thread 1 in block `(0,0)`. It owns `(0,1)`, `(1,1)`, `(2,1)`, and `(3,1)`. Each K iteration loads `B[inner,1]` once and combines it with four different A rows.
+```text
+global views -> full-K tiled views -> block views
+             -> four-row thread views -> scalar loads -> four accumulators -> stores
+```
 
-## Separate thread ownership from accumulator slots
+## 1. Select the same block windows
+
+The native global layouts and `flat_divide` calls match lesson 01:
 
 ```python
-row = row_base + (tid // 16) * 4
-col = col_base + tid % 16
+left_tiled_view = fx.flat_divide(left_global_view, (16, k))
+right_tiled_view = fx.flat_divide(right_global_view, (k, 16))
+out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
+left_block_view = fx.slice(left_tiled_view, (None, None, block_row, 0))
+right_block_view = fx.slice(right_tiled_view, (None, None, 0, block_col))
+out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+```
+
+A block sees A `(16,1024)`, B `(1024,16)`, and C `(16,16)`. Their row strides remain 1024. We still reduce over the complete K axis directly from global memory; no LDS storage exists yet.
+
+## 2. Name the thread's row group and column
+
+```python
+thread_layout = fx.make_ordered_layout((4, 16), (1, 0))
+thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
+```
+
+Here the first coordinate means **row group**, not an individual output row. Four groups times 16 columns give 64 threads. Thread 17 gets `(1,1)`: row group 1 and output column 1.
+
+```python
+out_thread_tiled_view = fx.flat_divide(out_block_view, (4, 1))
+out_thread_view = fx.slice(
+    out_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
+)
+```
+
+![A 4-by-1 tiler selects local rows 4–7 at column 1 for thread 17; the corresponding global outputs are rows 36–39, column 17.](../../../../assets/01-gpu-programming/13-matmul/02-register-tiling/thread-windows.svg)
+
+Read the four modes of `out_thread_tiled_view` as `(within_row, within_column, row_group, column_group)`. Its shape is `(4,1,4,16)`. Fixing the final two modes selects a `(4,1)` view. The first dimension keeps four positions, so `slot=0..3` names the four output values owned by this one thread.
+
+In block `(1,2)`, row group 1 corresponds to local rows 4–7, hence global rows 36–39. Local column 1 becomes global column 17. Slicing carries the block and group bases; no `block_row*16` or `group*4` appears in the load/store expressions.
+
+## 3. Select matching A rows and one B column
+
+```python
+left_thread_tiled_view = fx.flat_divide(left_block_view, (4, k))
+left_thread_view = fx.slice(
+    left_thread_tiled_view, (None, None, thread_coordinate[0], 0)
+)
+right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))
+```
+
+| View | Shape | Strides in elements | Meaning for block `(1,2)`, thread 17 |
+| --- | --- | --- | --- |
+| `left_thread_tiled_view` | `(4,1024,4,1)` | Inherited from A | Four-row A groups, each spanning K |
+| `left_thread_view` | `(4,1024)` | `(1024,1)` | A rows 36–39 |
+| `right_column` | `1024` | `1024` | B column 17 |
+| `out_thread_view` | `(4,1)` | `(1024,0)` | C rows 36–39 at column 17 |
+
+FlyDSL canonicalizes the single-column mode of `out_thread_view` to stride 0: its only valid column coordinate is 0, so this does not change any address. Its row stride remains 1024.
+
+These views describe where this thread reads and writes. They do not allocate register storage or move any input values.
+
+## 4. Allocate four private accumulators and reuse B
+
+```python
 accumulators = fx.make_rmem_tensor(fx.make_layout(4, 1), fx.Float32)
 accumulators.fill(0)
+for inner in range(k):
+    b = fx.Float32(right_column[inner])
+    for slot in fx.range_constexpr(4):
+        a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
+        updated = accumulators[slot] + a * b
+        accumulators[slot] = updated
 ```
 
-`row` is the first owned row. Slot `s` corresponds to output `(row+s,col)`; a register slot is not a global storage offset. The four thread groups own rows 0–3, 4–7, 8–11, and 12–15. Sixteen columns times four groups times four slots cover 256 outputs exactly once.
+![One B load is reused in four separate accumulator updates. The example shows thread 1 in block (0,0), which owns output rows 0–3 at column 1.](../../../../assets/01-gpu-programming/13-matmul/02-register-tiling/register-reuse.svg)
 
-Allocation alone does not initialize a fragment. `fill(0)` establishes the reduction's initial value. The runtime K loop keeps these four values alive until the final stores.
+Read the picture as the same rule for a different row group: four distinct A rows share one B column. In the running thread-17 example, `slot=2, inner=5` loads A `(38,5)` and B `(5,17)` and updates the accumulator for C `(38,17)`.
 
-## Reuse inside the K loop
+`make_rmem_tensor` allocates per-thread storage; `fill(0)` initializes it. `fx.range_constexpr(4)` expands four slot operations, not four GPU threads. B is loaded once outside that slot loop and reused four times. The compiler decides physical register allocation; the source expresses four live FP32 sums.
 
-Load and widen B before the unrolled slot loop. Within that loop, load A for the slot's row and update:
+## 5. Store through the selected thread window
 
 ```python
-updated = accumulators[slot] + a * b
-accumulators[slot] = updated
+for slot in fx.range_constexpr(4):
+    out_thread_view[fx.make_coord(slot, 0)] = accumulators[slot].to(fx.BFloat16)
 ```
 
-`fx.range_constexpr(4)` expands the four slot operations during tracing; it does not launch four threads. Each thread performs all four updates. The final stores convert each completed FP32 accumulator to BF16.
+The local column is zero because the selected view is only one column wide. The view carries the global row stride and all base displacements. Four groups × 16 columns × four slots cover the block's 256 outputs exactly once. Larger private state and fewer threads change resource use; they do not promise a speedup.
 
-This reduces the source-level B loads per four outputs from four to one for each K position. It trades more per-thread state for explicit reuse, and it changes the block from eight wave32 groups to two. It does not prove four times less physical DRAM traffic: caches may already satisfy repeated loads, and resource usage changes too.
-
-TODO 1 is the first owned `row`; TODO 2 is `updated`. Keep B's load outside the slot loop and keep all four output stores.
+TODO 1 selects `left_thread_view` from its four-mode tiled view. TODO 2 forms `updated` from the current FP32 sum and widened A/B values. The same `slot` must refer to the A row, accumulator, and output row.
 
 ## Practice and checkpoint
 

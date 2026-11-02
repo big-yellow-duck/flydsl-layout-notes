@@ -70,6 +70,38 @@ Default `--timing auto` first tries GPU events; if any compared implementation h
 
 These changes were checked on gfx1151 with the same pinned environment: all five solutions and temporary completed practices printed their own kernel/PyTorch tables, unfinished starters retained their expected message, and the full 22-solution GPU checker passed without matmul benchmarking. The automatic fallback, explicit timing modes, TFLOP/s calculation, and correctness-only behavior were checked. No diagram or GPU kernel arithmetic changed.
 
+## Native tiled-view naive matmul
+
+The naive solution now follows the native-view practice structure: `make_view` for global row-major matrices, `flat_divide` for four-mode tiled views, `slice` for block windows and per-thread A rows/B columns, and `idx2crd` for a column-fast `(16,16)` thread layout. It reduces the full K axis in each thread; the input windows span K rather than staging 16-wide K tiles. The practice's completed learner edits and tracing diagnostics were preserved.
+
+On gfx1151 with FlyDSL 0.4.1, the revised solution and existing completed practice passed the full 1024³ trace/random checkers. The solution's local GPU PyTorch timing table ran successfully. A temporary solution copy asserted the documented tiled shapes, block strides `(1024,1)`, row/column strides `1`/`1024`, and thread-layout strides `(16,1)` during native tracing. The full GPU suite passed all 22 solutions and additional mapping/view checks. The new view-hierarchy SVG/PNG and corrected thread-1 dot-product illustration were regenerated and visually inspected; changed Python files, local links, and whitespace checks passed.
+
+The coalesced-access walkthrough now identifies its column-first example as an alternative: the native-view naive baseline already uses the same column-fast output ownership as the next lesson's kernel. No speedup is implied by that representation change.
+
+The naive README also includes a beginner visual walkthrough with four additional SVG/PNG pairs: block windows in A/B/C, the four `flat_divide` modes and `None` slicing, a thread-ID grid highlighting thread 17, and the first six scalar reduction iterations. All follow block `(x,y)=(1,2)` and global output `(33,17)`. The trace values, partial sums `[0,2,-4,-2,-3,-3]`, and final result -9 were cross-checked against the documented input formulas. Figures were regenerated and visually inspected; local links, SVG accessibility labels, SVG/PNG pairs, Python lint, and whitespace checks passed. This was a documentation/diagram change: practice and solution files were preserved, and GPU execution was not rerun for this visual revision.
+
+## Native-view matmul stages 01–04
+
+The remaining matmul practices and solutions follow the same named `make_view -> flat_divide -> slice -> thread view` pattern as the naive lesson. Stage 01 makes the column-fast thread layout explicit; stage 02 selects 4×1 output thread windows and four-row A windows; stage 03 selects matched 16-wide K windows and stages via native copy coordinates into two-dimensional LDS views; stage 04 keeps those views and derives instruction-compatible operand and accumulator ownership. No handwritten global memory offset formulas remain in these kernels.
+
+On gfx1151 with the pinned FlyDSL 0.4.1 / ROCm environment:
+
+- All four solutions passed 1024³ trace/random correctness. Each unfinished starter retained its intended message; temporary completed copies passed the same full-output checks and GPU `torch.matmul` timing comparisons.
+- Temporary solution copies asserted the documented tiled and thread shapes, global/LDS/thread strides, and operand layouts during native tracing. The stage-01 row-fast alternative also passed correctness. FlyDSL canonicalizes the singleton column of `(4,1)` output thread views to stride 0; row stride remains 1024, as documented.
+- `pixi run gpu-check` passed all 22 worked programs and the additional mapping/view checks. `pixi run matmul-bench --repeats 2` completed all five native-view GPU kernels plus GPU `torch.matmul`, with the existing explicit automatic fallback to synchronized host timing.
+- The refactored WMMA kernel's final ISA contains `v_wmma_f32_16x16x16_bf16`. This confirms the intended instruction, not a performance win.
+- Three new reproducible SVG/PNG pairs illustrate native register-thread windows, matched global K windows/LDS staging, and WMMA operand/fragment views. They were visually inspected. Targeted Ruff, local links, diagram pairs, lock consistency, and whitespace checks passed.
+
+The completed naive practice and its solution were preserved byte-for-byte during this refactor. New native-view execution on gfx1152 remains unverified. Earlier illustrative timing tables refer to their recorded implementation/run; current comparisons should use the benchmark rather than assuming those values are unchanged.
+
+## Stage-01 column-major B experiment
+
+Stage 01 keeps one output per thread and the native full-K tiled views, but now physically packs B column-major with `b_gpu.t().contiguous().t()` before launching. B retains logical shape `(K,N)` and original values, with strides `(1,K)`; its FlyDSL global view matches that storage. Both selected per-thread input views have K stride 1. The README and new storage-offset diagram distinguish contiguous per-thread K access from coalesced requests across neighboring lanes, which this mapping does not establish for both inputs.
+
+The completed stage-01 practice expressions were retained. On gfx1151, both practice and solution passed the full 1024³ trace/random checks and GPU PyTorch timing comparison. A temporary solution asserted B global/block strides `(1,1024)`, unchanged tiled shape `(1024,16,1,64)`, and unit strides for `left_row` and `right_column` during native tracing. The full 22-solution GPU suite and extra mapping/view checks passed.
+
+The benchmark now groups full-series kernels by physical B layout and runs GPU `torch.matmul` with the same prepared input tensors for each group. Rows and group metadata report B layout and strides; the column-major group contains stage 01 and its own PyTorch baseline, while the remaining stages share a row-major group/baseline. GPU input packing, allocation, and CPU reference work are outside timing. Both groups completed and checked their outputs. The new SVG/PNG diagram was regenerated and inspected; targeted lint/formatting, local links, and whitespace checks passed. Stage 00 and stage 02–04 kernel/practice code were preserved byte-for-byte for this change.
+
 ## Deliberate limits
 
 The lessons use static positive shapes, nonnegative integer strides, and regular tiles. Most layout examples divide evenly; lesson 10 also checks native division of a contiguous 19-element coordinate layout into eight-position windows. Swizzles, basis-valued strides, dynamic shape constraints, general complement construction, and the full composition divisibility algorithm are later topics. Passing these examples does not establish support for arbitrary layouts or tilers.

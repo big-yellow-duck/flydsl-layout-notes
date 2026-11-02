@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" role="img">
+<title>03 - Select matching K windows, then copy into separate LDS storage</title>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">03 - Select matching K windows, then copy into separate LDS storage</text>
+<text x="32" y="66" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Block (1,2), tile_k=2. All tiled global views have shape (16,16,64,64).</text>
+<rect x="32" y="114" width="410" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="126" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">left_block_view: (16,16)</text>
+<text x="44" y="163" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">slice(left, (None,None,2,2))</text>
+<rect x="515" y="114" width="410" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="527" y="126" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">right_block_view: (16,16)</text>
+<text x="527" y="163" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">slice(right, (None,None,2,1))</text>
+<text x="32" y="233" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">A: rows 32..47, K 32..47</text>
+<text x="515" y="233" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">B: K 32..47, columns 16..31</text>
+<text x="32" y="279" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Global windows retain row stride 1024. Each LDS view has row stride 16.</text>
+<rect x="32" y="327" width="893" height="102" fill="#ffedbe" stroke="#8294aa"/>
+<text x="48" y="340" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">copy_coordinate = idx2crd(tid + load_slot*64, copy_layout)</text>
+<text x="48" y="380" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">shared_view[copy_coordinate] = block_view[copy_coordinate]</text>
+<text x="32" y="462" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Thread 17, load_slot=0 -&gt; (1,1): copy A[33,33] and B[33,17] into LDS.</text>
+<rect x="32" y="510" width="893" height="77" fill="#e5dcff" stroke="#8294aa"/>
+<text x="48" y="522" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">Barrier -&gt; compute from LDS -&gt; barrier -&gt; select the next K windows</text>
+<text x="48" y="557" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">The views select data; scalar assignments perform the actual transfers.</text>
+<text x="32" y="625" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">Four-row register ownership is unchanged. Repeat tile_k=0..63; store once at the end.</text>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="790" viewBox="0 0 960 790" role="img">
+<title>04 - Keep native block windows; let WMMA define register ownership</title>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">04 - Keep native block windows; let WMMA define register ownership</text>
+<text x="32" y="66" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">Global/tiled/block views and two barriers follow lesson 03. One wave has 32 lanes.</text>
+<rect x="32" y="113" width="410" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="125" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">left_block_view: (16,16)</text>
+<text x="44" y="162" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Global strides (1024,1)</text>
+<rect x="515" y="113" width="410" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="527" y="125" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">right_block_view: (16,16)</text>
+<text x="527" y="162" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Global strides (1024,1)</text>
+<text x="32" y="229" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">idx2crd(tid + load_slot*32, copy_layout): eight staged values per lane.</text>
+<rect x="32" y="276" width="410" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="288" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">left_shared_view: (16,16)</text>
+<text x="44" y="325" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">LDS strides (16,1)</text>
+<rect x="515" y="276" width="410" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="527" y="288" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">right_shared_view: (16,16)</text>
+<text x="527" y="325" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">LDS strides (16,1)</text>
+<text x="32" y="391" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">MMA operand views: left (M,K):(16,1), right (N,K):(1,16).</text>
+<text x="32" y="434" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">right_mma_view reinterprets the existing LDS storage; it does not transpose data.</text>
+<rect x="32" y="483" width="893" height="82" fill="#ffedbe" stroke="#8294aa"/>
+<text x="48" y="496" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">make_tiled_copy_A/B -&gt; partition_S + retile -&gt; fx.copy into fragments</text>
+<text x="48" y="532" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">fx.gemm(atom, accumulators, fragment_a, fragment_b, accumulators)</text>
+<text x="32" y="601" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">A/B: 16 BF16 values per lane, replicated across lane halves on gfx11.</text>
+<text x="32" y="645" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">C: eight unique FP32 outputs per lane; convert only after all 64 K tiles.</text>
+<text x="32" y="694" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">The C copy plan stores through out_block_view, retaining its global row stride 1024.</text>
+<text x="32" y="739" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">The staging copy layout and WMMA fragment layout serve different ownership rules.</text>
+</svg>

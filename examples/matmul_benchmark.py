@@ -53,13 +53,19 @@ def measure(launch, timing, repeats):
     return median if median > 0 else None
 
 
-def comparison(kernel_map, timing="auto", repeats=20):
+def comparison(kernel_map, timing="auto", repeats=20, *, right_layout="row-major"):
     """Validate and time GPU launches on shared inputs and a preallocated output."""
     m = n = k = 1024
     generator = torch.Generator().manual_seed(13)
     a_cpu = torch.randn(m, k, generator=generator).to(torch.bfloat16)
     b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)
     left, right = a_cpu.cuda(), b_cpu.cuda()
+    if right_layout == "column-major":
+        right = right.t().contiguous().t()
+    elif right_layout != "row-major":
+        raise ValueError(f"Unknown B layout: {right_layout}")
+    expected_stride = (1, k) if right_layout == "column-major" else (n, 1)
+    assert right.stride() == expected_stride
     out = torch.empty((m, n), dtype=torch.bfloat16, device="cuda")
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     launches = {
@@ -98,6 +104,9 @@ def comparison(kernel_map, timing="auto", repeats=20):
         "warmups": 3,
         "repeats": repeats,
         "shape_MNK": [m, n, k],
+        "right_layout": right_layout,
+        "right_stride": list(right.stride()),
+        "packing": "input packing excluded from timing",
         "timing_note": "host includes dispatch and synchronization"
         if method == "host"
         else "zero event durations are unavailable, not infinite throughput",
@@ -107,6 +116,8 @@ def comparison(kernel_map, timing="auto", repeats=20):
         {
             "kernel": name,
             "shape_MNK": [m, n, k],
+            "right_layout": right_layout,
+            "right_stride": list(right.stride()),
             "ms": milliseconds,
             "effective_TFLOP_s": 2 * m * n * k / (milliseconds * 1e9)
             if milliseconds is not None
@@ -135,18 +146,23 @@ def arguments():
     return args
 
 
-def lesson_main(kernel, solve, name, *, check_only=False):
+def lesson_main(kernel, solve, name, *, check_only=False, right_layout="row-major"):
     """Shared CLI for each matmul solution and completed practice."""
     args = None if check_only else arguments()
     try:
         print("Exercise passed:", solve(), flush=True)
         if check_only or args.check_only:
             return
-        metadata, rows = comparison({name: kernel}, args.timing, args.repeats)
+        metadata, rows = comparison(
+            {name: kernel}, args.timing, args.repeats, right_layout=right_layout
+        )
     except NotImplementedError as error:
         raise SystemExit(f"Practice not finished: {error}") from None
     print(
         f"GPU: {metadata['gpu']} | BF16 inputs/output, FP32 accumulation | M=N=K=1024"
+    )
+    print(
+        f"B layout: {metadata['right_layout']}, strides {tuple(metadata['right_stride'])}; packing excluded"
     )
     if metadata["fallback"]:
         print(metadata["fallback"])
@@ -180,14 +196,18 @@ def main():
         for stage, module in modules.items():
             print(stage, module["solve"]())
         return
-    metadata, rows = comparison(
-        {stage: module["run"] for stage, module in modules.items()},
-        args.timing,
-        args.repeats,
-    )
-    print(json.dumps(metadata))
-    for row in rows:
-        print(json.dumps(row), flush=True)
+    # Compare each kernel against PyTorch with the SAME physical B layout.
+    groups = {}
+    for stage, module in modules.items():
+        layout = module.get("RIGHT_LAYOUT", "row-major")
+        groups.setdefault(layout, {})[stage] = module["run"]
+    for layout, kernels in groups.items():
+        metadata, rows = comparison(
+            kernels, args.timing, args.repeats, right_layout=layout
+        )
+        print(json.dumps(metadata))
+        for row in rows:
+            print(json.dumps(row), flush=True)
 
 
 if __name__ == "__main__":

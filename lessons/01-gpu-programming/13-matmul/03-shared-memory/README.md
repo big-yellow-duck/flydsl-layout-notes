@@ -1,51 +1,111 @@
-# 03 · Share input tiles through LDS
+# 03 · Select K windows and stage them in LDS
 
-[Register tiling](../02-register-tiling/README.md) reuses B inside one thread. Local Data Share (LDS) lets threads in the same block reuse staged input values. Keep the same **1024×1024×1024** multiplication, 16×16 output tile, 64-thread block, and four outputs per thread. Change where the K loop obtains its operands.
+[Register tiling](../02-register-tiling/README.md) reuses B inside one thread. This lesson shares input values between threads by copying selected windows into Local Data Share (LDS), storage visible to the whole block. Keep **M=N=K=1024**, 16×16 output windows, 64 threads, and four FP32 output sums per thread.
 
-![Two BF16 input tiles are staged into 1024 bytes of LDS, with barriers before use and before reuse.](../../../../assets/01-gpu-programming/13-matmul/03-shared-memory/lds-staging.svg)
+The new distinction is between a **global block view**, which addresses existing matrix storage, and a **shared view**, which addresses a separate LDS allocation. Native views select coordinates; assignments transfer the data.
 
-Each iteration stages 16 K positions. A tile contains 16 output rows × 16 K positions; B contains 16 K positions × 16 output columns. Each occupies 512 bytes, so the block allocates 1024 bytes of LDS. There are 64 such K tiles in the full reduction.
+## 1. Divide both inputs along K as well
 
-## Allocate workgroup storage
+Global layouts are still `(M,K):(K,1)`, `(K,N):(N,1)`, and `(M,N):(N,1)`. The tilers now use `(16,16)` for every matrix:
 
-The native allocator creates shared storage inside the kernel:
+```python
+left_tiled_view = fx.flat_divide(left_global_view, (16, 16))
+right_tiled_view = fx.flat_divide(right_global_view, (16, 16))
+out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
+out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+```
+
+All tiled shapes are `(16,16,64,64)`, but the final modes have different meanings:
+
+| View | Four coordinate modes |
+| --- | --- |
+| `left_tiled_view` | `(local_row, local_inner, output_tile_row, K_tile)` |
+| `right_tiled_view` | `(local_inner, local_column, K_tile, output_tile_column)` |
+| `out_tiled_view` | `(local_row, local_column, output_tile_row, output_tile_column)` |
+
+Unlike lesson 02's full-K windows, each input window now covers **16** K positions. There are 64 K windows in the reduction. Select the output once; select the matching input windows anew on each iteration.
+
+## 2. Allocate two ordinary row-major LDS views
 
 ```python
 allocator = fx.SharedAllocator()
-shared_a = (
-    allocator.allocate(fx.Array[fx.BFloat16, 256]).peek().view(fx.make_layout(256, 1))
+left_shared_view = (
+    allocator.allocate(fx.Array[fx.BFloat16, 256])
+    .peek()
+    .view(fx.make_layout((16, 16), (16, 1)))
 )
 ```
 
-B has an equivalent allocation. Static allocation lets the launcher infer the required shared storage; no host buffer stands in for LDS. Views describe positions in that storage. Stores move values into it.
+`right_shared_view` has an equivalent separate allocation. Each tile occupies 256 BF16 values, or 512 bytes; both total 1024 bytes per block. Global windows retain row stride 1024, while the packed LDS views have row stride 16. Their coordinate domains match even though their storage layouts differ. Static shared allocation supplies the launch's required LDS size.
 
-## Cooperatively populate each tile
+## 3. Keep the four-row thread ownership
 
-Each thread loads four positions from each operand. In slot `s`:
+The `(4,16)` thread layout and `(4,1)` output tiler from lesson 02 stay unchanged. Thread 17 still owns row group 1, column 1; in block `(1,2)` that is global C rows 36–39 at column 17.
 
-```python
-position = tid + slot * 64
-tile_row = position // 16
-tile_col = position % 16
-```
-
-The 64 threads cover positions 0–255 exactly once. At `tile_k=0`, thread 1 stages positions 1, 65, 129, and 193. Position 65 means local `(4,1)`: A comes from global `(row_base+4,1)` and B from `(4,col_base+1)`. At `tile_k=1`, A's global column and B's global row each advance by 16.
-
-After all staging stores, `fx.gpu.barrier()` makes the complete tiles available before consumption. Thread 1 reads B's local column 1 and updates the same four output rows as in lesson 02. Its A access for slot `s` and local reduction coordinate `inner` is:
+The compute views now refer to LDS:
 
 ```python
-a = fx.Float32(shared_a[(row_local + slot) * 16 + inner])
+left_thread_tiled_view = fx.flat_divide(left_shared_view, (4, 16))
+left_thread_view = fx.slice(
+    left_thread_tiled_view, (None, None, thread_coordinate[0], 0)
+)
+right_column = fx.slice(right_shared_view, (None, thread_coordinate[1]))
 ```
 
-LDS indexing uses the tile's row length of 16; global A indexing uses K=1024. Mixing these strides reads a different location.
+| View | Shape | Strides in elements |
+| --- | --- | --- |
+| `left_thread_tiled_view` | `(4,16,4,1)` | Derived from the LDS layout |
+| `left_thread_view` | `(4,16)` | `(16,1)` |
+| `right_column` | `16` | `16` |
+| `out_thread_view` | `(4,1)` | `(1024,0)` |
 
-## Protect both sides of tile reuse
+FlyDSL canonicalizes the single-column mode of `out_thread_view` to stride 0: its only valid column coordinate is 0, so this does not change any address. Its row stride remains 1024.
 
-The first barrier prevents consumers from reading an incomplete tile. The second prevents early threads from overwriting LDS for the next K tile while other threads still consume the current tile. Both are outside per-thread conditions, so every thread reaches them in the same order. The two wave32 groups may progress at different rates.
+The input thread views keep addressing the same LDS allocation across iterations. Each iteration replaces the values in that storage with the next global K windows; the views themselves do not need rebuilding.
 
-Staging reduces explicit global input loads within this block, but adds LDS traffic, barriers, and shared storage. The benchmark decides whether that trade helps for this workload. This version has one staging buffer per operand and does not overlap loading with computation.
+## 4. Select global windows, then cooperatively populate LDS
 
-TODO 1 is `position`; TODO 2 is the FP32 A load `a` from LDS. Allocation, global staging expressions, and both barriers are supplied.
+```python
+for tile_k in range(k // 16):
+    left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
+    right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+```
+
+![At tile_k 2, global A and B windows retain row stride 1024 while the LDS destination views have row stride 16. Native copy coordinates address the corresponding local position in both.](../../../../assets/01-gpu-programming/13-matmul/03-shared-memory/k-windows.svg)
+
+Follow block `(1,2)`, `tile_k=2`: A covers rows 32–47 and K 32–47; B covers K 32–47 and columns 16–31. The common K window is what makes these inputs a matching partial product.
+
+A separate copy layout distributes the tile's 256 positions among the 64 threads:
+
+```python
+copy_layout = fx.make_ordered_layout((16, 16), (1, 0))
+for load_slot in fx.range_constexpr(4):
+    copy_coordinate = fx.idx2crd(fx.thread_idx.x + load_slot * 64, copy_layout)
+    left_shared_view[copy_coordinate] = left_block_view[copy_coordinate]
+    right_shared_view[copy_coordinate] = right_block_view[copy_coordinate]
+```
+
+Thread 17's first load has coordinate `(1,1)`. It copies global A `(33,33)` and B `(33,17)` to local LDS `(1,1)` in their respective allocations. Across four load slots, every tile position has one loader. The copy layout assigns loading work; the `(4,16)` compute layout assigns output work. They serve different purposes.
+
+## 5. Synchronize, compute, then protect reuse
+
+```python
+fx.gpu.barrier()
+for inner in range(16):
+    b = fx.Float32(right_column[inner])
+    for slot in fx.range_constexpr(4):
+        a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
+        accumulators[slot] = accumulators[slot] + a * b
+fx.gpu.barrier()
+```
+
+The first barrier completes cooperative staging before consumers read any tile position. The second finishes all consumers before the next iteration overwrites LDS. Both are reached uniformly by all threads, including the block's two wave32 groups.
+
+At `tile_k=2`, thread 17's `slot=0, inner=1` updates C `(36,17)` using global A `(36,33)` and B `(33,17)`. `inner` is local to the selected K window. Native slicing supplies its global base automatically.
+
+Initialize accumulators before the K-tile loop, keep them FP32 across all 64 iterations, then convert and store through `out_thread_view` once. Initializing inside that loop would discard prior partial sums. This version adds real data reuse but also LDS traffic and barriers; performance remains measured separately.
+
+TODO 1 is `copy_coordinate`, the inverse of the copy ownership layout. TODO 2 is `a`, loaded and widened through the four-row LDS thread view. Keep both barriers and all output stores supplied.
 
 ## Practice and checkpoint
 

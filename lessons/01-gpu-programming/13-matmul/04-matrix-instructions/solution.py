@@ -17,69 +17,70 @@ def exercise_kernel(
     n: fx.Constexpr,
     k: fx.Constexpr,
 ):
-    # 1. Reuse contiguous input views; each block owns a 16 x 16 output tile.
-    tid = fx.thread_idx.x
-    row_base = fx.block_idx.y * 16
-    col_base = fx.block_idx.x * 16
-    left = fx.make_view(fx.get_iter(left), fx.make_layout(m * k, 1))
-    right = fx.make_view(fx.get_iter(right), fx.make_layout(k * n, 1))
-    # 2. Stage ordinary row-major inputs, then describe the MMA operand views.
+    # 1. Describe the global row-major matrices.
+    left_global_view = fx.make_view(fx.get_iter(left), fx.make_layout((m, k), (k, 1)))
+    right_global_view = fx.make_view(fx.get_iter(right), fx.make_layout((k, n), (n, 1)))
+    out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
+    block_row = fx.block_idx.y
+    block_col = fx.block_idx.x
+    # 2. Expose 16-wide K windows; select the output tile once.
+    left_tiled_view = fx.flat_divide(left_global_view, (16, 16))
+    right_tiled_view = fx.flat_divide(right_global_view, (16, 16))
+    out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
+    out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+    # Allocate separate physical LDS storage, then attach ordinary 2-D layouts.
     allocator = fx.SharedAllocator()
-    shared_a = (
+    left_shared_view = (
         allocator.allocate(fx.Array[fx.BFloat16, 256])
         .peek()
-        .view(fx.make_layout(256, 1))
+        .view(fx.make_layout((16, 16), (16, 1)))
     )
-    shared_b = (
+    right_shared_view = (
         allocator.allocate(fx.Array[fx.BFloat16, 256])
         .peek()
-        .view(fx.make_layout(256, 1))
+        .view(fx.make_layout((16, 16), (16, 1)))
     )
-    a_tile = fx.make_view(fx.get_iter(shared_a), fx.make_layout((16, 16), (16, 1)))
-    # MMA names B's modes (N,K); the underlying LDS values remain row-major (K,N).
-    b_tile = fx.make_view(fx.get_iter(shared_b), fx.make_layout((16, 16), (1, 16)))
-    c_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
-    c_tiles = fx.zipped_divide(c_view, (16, 16))
-    c_tile = fx.slice(c_tiles, (None, (fx.block_idx.y, fx.block_idx.x)))
-    # 3. One wave32 executes a BF16 16x16x16 WMMA with FP32 accumulators.
+    copy_layout = fx.make_ordered_layout((16, 16), (1, 0))
+    # 3. Describe MMA operand coordinates over the existing LDS storage.
+    left_mma_view = left_shared_view
+    right_mma_view = fx.make_view(
+        fx.get_iter(right_shared_view), fx.make_layout((16, 16), (1, 16))
+    )
     atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
     mma = fx.make_tiled_mma(atom, fx.make_layout((1, 1, 1), (0, 0, 0)))
-    thread_mma = mma.thr_slice(tid)
-    accumulators = thread_mma.make_fragment_C(c_tile)
+    thread_mma = mma.thr_slice(fx.thread_idx.x)
+    accumulators = thread_mma.make_fragment_C(out_block_view)
     accumulators.fill(0)
     copy_ab = fx.make_copy_atom(fx.UniversalCopy(16), fx.BFloat16)
     copy_c = fx.make_copy_atom(fx.UniversalCopy(16), fx.BFloat16)
-    thread_a = fx.make_tiled_copy_A(copy_ab, mma).get_slice(tid)
-    thread_b = fx.make_tiled_copy_B(copy_ab, mma).get_slice(tid)
-    thread_c = fx.make_tiled_copy_C(copy_c, mma).get_slice(tid)
-    fragment_a = thread_mma.make_fragment_A(a_tile)
-    fragment_b = thread_mma.make_fragment_B(b_tile)
-    source_a = thread_a.partition_S(a_tile)
-    source_b = thread_b.partition_S(b_tile)
+    thread_a = fx.make_tiled_copy_A(copy_ab, mma).get_slice(fx.thread_idx.x)
+    thread_b = fx.make_tiled_copy_B(copy_ab, mma).get_slice(fx.thread_idx.x)
+    thread_c = fx.make_tiled_copy_C(copy_c, mma).get_slice(fx.thread_idx.x)
+    fragment_a = thread_mma.make_fragment_A(left_mma_view)
+    fragment_b = thread_mma.make_fragment_B(right_mma_view)
+    source_a = thread_a.partition_S(left_mma_view)
+    source_b = thread_b.partition_S(right_mma_view)
     register_a = thread_a.retile(fragment_a)
     register_b = thread_b.retile(fragment_b)
+    # 4. Keep the same native K windows and cooperative LDS staging as lesson 03.
     for tile_k in range(k // 16):
-        # The wave stages each input once; WMMA's replicated operands load from LDS.
-        for slot in fx.range_constexpr(8):
-            position = tid + slot * 32
-            tile_row = position // 16
-            tile_col = position % 16
-            shared_a[position] = left[
-                (row_base + tile_row) * k + tile_k * 16 + tile_col
-            ]
-            shared_b[position] = right[
-                (tile_k * 16 + tile_row) * n + col_base + tile_col
-            ]
+        left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
+        right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+        # The copy coordinate is local to both the global window and its LDS tile.
+        for load_slot in fx.range_constexpr(8):
+            copy_coordinate = fx.idx2crd(fx.thread_idx.x + load_slot * 32, copy_layout)
+            left_shared_view[copy_coordinate] = left_block_view[copy_coordinate]
+            right_shared_view[copy_coordinate] = right_block_view[copy_coordinate]
         fx.gpu.barrier()
         fx.copy(copy_ab, source_a, register_a)
         fx.copy(copy_ab, source_b, register_b)
         fx.gemm(atom, accumulators, fragment_a, fragment_b, accumulators)
         fx.gpu.barrier()
-    # 4. Convert the FP32 result fragment once, then copy its BF16 representation.
+    # 5. Convert once to BF16 and store via the instruction's output ownership.
     result = fx.make_rmem_tensor(accumulators.layout, fx.BFloat16)
     for slot in fx.range_constexpr(8):
         result[slot] = accumulators[slot].to(fx.BFloat16)
-    destination = thread_c.partition_S(c_tile)
+    destination = thread_c.partition_S(out_block_view)
     fx.copy(copy_c, thread_c.retile(result), destination)
 
 
