@@ -335,16 +335,16 @@ def shared():
 
 
 def matrix():
-    f = Diagram(650, "05 - A wave32 owns one 16 x 16 WMMA result")
+    f = Diagram(650, "05 - Within each wave: one 16 x 16 WMMA result")
     f.text(
         32, 66, "gfx11 BF16 WMMA: 32 lanes cooperate on a 16 x 16 x 16 multiplication."
     )
-    f.card(32, 115, 410, "A operand view: (M,K)", "LDS strides (16,1)", BLUE)
-    f.card(515, 115, 410, "B operand view: (N,K)", "LDS strides (1,16)", TEAL)
+    f.card(32, 115, 410, "A operand view: (M,K)", "LDS strides (32,1)", BLUE)
+    f.card(515, 115, 410, "B operand view: (N,K)", "LDS strides (1,32)", TEAL)
     f.text(
         32,
         227,
-        "Both lane halves load replicated A/B fragments: 16 BF16 values per lane.",
+        "Per 16-wide K slice: both lane halves load 16 replicated BF16 values.",
         18,
     )
     f.text(32, 270, "C ownership: column = lane % 16; row = 2 * slot + lane // 16", 20)
@@ -362,7 +362,7 @@ def matrix():
     f.text(
         32,
         523,
-        "Shown: output rows 0..3, columns 0..7. Labels identify owning LANES.",
+        "Shown within one wave: rows 0..3, columns 0..7. Labels are LANES.",
         17,
     )
     f.text(
@@ -493,20 +493,20 @@ def mma_native_views():
     f.text(
         32,
         66,
-        "Vectorized staging follows lesson 04. One wave has 32 lanes.",
+        "Four wave32 groups (128 threads) cover a 32 x 32 output block.",
         17,
     )
-    f.card(32, 113, 410, "left_block_view: (16,16)", "Global strides (1024,1)", BLUE)
-    f.card(515, 113, 410, "right_block_view: (16,16)", "Global strides (1024,1)", TEAL)
+    f.card(32, 113, 410, "left_block_view: (32,32)", "Global strides (1024,1)", BLUE)
+    f.card(515, 113, 410, "right_block_view: (32,32)", "Global strides (1024,1)", TEAL)
     f.text(
         32,
         229,
-        "UniversalCopy128b: global -> register fragment -> LDS, eight BF16 per lane.",
+        "UniversalCopy128b: global -> register fragment -> LDS, eight BF16 per thread.",
         19,
     )
-    f.card(32, 276, 410, "left_lds_view: (16,16)", "LDS strides (16,1)", BLUE)
-    f.card(515, 276, 410, "right_lds_view: (16,16)", "LDS strides (16,1)", TEAL)
-    f.text(32, 391, "MMA operand views: left (M,K):(16,1), right (N,K):(1,16).", 20)
+    f.card(32, 276, 410, "left_lds_view: (32,32)", "LDS strides (32,1)", BLUE)
+    f.card(515, 276, 410, "right_lds_view: (32,32)", "LDS strides (32,1)", TEAL)
+    f.text(32, 391, "MMA operand views: left (M,K):(32,1), right (N,K):(1,32).", 20)
     f.text(
         32,
         434,
@@ -521,18 +521,21 @@ def mma_native_views():
         19,
     )
     f.text(
-        48, 532, "fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)", 18
+        48,
+        532,
+        "fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)",
+        18,
     )
     f.text(
         32,
         601,
-        "A/B: 16 BF16 values per lane, replicated across lane halves on gfx11.",
+        "A/B: 32 BF16 values per thread; two 16-wide K updates per stage.",
         19,
     )
     f.text(
         32,
         645,
-        "C: eight unique FP32 outputs per lane; convert only after all 64 K tiles.",
+        "C: eight unique FP32 outputs per lane; convert only after all 32 K tiles.",
         19,
     )
     f.text(
@@ -548,6 +551,46 @@ def mma_native_views():
         17,
     )
     f.save(f"{BASE}/05-matrix-instructions/native-mma-views")
+
+
+def tiled_mma_waves():
+    f = Diagram(690, "05 - Four wave32 groups cover one 32 x 32 output tile")
+    f.text(32, 66, "Atom: 16x16x16. Atom layout: (2,2,1):(1,2,0). No permutation.", 19)
+    f.text(32, 110, "Wave ID = wave_m + 2*wave_n; each wave has 32 lanes.", 19)
+    for wave_n in range(2):
+        for wave_m in range(2):
+            wave = wave_m + 2 * wave_n
+            f.card(
+                32 + wave_n * 483,
+                165 + wave_m * 145,
+                410,
+                f"Wave {wave}: threads {32 * wave}..{32 * wave + 31}",
+                f"Rows {16 * wave_m}..{16 * wave_m + 15}, cols {16 * wave_n}..{16 * wave_n + 15}",
+                BLUE if wave_n == 0 else TEAL,
+            )
+    f.text(
+        32, 461, "Coordinates are local output rows/columns in the 32 x 32 block.", 19
+    )
+    f.box(32, 510, 893, 82, GOLD)
+    f.text(
+        48,
+        522,
+        "BLOCK_K = 32: each wave updates its tile for K=0..15, then K=16..31.",
+        18,
+    )
+    f.text(
+        48,
+        558,
+        "The K repetition adds operand values; it does not add wave groups.",
+        18,
+    )
+    f.text(
+        32,
+        632,
+        "128 threads x eight FP32 accumulator slots = 1024 unique output positions.",
+        18,
+    )
+    f.save(f"{BASE}/05-matrix-instructions/tiled-mma-waves")
 
 
 def column_major_b():
@@ -623,6 +666,117 @@ def vectorized_copy():
     f.save(f"{BASE}/04-vectorized-copy/copy-ownership")
 
 
+def lds_swizzle():
+    f = Diagram(850, "06 - Change A's LDS placement; keep logical coordinates")
+    f.text(32, 66, "A tile: 32x32 BF16. Trace fixed k=2 across rows r=0..7.", 20)
+    f.text(
+        32,
+        108,
+        "e = element offset; bank = (2*e // 4) % 32 for 32 four-byte banks.",
+        18,
+    )
+    titles = ["Packed: stride 32", "Swizzle<3,3,3>", "Padded: stride 40"]
+    colors = [BLUE, GOLD, TEAL]
+    for column, title in enumerate(titles):
+        x = 32 + 304 * column
+        f.box(x, 170, 285, 425, colors[column])
+        f.text(x + 12, 184, title, 21)
+        f.text(x + 12, 225, "Row   element e   bank", 17)
+        for row in range(8):
+            packed = row * 32 + 2
+            offset = [packed, packed ^ ((packed & 0x1C0) >> 3), row * 40 + 2][column]
+            f.text(
+                x + 12,
+                274 + row * 39,
+                f"r{row}       {offset:3}        {offset // 2 % 32:2}",
+                18,
+            )
+    f.text(
+        32,
+        635,
+        "Row 2, k=2: packed e=66 -> XOR 8 -> swizzled e=74 -> byte 148 -> bank 5.",
+        18,
+    )
+    f.text(
+        32,
+        681,
+        "The swizzle preserves low three bits: eight-BF16 staging chunks stay contiguous.",
+        18,
+    )
+    f.box(32, 727, 893, 75, PURPLE)
+    f.text(
+        48,
+        739,
+        "This is an address sketch, not a measured conflict rate for a GPU instruction.",
+        18,
+    )
+    f.text(
+        48,
+        773,
+        "Use the complete kernel's LDS counters, generated ISA, and separate timing.",
+        18,
+    )
+    f.save(f"{BASE}/06-lds-swizzle/lds-bank-map")
+
+
+def interleaved_loads():
+    f = Diagram(880, "07 - Prefetch the next global tile while consuming current LDS")
+    f.text(
+        32,
+        66,
+        "Fixed: 32x32x32 block tile, four wave32 groups, padded A, 4608 LDS bytes.",
+        18,
+    )
+    f.text(
+        32,
+        111,
+        "Rows show program order and buffer contents, not measured cycle durations.",
+        18,
+    )
+    f.card(
+        32,
+        164,
+        893,
+        "Prologue: load tile 0 -> staging registers -> LDS -> ready barrier",
+        "LDS holds tile 0. Its staging registers may now be reused for tile 1.",
+        BLUE,
+    )
+    f.text(32, 288, "Steady-state iteration t (t = 0..30):", 21)
+    steps = [
+        (
+            "1. Load global tile t+1",
+            "Private staging registers receive the next A/B chunks.",
+            TEAL,
+        ),
+        (
+            "2. Read LDS tile t; execute two WMMA updates",
+            "Compute uses current operand fragments, separate from staging registers.",
+            GOLD,
+        ),
+        (
+            "3. Reader barrier; publish prefetched tile t+1",
+            "After every wave finishes reading: staging registers -> the same LDS buffers.",
+            PURPLE,
+        ),
+        (
+            "4. Ready barrier",
+            "Every wave may now read tile t+1; the next iteration can prefetch t+2.",
+            BLUE,
+        ),
+    ]
+    for index, (title, detail, color) in enumerate(steps):
+        f.card(32, 330 + index * 104, 893, title, detail, color)
+    f.card(
+        32,
+        762,
+        893,
+        "Drain: consume tile 31, then convert and store the output",
+        "No tile 32 load. With one K tile, the steady-state loop has zero iterations.",
+        GOLD,
+    )
+    f.save(f"{BASE}/07-interleaved-loads/load-compute-schedule")
+
+
 def main():
     naive()
     naive_views()
@@ -639,6 +793,9 @@ def main():
     vectorized_copy()
     matrix()
     mma_native_views()
+    tiled_mma_waves()
+    lds_swizzle()
+    interleaved_loads()
 
 
 if __name__ == "__main__":

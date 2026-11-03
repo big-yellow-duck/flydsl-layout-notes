@@ -7,10 +7,10 @@ import flydsl.compiler as flyc
 import flydsl.expr as fx
 import torch
 
-BLOCK_M = 16
-BLOCK_N = 16
-BLOCK_K = 16
-THREADS_PER_BLOCK = 32
+BLOCK_M = 32
+BLOCK_N = 32
+BLOCK_K = 32
+THREADS_PER_BLOCK = 128
 
 
 @fx.struct
@@ -35,7 +35,7 @@ def exercise_kernel(
     block_row = fx.block_idx.y
     block_col = fx.block_idx.x
 
-    # 2. Select one instruction-sized block tile, retaining global row strides.
+    # 2. Select a four-wave block tile, retaining global row strides.
     left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
     right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
     out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
@@ -46,9 +46,9 @@ def exercise_kernel(
     left_lds_view = lds.left.view(fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K, 1)))
     right_lds_view = lds.right.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))
 
-    # 4. Keep stage 04's generic staging plan; adapt ownership to 32 lanes.
+    # 4. Keep stage 04's generic staging plan; adapt ownership to 128 threads.
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-    gmem2lds_thread_layout = fx.make_ordered_layout((16, 2), (1, 0))
+    gmem2lds_thread_layout = fx.make_ordered_layout((32, 4), (1, 0))
     gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
     gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
         gmem2lds_thread_layout, gmem2lds_val_layout
@@ -78,7 +78,7 @@ def exercise_kernel(
     mma_atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
     if mma_atom is None:
         raise NotImplementedError("Fill in mma_atom.")
-    mma = fx.make_tiled_mma(mma_atom, fx.make_layout((1, 1, 1), (0, 0, 0)))
+    mma = fx.make_tiled_mma(mma_atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
     thread_mma = mma.thr_slice(fx.thread_idx.x)
     accumulator = thread_mma.make_fragment_C(out_block_view)
     accumulator.fill(0)
@@ -87,7 +87,7 @@ def exercise_kernel(
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
     lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
     lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
-    # Full lane IDs replace stage 04's thread row/column coordinates.
+    # Full block thread IDs select both wave group and lane ownership.
     lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(fx.thread_idx.x)
     lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(fx.thread_idx.x)
     # MMA defines the fragment layout. Retile provides a copy-compatible alias.
@@ -117,7 +117,7 @@ def exercise_kernel(
         fx.copy(copy_128b, left_fragment, left_lds_destination)
         fx.copy(copy_128b, right_fragment, right_lds_destination)
         fx.barrier()
-        # Load the complete 16-wide K tile, rather than one inner_k at a time.
+        # Load 32 K positions per operand; GEMM iterates two 16-wide K fragments.
         fx.copy(copy_16b, left_r_source, left_r_destination)
         fx.copy(copy_16b, right_r_source, right_r_destination)
         fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
@@ -155,7 +155,7 @@ def solve():
         raise RuntimeError(
             f"This lesson supports gfx1151/gfx1152; detected {architecture}"
         )
-    # Fixed comparison workload: 64 x 64 output tiles, each with 64 K tiles.
+    # Fixed comparison workload: 32 x 32 output tiles, each with 32 K tiles.
     shapes = [(1024, 1024, 1024)]
     generator = torch.Generator().manual_seed(13)
     checkpoint = None

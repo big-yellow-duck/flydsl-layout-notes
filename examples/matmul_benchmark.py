@@ -24,6 +24,8 @@ STAGES = (
     "03-shared-memory",
     "04-vectorized-copy",
     "05-matrix-instructions",
+    "06-lds-swizzle",
+    "07-interleaved-loads",
 )
 
 

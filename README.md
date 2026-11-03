@@ -9,7 +9,7 @@ The course begins with small mappings that can be traced by hand, then builds to
 | Section | Lessons | What you learn |
 | --- | --- | --- |
 | [00 · Layout algebra](lessons/00-layout-algebra/README.md) | 00–07 | Shapes, coordinates, composition, coalescing, tiling, block windows, thread/value ownership |
-| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through matrix instructions |
+| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through measured LDS layout tuning and load/compute interleaving |
 
 Start with layout algebra; lessons 06 and 07 still develop the coordinate and ownership fundamentals. Actual copy plans begin in lesson 08.
 
@@ -58,7 +58,7 @@ A memory view combines a storage iterator (a typed pointer) with a layout. Use `
 
 The early algebra lessons intentionally stop at mapping coordinates to offsets. Copy lessons begin with their data views. Tail lessons use a separate coordinate-only view to decide whether a memory access is valid. The combined divide exercise is an explicit cross-check, while the four focused tutorials show one direct access path each.
 
-The 23 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
+The 25 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
 
 ## What executes where
 
@@ -78,7 +78,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all 23 worked programs: thirteen foundational lessons, four focused divide tutorials, and six matmul stages:
+Run all 25 worked programs: thirteen foundational lessons, four focused divide tutorials, and eight matmul stages:
 
 ```bash
 pixi run lessons-check
@@ -100,7 +100,7 @@ On the gfx1151 setup, GPU event durations reported zero, including for a standal
 
 ## Practice BF16 matmul optimization
 
-After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions. Every stage uses **M=N=K=1024**, BF16 inputs/output, and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
+After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions → LDS bank-conflict measurement → interleaved loads and compute. Every stage uses **M=N=K=1024**, BF16 inputs/output, and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py
@@ -109,4 +109,4 @@ pixi run matmul-bench
 pixi run matmul-bench --timing host
 ```
 
-Each matmul solution and completed practice prints its own timing and TFLOP/s comparison against GPU `torch.matmul`. The separate benchmark compares all six GPU kernels against GPU `torch.matmul` grouped by matching physical B layout, with identical logical inputs and preallocated output. Input packing stays outside timing. CPU arithmetic is only the untimed correctness reference. Default automatic timing falls back to synchronized host batches for every compared implementation when any event duration is unavailable. The fallback is labeled and includes dispatch and synchronization. Use `--timing gpu-event` to disable fallback or `--check-only` to skip timing. See the [roadmap](ROADMAP.md#matmul-continuation-planned) for planned pipelining, tuning, and a measured hipBLAS/hipBLASLt challenge.
+Each matmul solution and completed practice prints its own timing and TFLOP/s comparison against GPU `torch.matmul`. The separate benchmark compares all eight GPU kernels against GPU `torch.matmul` grouped by matching physical B layout, with identical logical inputs and preallocated output. Input packing stays outside timing. CPU arithmetic is only the untimed correctness reference. Default automatic timing falls back to synchronized host batches for every compared implementation when any event duration is unavailable. The fallback is labeled and includes dispatch and synchronization. Use `--timing gpu-event` to disable fallback or `--check-only` to skip timing. See the [roadmap](ROADMAP.md#matmul-continuation-planned) for planned LDS double buffering, tuning, and a measured hipBLAS/hipBLASLt challenge.

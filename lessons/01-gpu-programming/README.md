@@ -11,7 +11,7 @@ Follow the lessons in order. Start with a full tile so the copy operation is eas
 | [10 · Predicates and tails](10-predicates-and-tails/README.md) | Derive candidate indices and guard every memory access in a partial tile. |
 | [11 · Vector addition](11-vector-addition/README.md) | Assemble a complete launch that handles full tiles and a partial final tile. |
 | [12 · Inspect and measure](12-inspect-and-tune/README.md) | Compare copy widths using correctness checks, generated instructions, and GPU event timings. |
-| [13 · BF16 matmul](13-matmul/README.md) | Optimize a fixed 1024³ GPU multiplication from naive dot products through gfx11 matrix instructions in six practice stages. |
+| [13 · BF16 matmul](13-matmul/README.md) | Optimize a fixed 1024³ GPU multiplication from naive dot products through gfx11 matrix instructions, LDS layout measurement, and interleaved loads with compute in eight practice stages. |
 
 For each diagram, identify whether its cells contain offsets, candidate indices, or data values. Follow one thread through the example before tracing the full block. Complete `practice.py`, run the supplied checker, then compare the commented `solution.py`. Run commands from the repository root in the [configured GPU environment](../../README.md#set-up-and-start).
 

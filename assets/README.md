@@ -33,9 +33,17 @@ assets/
         ├── 02-register-tiling/
         ├── 03-shared-memory/
         ├── 04-vectorized-copy/
-        └── 05-matrix-instructions/
+        ├── 05-matrix-instructions/
+        ├── 06-lds-swizzle/
+        └── 07-interleaved-loads/
 ```
+
+Stage 05 includes `tiled-mma-waves.svg` and its PNG preview, showing the four wave32 groups in a 32×32 output block.
 
 Shared illustrations stay with the lesson that introduces their concept. For example, the course overview uses the logical-divide figure from lesson 05; it links to that asset directly.
 
 The drawing sources live in [`tools/`](../tools/). Regeneration commands and contribution guidelines are in [CONTRIBUTING.md](../CONTRIBUTING.md). When adding a diagram, have its generator save both formats into the corresponding lesson folder, then link the SVG from the lesson README.
+
+Stage 06 includes `lds-bank-map.svg` and its PNG preview. Regenerate it with `python3 tools/draw_matmul_lessons.py`; bank labels sketch addresses, while the lesson's captured profiler counters establish the measured conflict ratio.
+
+Stage 07 includes `load-compute-schedule.svg` and its PNG preview. The diagram shows program order and buffer contents across prologue, steady state, and drain, rather than measured cycle durations. Regenerate it with `python3 tools/draw_matmul_lessons.py`.
