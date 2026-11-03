@@ -335,7 +335,7 @@ def shared():
 
 
 def matrix():
-    f = Diagram(650, "04 - A wave32 owns one 16 x 16 WMMA result")
+    f = Diagram(650, "05 - A wave32 owns one 16 x 16 WMMA result")
     f.text(
         32, 66, "gfx11 BF16 WMMA: 32 lanes cooperate on a 16 x 16 x 16 multiplication."
     )
@@ -377,7 +377,7 @@ def matrix():
         "Replicated inputs are intentional; every output still has a unique writer.",
         18,
     )
-    f.save(f"{BASE}/04-matrix-instructions/wave-fragments")
+    f.save(f"{BASE}/05-matrix-instructions/wave-fragments")
 
 
 def register_thread_windows():
@@ -488,12 +488,12 @@ def staged_k_windows():
 
 def mma_native_views():
     f = Diagram(
-        790, "04 - Keep native block windows; let WMMA define register ownership"
+        790, "05 - Keep native block windows; let WMMA define register ownership"
     )
     f.text(
         32,
         66,
-        "Global/tiled/block views and two barriers follow lesson 03. One wave has 32 lanes.",
+        "Vectorized staging follows lesson 04. One wave has 32 lanes.",
         17,
     )
     f.card(32, 113, 410, "left_block_view: (16,16)", "Global strides (1024,1)", BLUE)
@@ -501,11 +501,11 @@ def mma_native_views():
     f.text(
         32,
         229,
-        "idx2crd(tid + load_slot*32, copy_layout): eight staged values per lane.",
+        "UniversalCopy128b: global -> register fragment -> LDS, eight BF16 per lane.",
         19,
     )
-    f.card(32, 276, 410, "left_shared_view: (16,16)", "LDS strides (16,1)", BLUE)
-    f.card(515, 276, 410, "right_shared_view: (16,16)", "LDS strides (16,1)", TEAL)
+    f.card(32, 276, 410, "left_lds_view: (16,16)", "LDS strides (16,1)", BLUE)
+    f.card(515, 276, 410, "right_lds_view: (16,16)", "LDS strides (16,1)", TEAL)
     f.text(32, 391, "MMA operand views: left (M,K):(16,1), right (N,K):(1,16).", 20)
     f.text(
         32,
@@ -521,7 +521,7 @@ def mma_native_views():
         19,
     )
     f.text(
-        48, 532, "fx.gemm(atom, accumulators, fragment_a, fragment_b, accumulators)", 18
+        48, 532, "fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)", 18
     )
     f.text(
         32,
@@ -547,7 +547,7 @@ def mma_native_views():
         "The staging copy layout and WMMA fragment layout serve different ownership rules.",
         17,
     )
-    f.save(f"{BASE}/04-matrix-instructions/native-mma-views")
+    f.save(f"{BASE}/05-matrix-instructions/native-mma-views")
 
 
 def column_major_b():
@@ -586,6 +586,43 @@ def column_major_b():
     f.save(f"{BASE}/01-coalesced-access/b-column-major")
 
 
+def vectorized_copy():
+    f = Figure(650, "04 - Copy eight BF16 values per thread with UniversalCopy128b")
+    f.text(32, 70, "Copy tile: 32 x 64. Full input tile: 64 x 64. Block: 256 threads.")
+    f.text(
+        32,
+        112,
+        "Thread 9 = copy row 1, chunk 1. Cells show LOCAL COLUMN COORDINATES.",
+        18,
+    )
+    for row, y in [(1, 180), (33, 290)]:
+        f.text(32, y + 10, f"row {row}")
+        for col in range(16):
+            f.cell(140 + col * 48, y, col, GOLD if col >= 8 else BLUE, 48)
+        f.text(
+            140, y + 52, "Columns 16..63 omitted. Other threads copy those chunks.", 17
+        )
+    f.text(32, 390, "One gold chunk = 8 BF16 x 2 bytes = 16 bytes = 128 bits.")
+    f.text(32, 434, "Global row-major -> registers -> row-major LDS for both A and B")
+    f.text(32, 478, "Local (1,8): global relative offset 1032; LDS relative offset 72.")
+    f.text(
+        32, 522, "256 threads x 2 row repetitions x 8 values = 4096 elements per input."
+    )
+    f.text(
+        32,
+        566,
+        "Compute ownership is separate: thread 9 owns output rows 0..3, cols 36..39.",
+        18,
+    )
+    f.text(
+        32,
+        610,
+        "Compute: four strided A rows + four contiguous B columns; reuse each four times.",
+        18,
+    )
+    f.save(f"{BASE}/04-vectorized-copy/copy-ownership")
+
+
 def main():
     naive()
     naive_views()
@@ -599,6 +636,7 @@ def main():
     register_thread_windows()
     shared()
     staged_k_windows()
+    vectorized_copy()
     matrix()
     mma_native_views()
 

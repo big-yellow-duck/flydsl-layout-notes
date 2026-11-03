@@ -32,7 +32,8 @@ assets/
         ├── 01-coalesced-access/
         ├── 02-register-tiling/
         ├── 03-shared-memory/
-        └── 04-matrix-instructions/
+        ├── 04-vectorized-copy/
+        └── 05-matrix-instructions/
 ```
 
 Shared illustrations stay with the lesson that introduces their concept. For example, the course overview uses the logical-divide figure from lesson 05; it links to that asset directly.

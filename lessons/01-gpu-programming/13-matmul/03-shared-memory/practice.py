@@ -8,6 +8,12 @@ import flydsl.expr as fx
 import torch
 
 
+@fx.struct
+class SharedStorage:
+    left: fx.Array[fx.BFloat16, 256]
+    right: fx.Array[fx.BFloat16, 256]
+
+
 @flyc.kernel
 def exercise_kernel(
     left: fx.Tensor,
@@ -23,24 +29,19 @@ def exercise_kernel(
     out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
     block_row = fx.block_idx.y
     block_col = fx.block_idx.x
+
     # 2. Expose 16-wide K windows; select the output tile once.
     left_tiled_view = fx.flat_divide(left_global_view, (16, 16))
     right_tiled_view = fx.flat_divide(right_global_view, (16, 16))
     out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
     out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
-    # Allocate separate physical LDS storage, then attach ordinary 2-D layouts.
-    allocator = fx.SharedAllocator()
-    left_shared_view = (
-        allocator.allocate(fx.Array[fx.BFloat16, 256])
-        .peek()
-        .view(fx.make_layout((16, 16), (16, 1)))
-    )
-    right_shared_view = (
-        allocator.allocate(fx.Array[fx.BFloat16, 256])
-        .peek()
-        .view(fx.make_layout((16, 16), (16, 1)))
-    )
+
+    # Allocate the declared LDS storage, then attach ordinary 2-D layouts.
+    lds = fx.SharedAllocator().allocate(SharedStorage).peek()
+    left_shared_view = lds.left.view(fx.make_layout((16, 16), (16, 1)))
+    right_shared_view = lds.right.view(fx.make_layout((16, 16), (16, 1)))
     copy_layout = fx.make_ordered_layout((16, 16), (1, 0))  # noqa: F841 -- used by the practice TODOs
+
     # 3. A (4,16) thread layout selects a four-row group and one column.
     thread_layout = fx.make_ordered_layout((4, 16), (1, 0))
     thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
@@ -63,6 +64,7 @@ def exercise_kernel(
         for load_slot in fx.range_constexpr(4):
             # TODO 1: Fill in copy_coordinate; see README.md.
             copy_coordinate = None
+            copy_coordinate = fx.idx2crd(fx.thread_idx.x + load_slot * 64, copy_layout)
             if copy_coordinate is None:
                 raise NotImplementedError("Fill in copy_coordinate.")
             left_shared_view[copy_coordinate] = left_block_view[copy_coordinate]
@@ -73,6 +75,7 @@ def exercise_kernel(
             for slot in fx.range_constexpr(4):
                 # TODO 2: Fill in a; see README.md.
                 a = None
+                a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
                 if a is None:
                     raise NotImplementedError("Fill in a.")
                 accumulators[slot] = accumulators[slot] + a * b

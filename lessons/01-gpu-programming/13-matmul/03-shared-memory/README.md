@@ -25,18 +25,28 @@ All tiled shapes are `(16,16,64,64)`, but the final modes have different meaning
 
 Unlike lesson 02's full-K windows, each input window now covers **16** K positions. There are 64 K windows in the reduction. Select the output once; select the matching input windows anew on each iteration.
 
-## 2. Allocate two ordinary row-major LDS views
+## 2. Declare shared storage and create row-major LDS views
+
+Declare the two tile buffers together with `@fx.struct`, outside the kernel:
 
 ```python
-allocator = fx.SharedAllocator()
-left_shared_view = (
-    allocator.allocate(fx.Array[fx.BFloat16, 256])
-    .peek()
-    .view(fx.make_layout((16, 16), (16, 1)))
-)
+@fx.struct
+class SharedStorage:
+    left: fx.Array[fx.BFloat16, 256]
+    right: fx.Array[fx.BFloat16, 256]
 ```
 
-`right_shared_view` has an equivalent separate allocation. Each tile occupies 256 BF16 values, or 512 bytes; both total 1024 bytes per block. Global windows retain row stride 1024, while the packed LDS views have row stride 16. Their coordinate domains match even though their storage layouts differ. Static shared allocation supplies the launch's required LDS size.
+Each field describes storage for 256 BF16 values. The declaration allocates no memory. Inside `@flyc.kernel`, allocate that storage in LDS and attach a logical layout to each field:
+
+```python
+lds = fx.SharedAllocator().allocate(SharedStorage).peek()
+left_shared_view = lds.left.view(fx.make_layout((16, 16), (16, 1)))
+right_shared_view = lds.right.view(fx.make_layout((16, 16), (16, 1)))
+```
+
+`SharedAllocator` reserves the storage, `.peek()` exposes its typed fields, and `.view(...)` describes how coordinates address each buffer. Creating a view does not initialize or copy values into LDS; cooperative stores fill the tiles later.
+
+Each tile occupies 256 BF16 values, or 512 bytes; both total 1024 bytes per block. Global windows retain row stride 1024, while the packed LDS views have row stride 16. Their coordinate domains match even though their storage layouts differ. The allocator defaults to static shared allocation, so the compiler supplies the required LDS size without an explicit launch `smem` argument.
 
 ## 3. Keep the four-row thread ownership
 
@@ -147,6 +157,6 @@ pixi run python lessons/01-gpu-programming/13-matmul/03-shared-memory/solution.p
 
 A completed practice prints `Exercise passed:` with `shapes_MNK: [(1024, 1024, 1024)]`, two patterns, and the first-four checkpoint. Compare your implementation with the [worked solution](solution.py).
 
-[Previous](../02-register-tiling/README.md) · [Matmul series](../README.md) · [Next](../04-matrix-instructions/README.md)
+[Previous](../02-register-tiling/README.md) · [Matmul series](../README.md) · [Next](../04-vectorized-copy/README.md)
 
 Sources: [FlyDSL 0.4.1 kernel guide](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_authoring_guide.md). API expressions were checked against the installed 0.4.1 package.

@@ -22,7 +22,8 @@ STAGES = (
     "01-coalesced-access",
     "02-register-tiling",
     "03-shared-memory",
-    "04-matrix-instructions",
+    "04-vectorized-copy",
+    "05-matrix-instructions",
 )
 
 

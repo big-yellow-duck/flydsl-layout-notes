@@ -8,6 +8,12 @@ import flydsl.expr as fx
 import torch
 
 
+@fx.struct
+class SharedStorage:
+    left: fx.Array[fx.BFloat16, 256]
+    right: fx.Array[fx.BFloat16, 256]
+
+
 @flyc.kernel
 def exercise_kernel(
     left: fx.Tensor,
@@ -28,18 +34,10 @@ def exercise_kernel(
     right_tiled_view = fx.flat_divide(right_global_view, (16, 16))
     out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
     out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
-    # Allocate separate physical LDS storage, then attach ordinary 2-D layouts.
-    allocator = fx.SharedAllocator()
-    left_shared_view = (
-        allocator.allocate(fx.Array[fx.BFloat16, 256])
-        .peek()
-        .view(fx.make_layout((16, 16), (16, 1)))
-    )
-    right_shared_view = (
-        allocator.allocate(fx.Array[fx.BFloat16, 256])
-        .peek()
-        .view(fx.make_layout((16, 16), (16, 1)))
-    )
+    # Allocate the declared LDS storage, then attach ordinary 2-D layouts.
+    lds = fx.SharedAllocator().allocate(SharedStorage).peek()
+    left_shared_view = lds.left.view(fx.make_layout((16, 16), (16, 1)))
+    right_shared_view = lds.right.view(fx.make_layout((16, 16), (16, 1)))
     copy_layout = fx.make_ordered_layout((16, 16), (1, 0))
     # 3. A (4,16) thread layout selects a four-row group and one column.
     thread_layout = fx.make_ordered_layout((4, 16), (1, 0))
