@@ -35,7 +35,8 @@ assets/
         ├── 04-vectorized-copy/
         ├── 05-matrix-instructions/
         ├── 06-lds-swizzle/
-        └── 07-interleaved-loads/
+        ├── 07-interleaved-loads/
+        └── 08-parameter-tuning/
 ```
 
 Stage 05 includes `tiled-mma-waves.svg` and its PNG preview, showing the four wave32 groups in a 32×32 output block.
@@ -47,3 +48,5 @@ The drawing sources live in [`tools/`](../tools/). Regeneration commands and con
 Stage 06 includes `lds-bank-map.svg` and its PNG preview. Regenerate it with `python3 tools/draw_matmul_lessons.py`; bank labels sketch addresses, while the lesson's captured profiler counters establish the measured conflict ratio.
 
 Stage 07 includes `load-compute-schedule.svg` and its PNG preview. The diagram shows program order and buffer contents across prologue, steady state, and drain, rather than measured cycle durations. Regenerate it with `python3 tools/draw_matmul_lessons.py`.
+
+The stage-08 `register-reuse` SVG/PNG compares 32×32 and selected 128×64 tiles with the same four-wave MMA ownership. Cells identify wave owners; captions state derived accumulators, grid size, and LDS allocation. Performance measurements are recorded separately in the lesson.

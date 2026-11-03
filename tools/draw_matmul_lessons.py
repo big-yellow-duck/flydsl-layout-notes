@@ -777,6 +777,56 @@ def interleaved_loads():
     f.save(f"{BASE}/07-interleaved-loads/load-compute-schedule")
 
 
+def parameter_tuning():
+    f = Diagram(930, "08 - Larger register tiles repeat the same four-wave MMA")
+    f.text(
+        32,
+        66,
+        "Cells are 16x16 WMMA output tiles. Labels identify owning WAVE groups.",
+        18,
+    )
+    f.text(
+        32,
+        110,
+        "Both use atom layout (2,2,1):(1,2,0), 128 threads, and a 32-wide K stage.",
+        18,
+    )
+    f.text(32, 161, "32x32: one atom tile / wave", 19)
+    f.text(420, 161, "128x64: eight atom tiles / wave", 19)
+    colors = [BLUE, TEAL, GOLD, PURPLE]
+    for row in range(2):
+        for col in range(2):
+            wave = row + 2 * col
+            x, y = 48 + col * 108, 210 + row * 108
+            f.box(x, y, 108, 108, colors[wave])
+            f.text(x + 37, y + 38, f"W{wave}", 24)
+    for row in range(8):
+        for col in range(4):
+            wave = row % 2 + 2 * (col % 2)
+            x, y = 468 + col * 58, 210 + row * 58
+            f.box(x, y, 58, 58, colors[wave])
+            f.text(x + 13, y + 15, f"W{wave}", 22)
+    f.text(32, 469, "8 FP32 accumulators / thread", 19)
+    f.text(32, 513, "1024 output blocks for 1024x1024", 18)
+    f.text(32, 557, "4608 LDS bytes / block", 18)
+    f.text(420, 711, "64 FP32 accumulators / thread; 128 output blocks", 18)
+    f.text(420, 748, "14336 LDS bytes / block; repeated operand reuse", 18)
+    f.box(32, 802, 893, 83, GOLD)
+    f.text(
+        48,
+        816,
+        "Wave 0 owns alternating tile stripes, rather than a contiguous 64x32 window.",
+        18,
+    )
+    f.text(
+        48,
+        851,
+        "Natural MMA footprint stays 32x32x16; larger views add static repetitions.",
+        18,
+    )
+    f.save(f"{BASE}/08-parameter-tuning/register-reuse")
+
+
 def main():
     naive()
     naive_views()
@@ -796,6 +846,7 @@ def main():
     tiled_mma_waves()
     lds_swizzle()
     interleaved_loads()
+    parameter_tuning()
 
 
 if __name__ == "__main__":

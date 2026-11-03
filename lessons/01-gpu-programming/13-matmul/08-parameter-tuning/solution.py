@@ -18,10 +18,11 @@ class Config:
     waves_m: int = 2
     waves_n: int = 2
     schedule: str = "prefetch"
+    buffers: int = 1
 
     @property
     def name(self):
-        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_{self.schedule}"
+        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_{self.schedule}_lds{self.buffers}"
 
     @property
     def threads(self):
@@ -37,7 +38,11 @@ class Config:
 
     @property
     def lds_bytes(self):
-        return 2 * (self.block_m * (self.block_k + 8) + self.block_k * self.block_n)
+        return (
+            self.buffers
+            * 2
+            * (self.block_m * (self.block_k + 8) + self.block_k * self.block_n)
+        )
 
 
 def validate_config(config):
@@ -56,6 +61,8 @@ def validate_config(config):
             raise ValueError(
                 "Every cooperative staging thread must own complete chunks"
             )
+    if config.buffers not in (1, 2):
+        raise ValueError("Use one or two LDS buffers")
     if config.lds_bytes > 65536:
         raise ValueError("LDS allocation exceeds this lesson's 64 KiB limit")
     if config.schedule not in ("serial", "prefetch"):
@@ -72,12 +79,13 @@ def build(config):
     THREADS_PER_BLOCK = 32 * WAVES_M * WAVES_N
     ACCUMULATOR_VALUES = 8 * (BLOCK_M // (16 * WAVES_M)) * (BLOCK_N // (16 * WAVES_N))
     schedule = config.schedule
+    LDS_STAGES = config.buffers
 
     @fx.struct
     class SharedStorage:
         # Retain stage 06's measured padded A layout and packed B layout.
-        left: fx.Array[fx.BFloat16, BLOCK_M * (BLOCK_K + 8), 16]
-        right: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
+        left: fx.Array[fx.BFloat16, LDS_STAGES * BLOCK_M * (BLOCK_K + 8), 16]
+        right: fx.Array[fx.BFloat16, LDS_STAGES * BLOCK_K * BLOCK_N, 16]
 
     @flyc.kernel
     def exercise_kernel(
@@ -105,14 +113,21 @@ def build(config):
         out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
         out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
 
-        # 3. Keep one LDS tile per operand; only the load/compute schedule changes.
+        # 3. Scale padded storage with the tile and optional ping-pong stage count.
         lds = fx.SharedAllocator().allocate(SharedStorage).peek()
-        left_lds_view = lds.left.view(
-            fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
+        left_lds_buffers = lds.left.view(
+            fx.make_layout(
+                (BLOCK_M, BLOCK_K, LDS_STAGES),
+                (BLOCK_K + 8, 1, BLOCK_M * (BLOCK_K + 8)),
+            )
         )
-        right_lds_view = lds.right.view(
-            fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1))
+        right_lds_buffers = lds.right.view(
+            fx.make_layout(
+                (BLOCK_K, BLOCK_N, LDS_STAGES), (BLOCK_N, 1, BLOCK_K * BLOCK_N)
+            )
         )
+        left_lds_view = fx.slice(left_lds_buffers, (None, None, 0))
+        right_lds_view = fx.slice(right_lds_buffers, (None, None, 0))
 
         # 4. Keep stage 04's generic staging plan; adapt ownership to 128 threads.
         copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
@@ -160,8 +175,6 @@ def build(config):
         # MMA defines the fragment layout. Retile provides a copy-compatible alias.
         left_r_tile = thread_mma.make_fragment_A(left_mma_view)
         right_r_tile = thread_mma.make_fragment_B(right_mma_view)
-        left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
-        right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
         left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
         right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
 
@@ -184,38 +197,52 @@ def build(config):
             fx.copy(copy_128b, left_lds_source, left_fragment)
             fx.copy(copy_128b, right_lds_source, right_fragment)
 
-        def publish_lds_tile():
-            fx.copy(copy_128b, left_fragment, left_lds_destination)
-            fx.copy(copy_128b, right_fragment, right_lds_destination)
+        def publish_lds_tile(buffer_index):
+            left_view = fx.slice(left_lds_buffers, (None, None, buffer_index))
+            right_view = fx.slice(right_lds_buffers, (None, None, buffer_index))
+            left_destination = left_thread_copy.partition_D(left_view)
+            right_destination = right_thread_copy.partition_D(right_view)
+            fx.copy(copy_128b, left_fragment, left_destination)
+            fx.copy(copy_128b, right_fragment, right_destination)
             fx.barrier()
 
-        def compute_lds_tile():
-            fx.copy(copy_16b, left_r_source, left_r_destination)
-            fx.copy(copy_16b, right_r_source, right_r_destination)
+        def compute_lds_tile(buffer_index):
+            left_view = fx.slice(left_lds_buffers, (None, None, buffer_index))
+            right_view = fx.slice(right_lds_buffers, (None, None, buffer_index))
+            right_operand = fx.make_view(
+                fx.get_iter(right_view),
+                fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
+            )
+            left_source = lds2reg_left_thread_copy.partition_S(left_view)
+            right_source = lds2reg_right_thread_copy.partition_S(right_operand)
+            fx.copy(copy_16b, left_source, left_r_destination)
+            fx.copy(copy_16b, right_source, right_r_destination)
             fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)
 
         # 6. Compare the same padded kernel with two compile-time schedules.
         if schedule == "serial":
             for tile_k in range(k // BLOCK_K):
                 load_global_tile(tile_k)
-                publish_lds_tile()
-                compute_lds_tile()
+                publish_lds_tile(tile_k % LDS_STAGES)
+                compute_lds_tile(tile_k % LDS_STAGES)
                 fx.barrier()
         else:
             # Prologue: make tile 0 visible in LDS before any consumer reads it.
             initial_tile_k = 0
             load_global_tile(initial_tile_k)
-            publish_lds_tile()
+            publish_lds_tile(0)
             # Steady state: prefetch next globals into private registers, consume LDS,
-            # then protect current readers before publishing the prefetched tile.
+            # then publish the next tile. A single buffer needs a reader barrier;
+            # ping-pong writes a different buffer and uses the prior ready barrier.
             for tile_k in range(k // BLOCK_K - 1):
                 next_tile_k = tile_k + 1
                 load_global_tile(next_tile_k)
-                compute_lds_tile()
-                fx.barrier()
-                publish_lds_tile()
+                compute_lds_tile(tile_k % LDS_STAGES)
+                if LDS_STAGES == 1:
+                    fx.barrier()
+                publish_lds_tile(next_tile_k % LDS_STAGES)
             # Drain: the final tile is already in LDS; do not read a nonexistent next tile.
-            compute_lds_tile()
+            compute_lds_tile((k // BLOCK_K - 1) % LDS_STAGES)
             fx.barrier()
 
         # 7. Convert to BF16, then store through the instruction's C ownership.
@@ -248,7 +275,7 @@ def build(config):
     return run
 
 
-SELECTED_CONFIG = Config(128, 128, 32, 2, 2, "prefetch")
+SELECTED_CONFIG = Config(128, 64, 32, 2, 2, "prefetch")
 run = build(SELECTED_CONFIG)
 
 

@@ -193,6 +193,6 @@ The steady-state iteration loads tile `t+1`. For the final current tile, that wo
 
 </details>
 
-[Previous: LDS bank conflicts](../06-lds-swizzle/README.md) · [Matmul series](../README.md) · [Next: planned LDS double buffering](../../../../ROADMAP.md#matmul-continuation-planned)
+[Previous: LDS bank conflicts](../06-lds-swizzle/README.md) · [Matmul series](../README.md) · [Next: parameter tuning](../08-parameter-tuning/README.md)
 
 Sources: [FlyDSL global-prefetch/compute pipeline example](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/kernels/gemm/rdna3_f16_gemm.py), [native tiled-copy and MMA helpers](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/python/flydsl/expr/derived.py), [rocprofv3 counter collection](https://rocmdocs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocprofv3.html). The upstream production pipeline also uses two LDS buffers and other optimizations; this teaching kernel isolates one shared-tile lookahead into registers. API expressions were checked against installed FlyDSL 0.4.1.

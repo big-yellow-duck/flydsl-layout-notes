@@ -7,21 +7,27 @@ Run: pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tu
 """
 
 import argparse
+import ctypes
 import hashlib
 import inspect
 import json
 import platform
 import random
 import runpy
+import socket
 import statistics
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
+from datetime import UTC, datetime
+from functools import lru_cache
 from importlib.metadata import version
 from itertools import product
 from pathlib import Path
 
-import flydsl  # noqa: F401 -- load the compiler's LLVM before torch
+import flydsl
 import torch
+
+torch.set_num_threads(1)  # Keep CPU reference checks from occupying APU cores.
 
 HERE = Path(__file__).resolve().parent
 MODULE = runpy.run_path(str(HERE / "solution.py"))
@@ -34,6 +40,8 @@ WIN_LIMIT = 0.95
 
 def environment():
     return {
+        "hostname": socket.gethostname(),
+        "timestamp_utc": datetime.now(UTC).isoformat(),
         "gpu": torch.cuda.get_device_name(),
         "architecture": torch.cuda.get_device_properties(0).gcnArchName,
         "flydsl": version("flydsl"),
@@ -43,7 +51,8 @@ def environment():
         "shape_MNK": SHAPE,
         "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
         "output": "same preallocated GPU output and trailing sentinels for both implementations",
-        "timing": "synchronized host clock; includes dispatch; not device-only",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": torch.get_num_threads(),
         "kernel_build_sha256": hashlib.sha256(
             inspect.getsource(BUILD.__wrapped__).encode()
         ).hexdigest(),
@@ -95,13 +104,100 @@ def timed_batch(launch, repeats):
     return (time.perf_counter() - start) * 1000 / repeats
 
 
-def paired_measure(kernel, baseline, data, batches, repeats, order_seed):
+@lru_cache(None)
+def hip_runtime():
+    runtime = ctypes.CDLL("libamdhip64.so")
+    runtime.hipGraphGetNodes.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_size_t),
+    ]
+    runtime.hipGraphNodeGetType.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    return runtime
+
+
+def graph_nodes(graph):
+    runtime = hip_runtime()
+    count = ctypes.c_size_t()
+    handle = ctypes.c_void_p(graph.raw_cuda_graph())
+    status = runtime.hipGraphGetNodes(handle, None, ctypes.byref(count))
+    if status:
+        raise RuntimeError(f"hipGraphGetNodes failed: {status}")
+    nodes = (ctypes.c_void_p * count.value)()
+    status = runtime.hipGraphGetNodes(handle, nodes, ctypes.byref(count))
+    if status:
+        raise RuntimeError(f"hipGraphGetNodes failed: {status}")
+    types = []
+    for node in nodes:
+        kind = ctypes.c_int()
+        status = runtime.hipGraphNodeGetType(node, ctypes.byref(kind))
+        if status:
+            raise RuntimeError(f"hipGraphNodeGetType failed: {status}")
+        types.append(kind.value)
+    return {"nodes": count.value, "kernel_nodes": types.count(0)}
+
+
+def capture(launch, data, operations=32):
+    a, b, storage, expected = data
+    out = storage[:-16].view(1024, 1024)
+    stream = torch.cuda.Stream()
+    with torch.cuda.stream(stream):
+        for _ in range(3):
+            launch(a, b, out, stream=stream)
+    torch.cuda.synchronize()
+    graph = torch.cuda.CUDAGraph(keep_graph=True)
+    with torch.cuda.graph(graph, stream=stream):
+        for _ in range(operations):
+            launch(a, b, out, stream=stream)
+    metadata = graph_nodes(graph)
+    if metadata["kernel_nodes"] < operations:
+        raise RuntimeError(f"Incomplete graph capture: {metadata}")
+    graph.instantiate()
+    # Prove replay consumes changed inputs, rather than captured values or an empty graph.
+    a.mul_(-1)
+    out.fill_(float("nan"))
+    torch.cuda.synchronize()
+    graph.replay()
+    torch.cuda.synchronize()
+    torch.testing.assert_close(out.cpu(), -expected, rtol=0.016, atol=0.03125)
+    assert torch.all(storage[-16:] == -99).item(), "Graph sentinel changed"
+    a.mul_(-1)
+    out.fill_(float("nan"))
+    torch.cuda.synchronize()
+    graph.replay()
+    torch.cuda.synchronize()
+    torch.testing.assert_close(out.cpu(), expected, rtol=0.016, atol=0.03125)
+    assert torch.all(storage[-16:] == -99).item(), "Graph sentinel changed"
+    return graph, {
+        **metadata,
+        "matmuls_per_replay": operations,
+        "mutated_input_replay": "passed",
+        "nan_output_and_sentinels": "passed",
+    }
+
+
+def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing):
     a, b, storage, _ = data
     out = storage[:-16].view(1024, 1024)
-    launches = {
-        "kernel": lambda: kernel(a, b, out),
-        "torch": lambda: baseline(a, b, out),
-    }
+    graph_metadata = {}
+    graphs = []
+    if timing == "graph-host":
+        launches = {}
+        for name, launch in (("kernel", kernel), ("torch", baseline)):
+            graph, metadata = capture(launch, data)
+            graphs.append(graph)
+            launches[name] = graph.replay
+            graph_metadata[name] = metadata
+        operations = 32
+    else:
+        launches = {
+            "kernel": lambda: kernel(a, b, out),
+            "torch": lambda: baseline(a, b, out),
+        }
+        operations = 1
     for launch in launches.values():
         for _ in range(5):
             launch()
@@ -116,7 +212,7 @@ def paired_measure(kernel, baseline, data, batches, repeats, order_seed):
         )
         orders.append(order)
         for name in order:
-            samples[name].append(timed_batch(launches[name], repeats))
+            samples[name].append(timed_batch(launches[name], repeats) / operations)
     ratios = [a / b for a, b in zip(samples["kernel"], samples["torch"], strict=True)]
     return {
         "kernel_ms": statistics.median(samples["kernel"]),
@@ -128,26 +224,36 @@ def paired_measure(kernel, baseline, data, batches, repeats, order_seed):
         "batches": batches,
         "repeats": repeats,
         "warmups": 5,
+        "timing": timing,
+        "graph_metadata": graph_metadata,
     }
 
 
-def torch_launch(a, b, out):
+def torch_launch(a, b, out, stream=None):
     torch.matmul(a, b, out=out)
 
 
 def launch_for(config):
     run = BUILD(config)
-    return lambda a, b, out: run(a, b, out, *SHAPE)
+
+    def launch(a, b, out, stream=None):
+        if stream is None:
+            run(a, b, out, *SHAPE)
+        else:
+            run(a, b, out, *SHAPE, flydsl.expr.Stream(stream))
+
+    return launch
 
 
-def candidates():
-    configs = [Config(32, 32, 32, 2, 2)]
-    for (bm, bn), bk, (wm, wn) in product(
+def candidates(buffer_counts=(1, 2)):
+    configs = [Config(32, 32, 32, 2, 2, buffers=b) for b in buffer_counts]
+    for (bm, bn), bk, (wm, wn), buffers in product(
         ((64, 64), (64, 128), (128, 64), (128, 128)),
         (16, 32, 64),
         ((2, 2), (4, 1), (1, 4)),
+        buffer_counts,
     ):
-        config = Config(bm, bn, bk, wm, wn)
+        config = Config(bm, bn, bk, wm, wn, buffers=buffers)
         try:
             MODULE["validate_config"](config)
         except ValueError:
@@ -156,13 +262,13 @@ def candidates():
     return configs
 
 
-def sweep():
+def prepare(buffer_counts):
     trace_data, training_data = inputs(0, True), inputs(13)
     validate(torch_launch, trace_data, True)
     validate(torch_launch, training_data)
     accepted, failures = [], []
     # Compile and check every candidate before recording any search timings.
-    for config in candidates():
+    for config in candidates(buffer_counts):
         try:
             launch = launch_for(config)
             validate(launch, trace_data, True)
@@ -178,10 +284,17 @@ def sweep():
                 }
             )
             print("REJECTED", config.name, str(error)[:200], flush=True)
+    return accepted, failures, training_data
+
+
+def sweep(timing, buffer_counts):
+    accepted, failures, training_data = prepare(buffer_counts)
     random.Random(41).shuffle(accepted)
     rows = []
     for index, (config, launch) in enumerate(accepted):
-        measure = paired_measure(launch, torch_launch, training_data, 5, 20, index)
+        measure = paired_measure(
+            launch, torch_launch, training_data, 5, 20, index, timing
+        )
         row = {
             "config": asdict(config),
             "name": config.name,
@@ -200,7 +313,8 @@ def sweep():
         "environment": environment(),
         "training_seed": 13,
         "trace_check": True,
-        "candidate_count": len(candidates()),
+        "candidate_count": len(candidates(buffer_counts)),
+        "buffer_counts": buffer_counts,
         "selection": "minimum median paired kernel/torch ratio on training inputs",
         "winner": rows[0],
         "ranking": rows,
@@ -209,20 +323,43 @@ def sweep():
     }
 
 
-def verify(config, seeds):
+def idle_probe():
+    torch.cuda.synchronize()
+    files = sorted(Path("/sys/class/drm").glob("card*/device/gpu_busy_percent"))
+    samples = []
+    for _ in range(5):
+        time.sleep(0.2)
+        samples.append({str(path): int(path.read_text()) for path in files})
+    return {
+        "samples_percent": samples,
+        "scope": "no benchmark dispatches during this one-second probe",
+    }
+
+
+def verify(config, seeds, timing):
     print("LOCKED", config.name, flush=True)
     checkpoint = MODULE["solve"](config)
     kernel = launch_for(config)
     rounds = []
+    idle_samples = []
     for seed in seeds:
         data = inputs(seed)
         validate(kernel, data)
         validate(torch_launch, data)
+        idle_samples.append({"seed": seed, **idle_probe()})
         for repetition in range(3):
             row = {
                 "seed": seed,
                 "round": repetition,
-                **paired_measure(kernel, torch_launch, data, 7, 50, seed + repetition),
+                **paired_measure(
+                    kernel,
+                    torch_launch,
+                    data,
+                    7,
+                    20 if timing == "graph-host" else 50,
+                    seed + repetition,
+                    timing,
+                ),
             }
             rounds.append(row)
             print(
@@ -240,6 +377,7 @@ def verify(config, seeds):
         "correctness": checkpoint,
         "selection": "configuration locked before these held-out inputs and timings",
         "seeds": seeds,
+        "pre_measurement_idle_probes": idle_samples,
         "rounds": rounds,
         "worst_round_paired_ratio": worst,
         "thresholds": {
@@ -249,7 +387,7 @@ def verify(config, seeds):
         "performance_status": status,
         "median_kernel_ms": statistics.median(row["kernel_ms"] for row in rounds),
         "median_torch_ms": statistics.median(row["torch_ms"] for row in rounds),
-        "note": "Host API throughput only; GPU events are unavailable on the recorded system",
+        "note": "Paired graph replay throughput or direct-launch host throughput as selected; not device-event timing",
     }
 
 
@@ -258,6 +396,7 @@ def main():
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--sweep", action="store_true")
     action.add_argument("--verify", action="store_true")
+    action.add_argument("--check-candidates", action="store_true")
     parser.add_argument(
         "--config",
         default=None,
@@ -267,6 +406,10 @@ def main():
         "--seeds", type=int, nargs="+", default=[20261104, 20261105, 20261106]
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--timing", choices=("graph-host", "direct-host"), default="graph-host"
+    )
+    parser.add_argument("--buffers", type=int, nargs="+", choices=(1, 2), default=None)
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Use a fresh output file to retain prior measurements")
@@ -275,8 +418,26 @@ def main():
         if args.config is None
         else Config(*map(int, args.config.split(",")))
     )
+    buffer_counts = args.buffers or (1, 2)
+    if args.verify and args.buffers:
+        if len(args.buffers) != 1:
+            parser.error("Verification requires one locked buffer count")
+        config = replace(config, buffers=args.buffers[0])
     MODULE["validate_config"](config)
-    report = sweep() if args.sweep else verify(config, args.seeds)
+    if args.check_candidates:
+        accepted, rejected, _ = prepare(buffer_counts)
+        report = {
+            "kind": "candidate_correctness_only",
+            "environment": environment(),
+            "checked": [asdict(config) for config, _ in accepted],
+            "rejected": rejected,
+            "candidate_count": len(candidates(buffer_counts)),
+            "note": "No performance measurements or parity claim",
+        }
+    elif args.sweep:
+        report = sweep(args.timing, buffer_counts)
+    else:
+        report = verify(config, args.seeds, args.timing)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     print("SAVED", args.output, flush=True)

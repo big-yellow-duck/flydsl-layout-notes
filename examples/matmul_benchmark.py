@@ -26,6 +26,7 @@ STAGES = (
     "05-matrix-instructions",
     "06-lds-swizzle",
     "07-interleaved-loads",
+    "08-parameter-tuning",
 )
 
 
