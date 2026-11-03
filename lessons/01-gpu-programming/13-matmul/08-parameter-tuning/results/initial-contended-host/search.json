@@ -1,0 +1,2502 @@
+{
+  "kind": "training_search",
+  "environment": {
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.0.0",
+    "hip": "7.15.26333",
+    "kernel": "7.2.11-ogc4.1.fc44.x86_64",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; includes dispatch; not device-only",
+    "kernel_build_sha256": "5e7ed73422ebd3366738bea2a186ff442dcd197497d862d75ecbdaf7a00e80d4",
+    "source_sha256": {
+      "solution.py": "813245b691926f8c667915f4226f8aebb2702fc95ba528ffff3a177e7c27b59d",
+      "tune.py": "04c95f0c186aee3f8c87701849e17cfb1b5d999a0fcec25af523d80abe04aab3"
+    }
+  },
+  "training_seed": 13,
+  "trace_check": true,
+  "candidate_count": 37,
+  "selection": "minimum median paired kernel/torch ratio on training inputs",
+  "winner": {
+    "config": {
+      "block_m": 128,
+      "block_n": 128,
+      "block_k": 32,
+      "waves_m": 2,
+      "waves_n": 2,
+      "schedule": "prefetch"
+    },
+    "name": "m128n128k32_w2x2_prefetch",
+    "lds_bytes": 18432,
+    "accumulator_values": 128,
+    "correctness": "full trace/random passed",
+    "kernel_ms": 0.18675614992389455,
+    "torch_ms": 0.20943800009263214,
+    "paired_ratio": 0.664433055962703,
+    "samples_ms": {
+      "kernel": [
+        0.19674450013553724,
+        0.13847829977748916,
+        0.18675614992389455,
+        0.2042233998508891,
+        0.11724420000973623
+      ],
+      "torch": [
+        0.19656664990179706,
+        0.22766680012864526,
+        0.20943800009263214,
+        0.3073649000725709,
+        0.19281185013824143
+      ]
+    },
+    "paired_ratios": [
+      1.0009047833588711,
+      0.6082498620758086,
+      0.8917013619366798,
+      0.664433055962703,
+      0.6080756962068202
+    ],
+    "orders": [
+      [
+        "kernel",
+        "torch"
+      ],
+      [
+        "torch",
+        "kernel"
+      ],
+      [
+        "kernel",
+        "torch"
+      ],
+      [
+        "torch",
+        "kernel"
+      ],
+      [
+        "kernel",
+        "torch"
+      ]
+    ],
+    "batches": 5,
+    "repeats": 20,
+    "warmups": 5
+  },
+  "ranking": [
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k32_w2x2_prefetch",
+      "lds_bytes": 18432,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.18675614992389455,
+      "torch_ms": 0.20943800009263214,
+      "paired_ratio": 0.664433055962703,
+      "samples_ms": {
+        "kernel": [
+          0.19674450013553724,
+          0.13847829977748916,
+          0.18675614992389455,
+          0.2042233998508891,
+          0.11724420000973623
+        ],
+        "torch": [
+          0.19656664990179706,
+          0.22766680012864526,
+          0.20943800009263214,
+          0.3073649000725709,
+          0.19281185013824143
+        ]
+      },
+      "paired_ratios": [
+        1.0009047833588711,
+        0.6082498620758086,
+        0.8917013619366798,
+        0.664433055962703,
+        0.6080756962068202
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k16_w1x4_prefetch",
+      "lds_bytes": 7168,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.22147080017020926,
+      "torch_ms": 0.2597131999209523,
+      "paired_ratio": 0.7644082006615748,
+      "samples_ms": {
+        "kernel": [
+          0.22159955005918164,
+          0.21445170023071114,
+          0.198526899839635,
+          0.22147080017020926,
+          0.22661170005449094
+        ],
+        "torch": [
+          0.38669580026180483,
+          0.18101054993167054,
+          0.2597131999209523,
+          0.31479975004913285,
+          0.13832849981554318
+        ]
+      },
+      "paired_ratios": [
+        0.5730591072081775,
+        1.1847469681279035,
+        0.7644082006615748,
+        0.7035291487227765,
+        1.6382141088544349
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k32_w1x4_prefetch",
+      "lds_bytes": 13312,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.14350849996844772,
+      "torch_ms": 0.16789215005701408,
+      "paired_ratio": 0.825021666372949,
+      "samples_ms": {
+        "kernel": [
+          0.125042800209485,
+          0.1591783500771271,
+          0.17541020024509635,
+          0.1313460001256317,
+          0.14350849996844772
+        ],
+        "torch": [
+          0.15156305016716942,
+          0.21110069974383805,
+          0.16789215005701408,
+          0.12764029997924808,
+          0.22541840007761493
+        ]
+      },
+      "paired_ratios": [
+        0.825021666372949,
+        0.7540398978794643,
+        1.0447790452712007,
+        1.0290323678884026,
+        0.6366317031752314
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k32_w1x4_prefetch",
+      "lds_bytes": 18432,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.15408194994961377,
+      "torch_ms": 0.18602675008878578,
+      "paired_ratio": 0.8282784592864973,
+      "samples_ms": {
+        "kernel": [
+          0.15408194994961377,
+          0.20207779998600017,
+          0.11433259969635401,
+          0.20629445025406312,
+          0.14042910006537568
+        ],
+        "torch": [
+          0.18602675008878578,
+          0.27171245019417256,
+          0.19150529988110065,
+          0.17792604994610883,
+          0.10404720014776103
+        ]
+      },
+      "paired_ratios": [
+        0.8282784592864973,
+        0.7437193247552341,
+        0.5970205512188924,
+        1.159439274443212,
+        1.3496672651061004
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k64_w1x4_prefetch",
+      "lds_bytes": 26624,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.19951280009991024,
+      "torch_ms": 0.1768404501490295,
+      "paired_ratio": 0.8748914616188206,
+      "samples_ms": {
+        "kernel": [
+          0.18856764982047025,
+          0.22672140003123786,
+          0.19951280009991024,
+          0.1547161999042146,
+          0.24003514990909025
+        ],
+        "torch": [
+          0.11700625000230502,
+          0.2997231000335887,
+          0.17171754989249166,
+          0.1768404501490295,
+          0.2781183000479359
+        ]
+      },
+      "paired_ratios": [
+        1.6116032247572711,
+        0.7564361906233792,
+        1.1618661006101039,
+        0.8748914616188206,
+        0.8630685210851579
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k32_w2x2_prefetch",
+      "lds_bytes": 13312,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.14698175000376068,
+      "torch_ms": 0.18534990012994967,
+      "paired_ratio": 0.8835097111221113,
+      "samples_ms": {
+        "kernel": [
+          0.14698175000376068,
+          0.13666980012203567,
+          0.18566854996606708,
+          0.17457560024922714,
+          0.1412581499607768
+        ],
+        "torch": [
+          0.18534990012994967,
+          0.1860102500359062,
+          0.21014885023760144,
+          0.10971165029332042,
+          0.1322262000030605
+        ]
+      },
+      "paired_ratios": [
+        0.7929961111428229,
+        0.7347433815913575,
+        0.8835097111221113,
+        1.5912220788083054,
+        1.068306810280468
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k64_w2x2_prefetch",
+      "lds_bytes": 26624,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.1308124999923166,
+      "torch_ms": 0.1516066498879809,
+      "paired_ratio": 0.9900799424979713,
+      "samples_ms": {
+        "kernel": [
+          8.330809299877728,
+          0.08945099980337545,
+          0.12509195003076456,
+          0.1308124999923166,
+          0.2167476497561438
+        ],
+        "torch": [
+          0.22120229987194762,
+          0.0903472497157054,
+          0.08695114993315656,
+          0.1516066498879809,
+          0.22132300000521354
+        ]
+      },
+      "paired_ratios": [
+        37.66149495145562,
+        0.9900799424979713,
+        1.43864629883479,
+        0.8628414392704497,
+        0.9793272716845427
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k64_w1x4_prefetch",
+      "lds_bytes": 34816,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.23952219999046065,
+      "torch_ms": 0.17136839996965136,
+      "paired_ratio": 1.039680302373329,
+      "samples_ms": {
+        "kernel": [
+          0.31425525012309663,
+          0.14732889976585284,
+          0.23952219999046065,
+          0.2418702501017833,
+          0.13055249983153772
+        ],
+        "torch": [
+          0.2507384000637103,
+          0.17136839996965136,
+          0.16944415001489688,
+          0.27912924997508526,
+          0.12556985020637512
+        ]
+      },
+      "paired_ratios": [
+        1.2533191965939294,
+        0.8597203439604045,
+        1.4135760955418217,
+        0.8665170351132042,
+        1.039680302373329
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k64_w1x4_prefetch",
+      "lds_bytes": 25600,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.2053120500931982,
+      "torch_ms": 0.19503014991641976,
+      "paired_ratio": 1.052719541984584,
+      "samples_ms": {
+        "kernel": [
+          0.2005407997785369,
+          0.2053120500931982,
+          0.1840524000726873,
+          0.22147279996715952,
+          0.20619175011233892
+        ],
+        "torch": [
+          0.2671591497346526,
+          0.19503014991641976,
+          0.12358099993434735,
+          0.2784063501167111,
+          0.10277724977640901
+        ]
+      },
+      "paired_ratios": [
+        0.7506417054318286,
+        1.052719541984584,
+        1.4893260304615232,
+        0.7955019699597929,
+        2.0062003075671635
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 16,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k16_w2x2_prefetch",
+      "lds_bytes": 10240,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.20091354999749456,
+      "torch_ms": 0.1769372000126168,
+      "paired_ratio": 1.1063113306342878,
+      "samples_ms": {
+        "kernel": [
+          0.18321930001548026,
+          0.20704489979834761,
+          0.1588436498423107,
+          0.20091354999749456,
+          0.23876069972175173
+        ],
+        "torch": [
+          0.1769372000126168,
+          0.245842399817775,
+          0.13973170025565196,
+          0.18160670006182045,
+          0.15250939977704547
+        ]
+      },
+      "paired_ratios": [
+        1.0355046875525074,
+        0.8421854812343796,
+        1.1367760468933799,
+        1.1063113306342878,
+        1.565547435573136
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k64_w4x1_prefetch",
+      "lds_bytes": 26624,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.1798382498236606,
+      "torch_ms": 0.1472307001677109,
+      "paired_ratio": 1.1150898255403854,
+      "samples_ms": {
+        "kernel": [
+          0.21268579985189717,
+          0.15316120006900746,
+          0.1519318000646308,
+          0.24237519974121824,
+          0.1798382498236606
+        ],
+        "torch": [
+          0.20336879970273003,
+          0.1268428000912536,
+          0.1472307001677109,
+          0.21735935006290674,
+          0.10684910012059845
+        ]
+      },
+      "paired_ratios": [
+        1.0458133212311134,
+        1.2074883238056855,
+        1.0319301605681754,
+        1.1150898255403854,
+        1.6831049547509593
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 64,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k64_w2x2_prefetch",
+      "lds_bytes": 25600,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.19133349996991456,
+      "torch_ms": 0.18168385031458456,
+      "paired_ratio": 1.146440678579507,
+      "samples_ms": {
+        "kernel": [
+          0.23647735033591744,
+          0.19350820002728142,
+          0.1616972000192618,
+          0.15650015011487994,
+          0.19133349996991456
+        ],
+        "torch": [
+          0.2062708997982554,
+          0.10187000007135794,
+          0.10160300007555634,
+          0.28012270013277885,
+          0.18168385031458456
+        ]
+      },
+      "paired_ratios": [
+        1.146440678579507,
+        1.8995602227518673,
+        1.5914608810666697,
+        0.5586842838538201,
+        1.0531123137176017
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k32_w1x4_prefetch",
+      "lds_bytes": 14336,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.19457529997453094,
+      "torch_ms": 0.167355600206065,
+      "paired_ratio": 1.1626458853779038,
+      "samples_ms": {
+        "kernel": [
+          0.15016040015325416,
+          0.3282422498159576,
+          0.19457529997453094,
+          0.38472849992103875,
+          0.1538610002171481
+        ],
+        "torch": [
+          0.12366164992272388,
+          0.29103179986122996,
+          0.167355600206065,
+          0.1248123498953646,
+          0.1692187499429565
+        ]
+      },
+      "paired_ratios": [
+        1.2142843011320756,
+        1.1278569901037288,
+        1.1626458853779038,
+        3.082455383970999,
+        0.9092432148861431
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k32_w2x2_prefetch",
+      "lds_bytes": 14336,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.17916794968186878,
+      "torch_ms": 0.1680149001913378,
+      "paired_ratio": 1.2403304705838107,
+      "samples_ms": {
+        "kernel": [
+          0.208394000219414,
+          0.17631195005378686,
+          0.17361725003866013,
+          0.21038330014562234,
+          0.17916794968186878
+        ],
+        "torch": [
+          0.1680149001913378,
+          0.13627155021822546,
+          0.1867436003522016,
+          0.18498819990782067,
+          0.12494060028984677
+        ]
+      },
+      "paired_ratios": [
+        1.2403304705838107,
+        1.2938280203860648,
+        0.929709236146326,
+        1.1372795683749342,
+        1.4340250428301229
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k32_w4x1_prefetch",
+      "lds_bytes": 14336,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.2486698500433704,
+      "torch_ms": 0.19819074987026397,
+      "paired_ratio": 1.2546995770799099,
+      "samples_ms": {
+        "kernel": [
+          0.3472685501037631,
+          0.22236250006244518,
+          0.3490950501145562,
+          0.19599955012381542,
+          0.2486698500433704
+        ],
+        "torch": [
+          0.2822337999532465,
+          0.1657310000155121,
+          0.12912069978483487,
+          0.305300900072325,
+          0.19819074987026397
+        ]
+      },
+      "paired_ratios": [
+        1.2304286381053224,
+        1.3417073452862318,
+        2.703633504901103,
+        0.6419881175502058,
+        1.2546995770799099
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k32_w4x1_prefetch",
+      "lds_bytes": 13312,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.25506974998279475,
+      "torch_ms": 0.18876505018852185,
+      "paired_ratio": 1.2670512863562202,
+      "samples_ms": {
+        "kernel": [
+          0.4477698999835411,
+          0.30239829975471366,
+          0.25506974998279475,
+          0.18970890014315955,
+          0.23917499966046307
+        ],
+        "torch": [
+          0.1725717000226723,
+          0.1616516001377022,
+          0.21262765003484674,
+          0.27204104990232736,
+          0.18876505018852185
+        ]
+      },
+      "paired_ratios": [
+        2.594689047652156,
+        1.8706792849382068,
+        1.1996076236603863,
+        0.6973539479106994,
+        1.2670512863562202
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k64_w2x2_prefetch",
+      "lds_bytes": 17408,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.21324184999684803,
+      "torch_ms": 0.17303610002272762,
+      "paired_ratio": 1.3038481554491408,
+      "samples_ms": {
+        "kernel": [
+          0.2572384499217151,
+          0.12256804984644987,
+          0.21324184999684803,
+          0.22561279984074645,
+          0.2051913001196226
+        ],
+        "torch": [
+          0.15980850002961233,
+          0.23242700008268002,
+          0.19888259994331747,
+          0.17303610002272762,
+          0.11145805001433473
+        ]
+      },
+      "paired_ratios": [
+        1.6096668817619155,
+        0.5273399811676328,
+        1.0721996296187952,
+        1.3038481554491408,
+        1.840973353591174
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k64_w1x4_prefetch",
+      "lds_bytes": 17408,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.18642555005499162,
+      "torch_ms": 0.1404265498422319,
+      "paired_ratio": 1.3089615670796,
+      "samples_ms": {
+        "kernel": [
+          0.16223624988924712,
+          0.2036824000242632,
+          0.18642555005499162,
+          0.13616885007650126,
+          0.19607965004979633
+        ],
+        "torch": [
+          0.09811375020944979,
+          0.19271914970886428,
+          0.18765389977488667,
+          0.1040281498717377,
+          0.1404265498422319
+        ]
+      },
+      "paired_ratios": [
+        1.6535526319492515,
+        1.0568871870385521,
+        0.9934541742997689,
+        1.3089615670796,
+        1.3963146589451227
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 64,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k64_w2x2_prefetch",
+      "lds_bytes": 34816,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.16150680021382868,
+      "torch_ms": 0.17877370009955484,
+      "paired_ratio": 1.3166741021251598,
+      "samples_ms": {
+        "kernel": [
+          0.19137455019517802,
+          0.15488100034417585,
+          0.2849626001989236,
+          0.1578267001605127,
+          0.16150680021382868
+        ],
+        "torch": [
+          0.2745479501754744,
+          0.17877370009955484,
+          0.18087325006490573,
+          0.09980699978768826,
+          0.12266269986866973
+        ]
+      },
+      "paired_ratios": [
+        0.6970532836718067,
+        0.866352266904619,
+        1.5754822788702352,
+        1.5813189505369893,
+        1.3166741021251598
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k32_w2x2_prefetch",
+      "lds_bytes": 9216,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.20941994989698287,
+      "torch_ms": 0.1788252997357631,
+      "paired_ratio": 1.3503626186552542,
+      "samples_ms": {
+        "kernel": [
+          0.18836125018424354,
+          0.2326589499716647,
+          0.20100270012335386,
+          0.20941994989698287,
+          0.24147900003299583
+        ],
+        "torch": [
+          0.11592465016292408,
+          0.14271849977376405,
+          0.19034209981327876,
+          0.18634385014593136,
+          0.1788252997357631
+        ]
+      },
+      "paired_ratios": [
+        1.624859336815033,
+        1.6301947563943942,
+        1.0560075796186599,
+        1.1238361219486446,
+        1.3503626186552542
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 16,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k16_w2x2_prefetch",
+      "lds_bytes": 7168,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.2386109499639133,
+      "torch_ms": 0.18219185003545135,
+      "paired_ratio": 1.383427919390877,
+      "samples_ms": {
+        "kernel": [
+          0.40950539987534285,
+          0.22064770018914714,
+          0.2781779501674464,
+          0.2386109499639133,
+          0.2253953498438932
+        ],
+        "torch": [
+          0.1915584500238765,
+          0.27957664970017504,
+          0.10177584990742616,
+          0.1724780500808265,
+          0.18219185003545135
+        ]
+      },
+      "paired_ratios": [
+        2.137756908266384,
+        0.7892207751461906,
+        2.7332412396503987,
+        1.383427919390877,
+        1.2371319013448472
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 16,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k16_w4x1_prefetch",
+      "lds_bytes": 7168,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.20053779990121257,
+      "torch_ms": 0.17125720005424228,
+      "paired_ratio": 1.3864730347599898,
+      "samples_ms": {
+        "kernel": [
+          0.2648050500283716,
+          0.20053779990121257,
+          0.19908649992430583,
+          0.2852476500265766,
+          0.18122850015060976
+        ],
+        "torch": [
+          0.19099185010418296,
+          0.10442644997965544,
+          0.19546494986570906,
+          0.17125720005424228,
+          0.1426097998773912
+        ]
+      },
+      "paired_ratios": [
+        1.3864730347599898,
+        1.9203736212452085,
+        1.0185278744914876,
+        1.6656096791038866,
+        1.2707997648578218
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k32_w1x4_prefetch",
+      "lds_bytes": 9216,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.18880860006902367,
+      "torch_ms": 0.17610604991205037,
+      "paired_ratio": 1.4429832212537566,
+      "samples_ms": {
+        "kernel": [
+          0.1510080499429023,
+          0.19986249972134829,
+          0.18575020003481768,
+          0.18880860006902367,
+          0.257077149944962
+        ],
+        "torch": [
+          0.10464990009495523,
+          0.10941760010609869,
+          0.20555754999804776,
+          0.18646060016180854,
+          0.17610604991205037
+        ]
+      },
+      "paired_ratios": [
+        1.4429832212537566,
+        1.8266028456806593,
+        0.9036408540410303,
+        1.0125924721103416,
+        1.4597860213964804
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k32_w4x1_prefetch",
+      "lds_bytes": 18432,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.191808899762691,
+      "torch_ms": 0.1585230500495527,
+      "paired_ratio": 1.508574850350485,
+      "samples_ms": {
+        "kernel": [
+          0.2624746000947198,
+          0.13325069994607475,
+          0.191808899762691,
+          0.22492294992844108,
+          0.17375950010318775
+        ],
+        "torch": [
+          0.1739884501148481,
+          0.20510959984676447,
+          0.1585230500495527,
+          0.14609249992645346,
+          0.10445195002830587
+        ]
+      },
+      "paired_ratios": [
+        1.508574850350485,
+        0.6496560865294708,
+        1.2099748251294276,
+        1.5395927240732605,
+        1.663535243297037
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 32,
+        "block_n": 32,
+        "block_k": 32,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m32n32k32_w2x2_prefetch",
+      "lds_bytes": 4608,
+      "accumulator_values": 8,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.28646495011344086,
+      "torch_ms": 0.19867019982484635,
+      "paired_ratio": 1.5120229420341096,
+      "samples_ms": {
+        "kernel": [
+          0.3786116500123171,
+          0.2852741497918032,
+          0.28646495011344086,
+          0.3003939000336686,
+          0.2728807001403766
+        ],
+        "torch": [
+          0.1486334000219358,
+          0.27372080003260635,
+          0.14527695020660758,
+          0.19867019982484635,
+          0.22801345003244933
+        ]
+      },
+      "paired_ratios": [
+        2.54728513211997,
+        1.0422085196222597,
+        1.9718541014664808,
+        1.5120229420341096,
+        1.1967745766819546
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 16,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k16_w4x1_prefetch",
+      "lds_bytes": 10240,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.19496300010359846,
+      "torch_ms": 0.17514020000817254,
+      "paired_ratio": 1.5237700217110302,
+      "samples_ms": {
+        "kernel": [
+          0.2577709499746561,
+          0.18091735000780318,
+          0.19496300010359846,
+          0.27615505023277365,
+          0.17880030027299654
+        ],
+        "torch": [
+          0.16620540009171236,
+          0.19031055016967002,
+          0.17514020000817254,
+          0.18123144982382655,
+          0.09382245007145684
+        ]
+      },
+      "paired_ratios": [
+        1.5509180197058443,
+        0.9506427775365454,
+        1.113182468071299,
+        1.5237700217110302,
+        1.9057304529653516
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k16_w2x2_prefetch",
+      "lds_bytes": 5120,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.27957214988418855,
+      "torch_ms": 0.16959295026026666,
+      "paired_ratio": 1.5731134825217825,
+      "samples_ms": {
+        "kernel": [
+          0.3903338500094833,
+          0.27957214988418855,
+          0.20398449996719137,
+          0.2797339500830276,
+          0.2581918000942096
+        ],
+        "torch": [
+          0.16959295026026666,
+          0.19068175024585798,
+          0.1678465498116566,
+          0.17782185022952035,
+          0.12464255014492664
+        ]
+      },
+      "paired_ratios": [
+        2.3015924271053456,
+        1.4661715110319606,
+        1.21530350308711,
+        1.5731134825217825,
+        2.071457939475726
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 128,
+        "block_k": 64,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m64n128k64_w4x1_prefetch",
+      "lds_bytes": 25600,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.21552379985223524,
+      "torch_ms": 0.2503381001588423,
+      "paired_ratio": 1.6758495158319404,
+      "samples_ms": {
+        "kernel": [
+          0.21552379985223524,
+          0.5837017499288777,
+          0.19708360014192294,
+          0.4367180499684764,
+          0.16660270011925604
+        ],
+        "torch": [
+          0.12860569986514747,
+          0.3319494499010034,
+          0.25894374994095415,
+          0.2503381001588423,
+          0.22479924991785083
+        ]
+      },
+      "paired_ratios": [
+        1.6758495158319404,
+        1.758405534646778,
+        0.761105839344889,
+        1.7445129194931734,
+        0.741117686914606
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k16_w4x1_prefetch",
+      "lds_bytes": 5120,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.2780822498607449,
+      "torch_ms": 0.15946034982334822,
+      "paired_ratio": 1.6808930893045957,
+      "samples_ms": {
+        "kernel": [
+          0.2794554500724189,
+          0.26803580003615934,
+          0.2843233502062503,
+          0.2612967997265514,
+          0.2780822498607449
+        ],
+        "torch": [
+          0.1324491502600722,
+          0.15946034982334822,
+          0.17504499992355704,
+          0.11423239993746392,
+          0.20188140006212052
+        ]
+      },
+      "paired_ratios": [
+        2.10990745900363,
+        1.6808930893045957,
+        1.624287185183328,
+        2.2874140775261425,
+        1.3774535433931843
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 2,
+        "waves_n": 2,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k16_w2x2_prefetch",
+      "lds_bytes": 8192,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.2932901999884052,
+      "torch_ms": 0.16321564980898984,
+      "paired_ratio": 1.7006506422795198,
+      "samples_ms": {
+        "kernel": [
+          0.27757279967772774,
+          0.2932901999884052,
+          0.3032875003555091,
+          0.24479289968439844,
+          0.30839834980724845
+        ],
+        "torch": [
+          0.16321564980898984,
+          0.15781719994265586,
+          0.17935834985109977,
+          0.1597905000380706,
+          0.17473689986218233
+        ]
+      },
+      "paired_ratios": [
+        1.7006506422795198,
+        1.8584172073447922,
+        1.690958355757026,
+        1.531961534797599,
+        1.7649297317881167
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k32_w4x1_prefetch",
+      "lds_bytes": 9216,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.25119679994531907,
+      "torch_ms": 0.13978530005260836,
+      "paired_ratio": 1.7057867030916325,
+      "samples_ms": {
+        "kernel": [
+          0.2225583499239292,
+          0.19573300014599226,
+          0.30825860012555495,
+          0.25119679994531907,
+          0.25700899968796875
+        ],
+        "torch": [
+          0.19745885001611896,
+          0.13978530005260836,
+          0.18071345002681483,
+          0.11243040025874507,
+          0.11681334981403779
+        ]
+      },
+      "paired_ratios": [
+        1.1271125599372291,
+        1.4002402260633122,
+        1.7057867030916325,
+        2.2342426902974624,
+        2.2001680466925815
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k16_w1x4_prefetch",
+      "lds_bytes": 8192,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.36413665002328344,
+      "torch_ms": 0.19290255004307255,
+      "paired_ratio": 1.7063107221911777,
+      "samples_ms": {
+        "kernel": [
+          0.47011210008349735,
+          0.2605033001600532,
+          0.4463912500796141,
+          0.269138949806802,
+          0.36413665002328344
+        ],
+        "torch": [
+          0.1708373998553725,
+          0.20360020025691483,
+          0.36282014989410527,
+          0.1577315000758972,
+          0.19290255004307255
+        ]
+      },
+      "paired_ratios": [
+        2.75181020362921,
+        1.2794844986956528,
+        1.2303375383365571,
+        1.7063107221911777,
+        1.8876715208895716
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m128n64k16_w4x1_prefetch",
+      "lds_bytes": 8192,
+      "accumulator_values": 64,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.3049226499570068,
+      "torch_ms": 0.1708769497781759,
+      "paired_ratio": 1.793935930783731,
+      "samples_ms": {
+        "kernel": [
+          0.31061664994922467,
+          0.30654229994979687,
+          0.2433636000205297,
+          0.3049226499570068,
+          0.28591890004463494
+        ],
+        "torch": [
+          0.12301339993427973,
+          0.1708769497781759,
+          0.12454235002223868,
+          0.1786911001545377,
+          0.1736678499582922
+        ]
+      },
+      "paired_ratios": [
+        2.525063530600508,
+        1.793935930783731,
+        1.9540630153283114,
+        1.70642326166944,
+        1.6463548095591716
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k16_w1x4_prefetch",
+      "lds_bytes": 5120,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.24665300006745383,
+      "torch_ms": 0.15265624970197678,
+      "paired_ratio": 1.7970042135109627,
+      "samples_ms": {
+        "kernel": [
+          0.24665300006745383,
+          0.24500580002495553,
+          0.28091124986531213,
+          0.22254190007515717,
+          0.27477584990265314
+        ],
+        "torch": [
+          0.13341550002223812,
+          0.17271500000788365,
+          0.1825464998546522,
+          0.12384049987304024,
+          0.15265624970197678
+        ]
+      },
+      "paired_ratios": [
+        1.8487582029549858,
+        1.4185554237545792,
+        1.538847636569204,
+        1.7970042135109627,
+        1.7999646292836644
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m64n64k64_w4x1_prefetch",
+      "lds_bytes": 17408,
+      "accumulator_values": 32,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.38428560001193546,
+      "torch_ms": 0.24766345013631508,
+      "paired_ratio": 1.812134168693057,
+      "samples_ms": {
+        "kernel": [
+          0.37398025015136227,
+          0.3912390999175841,
+          0.38428560001193546,
+          0.3064706499571912,
+          0.4487994003284257
+        ],
+        "torch": [
+          0.2746701502474025,
+          0.12099100022169296,
+          0.2597503502329346,
+          0.11217594983463641,
+          0.24766345013631508
+        ]
+      },
+      "paired_ratios": [
+        1.361561312048319,
+        3.233621502431693,
+        1.479442086092751,
+        2.732053086325307,
+        1.812134168693057
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 4,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k16_w1x4_prefetch",
+      "lds_bytes": 10240,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.18980200002260972,
+      "torch_ms": 0.13695084999199025,
+      "paired_ratio": 1.8613316359569059,
+      "samples_ms": {
+        "kernel": [
+          0.16550604996155016,
+          0.25491094966128003,
+          0.31648954973206855,
+          0.18980200002260972,
+          0.174979849907686
+        ],
+        "torch": [
+          0.12778359996445943,
+          0.13695084999199025,
+          0.1665380499616731,
+          0.09431990001758095,
+          0.18749304981611203
+        ]
+      },
+      "paired_ratios": [
+        1.2952057228594476,
+        1.8613316359569059,
+        1.900403840473124,
+        2.0123218958802034,
+        0.9332604599439892
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    },
+    {
+      "config": {
+        "block_m": 128,
+        "block_n": 128,
+        "block_k": 64,
+        "waves_m": 4,
+        "waves_n": 1,
+        "schedule": "prefetch"
+      },
+      "name": "m128n128k64_w4x1_prefetch",
+      "lds_bytes": 34816,
+      "accumulator_values": 128,
+      "correctness": "full trace/random passed",
+      "kernel_ms": 0.5680850499629742,
+      "torch_ms": 0.16545245016459376,
+      "paired_ratio": 3.1413179077614144,
+      "samples_ms": {
+        "kernel": [
+          0.6371621500875335,
+          0.37519755023822654,
+          0.5680850499629742,
+          0.6594267000764376,
+          0.3865946000587428
+        ],
+        "torch": [
+          0.20283275007386692,
+          0.16545245016459376,
+          0.22215509998204652,
+          0.09504080007900484,
+          0.08981969986052718
+        ]
+      },
+      "paired_ratios": [
+        3.1413179077614144,
+        2.2677062193093924,
+        2.5571551137420836,
+        6.9383538388594586,
+        4.3041181462312865
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 5,
+      "repeats": 20,
+      "warmups": 5
+    }
+  ],
+  "rejected": [],
+  "note": "Search results select a candidate; they are not held-out proof of parity"
+}
