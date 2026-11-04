@@ -9,7 +9,7 @@ The course begins with small mappings that can be traced by hand, then builds to
 | Section | Lessons | What you learn |
 | --- | --- | --- |
 | [00 · Layout algebra](lessons/00-layout-algebra/README.md) | 00–07 | Shapes, coordinates, composition, coalescing, tiling, block windows, thread/value ownership |
-| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through measured LDS layout tuning and load/compute interleaving |
+| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through LDS layout tuning, load/compute interleaving, and verified parameter tuning |
 
 Start with layout algebra; lessons 06 and 07 still develop the coordinate and ownership fundamentals. Actual copy plans begin in lesson 08.
 

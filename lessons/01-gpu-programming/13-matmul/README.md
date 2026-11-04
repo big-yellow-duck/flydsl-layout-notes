@@ -14,7 +14,7 @@ All runnable exercises and comparisons use **M = N = K = 1024**. A is row-major 
 | [05 · Matrix instructions](05-matrix-instructions/README.md) | Keep the stage-04 copy structure; derive A/B/C plans from WMMA with make_tiled_copy_A/B/C | 32×32 / 128 |
 | [06 · LDS bank conflicts](06-lds-swizzle/README.md) | Compare native swizzling and aligned padding with counter, ISA, and timing evidence | 32×32 / 128 |
 | [07 · Interleaved loads](07-interleaved-loads/README.md) | Prefetch next global tile into registers while WMMA consumes current LDS | 32×32 / 128 |
-| [08 · Parameter tuning](08-parameter-tuning/README.md) | Tile/wave/buffer search, register reuse, and held-out paired PyTorch verification | 128×64 / 128 |
+| [08 · Parameter tuning](08-parameter-tuning/README.md) | Tile/wave/buffer search, register reuse, and held-out paired PyTorch verification | 128×128 / 128 |
 
 Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labels carefully: input values, storage offsets, thread IDs, and accumulator slots describe different things. Keep the same arithmetic and shape while changing one part of the implementation at a time. All stages use named `*_global_view`, `*_tiled_view`, `*_block_view`, and thread/fragment views instead of handwritten global storage offsets. Stages 00–02 select full-K input windows; stage 03 selects 16-wide K windows (64 in its 4×4 variant), stage 04 selects 64-wide windows, and stages 05–07 select 32-wide windows. Changes in block size and instruction ownership are stated explicitly; they also affect resource usage.
 
@@ -34,7 +34,7 @@ Stages 00–03 use a 64×64 grid of 16×16 output tiles. Stage 04 follows the sh
 
 ## Compare the stages
 
-Each lesson solution and completed practice now prints its own kernel versus GPU `torch.matmul` table after correctness, with milliseconds and TFLOP/s. Practice files time the learner's kernel. Use `--check-only` to skip timing for an individual file; the course-wide checkers already do this for matmul. The shared implementation lives in `examples/matmul_benchmark.py`.
+Each lesson solution and completed practice now prints its own kernel versus GPU `torch.matmul` table after correctness, with milliseconds and TFLOP/s. Practice files time the learner's kernel. Use `--check-only` to skip timing for an individual file; the course-wide checkers already do this for matmul. The shared implementation lives in `examples/matmul_benchmark.py`. CLI reference checks use one CPU thread outside timing to avoid competing for the APU power budget.
 
 The benchmark runs all nine **GPU** kernels and **GPU `torch.matmul`** on identical logical BF16 inputs and a preallocated BF16 GPU output. The full-series benchmark groups kernels by physical B layout and runs a GPU PyTorch baseline for each group. Each JSON row includes `right_layout` and `right_stride`; compare a kernel against the PyTorch row in its matching layout group. It verifies each implementation before timing. CPU arithmetic is only the untimed correctness reference. The PyTorch baseline uses `torch.matmul(left, right, out=out)` with both inputs and `out` on `device="cuda"` through ROCm.
 
@@ -64,7 +64,7 @@ Explicit `host` timing uses a monotonic CPU clock around GPU launches, with GPU 
 
 ## Tune and verify register reuse
 
-[Stage 08](08-parameter-tuning/README.md) adds a configurable register-tiled family, a 71-candidate search across tile sizes, wave arrangements, and one/two LDS buffers, native ownership checks, explicit-stream graph capture validation, and a held-out performance gate. All 71 candidates pass mathematical correctness. The direct-launch search selected 128×64×32: two direct captures and one graph capture passed the strict held-out win criterion under shared GPU load. The recorded conditions and earlier failures accompany the measurements; isolated performance is unverified.
+[Stage 08](08-parameter-tuning/README.md) stages full K tiles in LDS but consumes 16-wide operand fragments, uses native buffer-addressed global copies, and groups output blocks to reuse B in cache. Its 132-candidate tile/wave/buffer search selected 128×128×32 with 1×4 waves and one LDS buffer. All candidates passed full-output correctness. Two locked direct-launch verifications passed the strict win criterion in all 18 rounds across six fresh seeds; graph verification met parity. Three ordinary lesson CLI runs also beat GPU PyTorch using available GPU-event timing. The [measured comparison](08-parameter-tuning/README.md#the-measured-winner) includes commands for reproducing the benchmark and profiler measurements. These results apply to the fixed 1024³ workload on gfx1151.
 
 ## Scope and next experiments
 

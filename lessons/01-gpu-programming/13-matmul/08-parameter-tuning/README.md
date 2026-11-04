@@ -1,16 +1,45 @@
-# 08 · Tune register reuse and verify the selected parameters
+# 08 · Tune register reuse and operand fragments
 
-Build on [stage 07](../07-interleaved-loads/README.md), retaining its one-tile global prefetch, padded A LDS, packed B LDS, native WMMA copies, and **1024³ BF16 input/output with FP32 accumulation**. This lesson searches block M/N/K dimensions, wave arrangement, and one/two LDS buffers, then locks a configuration before testing it on new data. **The selected tuple won two nine-round direct-launch captures and a nine-round graph capture under shared GPU load. These measurements do not establish isolated GPU performance.**
+A larger output tile lets each block reuse its inputs across more results. It also needs more accumulators, so the useful question is: **how much output work can a block own while keeping its operand fragments small?**
 
-The [solution](solution.py) is a native configuration family. Its current selection is `Config(128,64,32,2,2,"prefetch")`: four wave32 groups, 128 threads, 128 output blocks, 64 FP32 accumulator values per thread, and 14336 LDS bytes. Global A, B, and output remain row-major; there is no B prepacking or library call inside the GPU kernel.
+Build on [stage 07](../07-interleaved-loads/README.md), retaining its global prefetch, padded A LDS, packed B LDS, and native WMMA copies. Keep **M=N=K=1024**, row-major BF16 inputs/output, and FP32 accumulation. The [solution](solution.py) selects:
 
-![A 32×32 block gives one 16×16 output tile to each wave; the larger 128×64 block repeats the four-wave ownership over an 8×4 grid of atom tiles.](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/register-reuse.svg)
+```python
+SELECTED_CONFIG = Config(128, 128, 32, 1, 4, "prefetch")
+```
 
-Each cell is a **16×16 output tile**, and its label identifies the owning wave group. Repeated labels mean more work for the same wave, not additional threads. The [native ownership checker](ownership.py) stores thread IDs through the actual MMA-derived C copy and checks every output position.
+This means a **128×128 output tile**, a **32-wide K stage**, **1×4 wave groups**, and **one LDS buffer per operand**. The strategy combines more output reuse with 16-wide operand fragments, vectorized global staging, and grouped block traversal.
 
-## 1. Give each operand load more output work
+## Watch the full strategy
 
-Stage 07's block has one 16×16 output atom tile per wave. The current larger block repeats that ownership four times along M and twice along N. Each A operand fragment can serve two output-column tiles; each B fragment can serve four output-row tiles.
+[![Static preview of the matmul strategy video: output blocks, K staging and prefetch, and wave-owned accumulator tiles.](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/strategy.png)](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/strategy.mp4)
+
+[Open the video](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/strategy.mp4) to play, pause, and scrub through the 4½-minute walkthrough. Read the three panels together: the whole output grid on the left, staging/LDS/operand registers in the middle, and the selected block's accumulator tiles on the right. The first K stage shows every M/N repetition with a two-second hold per update. Later stages summarize those repetitions while tracing all 32 K stages. The final section shows grouped block mapping, with each block independently performing its own K reduction.
+
+<details><summary>Video chapters</summary>
+
+| Time | Strategy step |
+| --- | --- |
+| 00:00 | Choose an output block |
+| 00:06 | Prologue: publish tile 0 to LDS |
+| 00:19 | Prefetch the next global tile |
+| 00:24 | First K stage: M/N operand reuse |
+| 01:36 | Reader barrier and LDS handoff |
+| 01:44 | Reduce the remaining K stages |
+| 03:44 | Drain the final K stage |
+| 03:57 | Convert and store BF16 output |
+| 04:03 | Group output blocks along M |
+| 04:23 | K reduction and M/N reuse recap |
+
+</details>
+
+Orange borders mark WMMA updates; the bottom strip tracks K stages. The video illustrates logical dataflow, rather than GPU clock timing. A [static overview](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/strategy.svg) is also available.
+
+## 1. Give the same threads more output work
+
+![A 32×32 reference tile uses a 2×2 wave arrangement; the selected 128×128 tile uses 1×4 waves and repeats ownership over 16 atom tiles per wave.](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/register-reuse.svg)
+
+Each cell is a **16×16 output tile**. Follow wave 0 in the larger block: it owns every tile row in tile columns 0 and 4. Repeated labels give the same wave more work. Both blocks still launch 128 threads.
 
 For `WM` by `WN` wave groups:
 
@@ -21,43 +50,77 @@ register_N_tiles    = BLOCK_N // (16 * WN)
 accumulators/thread = 8 * register_M_tiles * register_N_tiles
 ```
 
-| Property | Stage-07-sized configuration | Current larger configuration |
+| Property | Stage 07 | Selected configuration |
 | --- | ---: | ---: |
-| Block M×N×K | 32×32×32 | 128×64×32 |
-| Waves / threads | 4 / 128 | 4 / 128 |
-| Register M/N repetitions | 1×1 | 4×2 |
-| FP32 accumulators per thread | 8 | 64 |
-| Blocks for 1024×1024 output | 1024 | 128 |
-| LDS bytes | 4608 | 14336 |
-| Staged input payload over the full product | 128 MiB | 48 MiB |
+| Block M×N×K | 32×32×32 | 128×128×32 |
+| Wave arrangement | 2×2 | 1×4 |
+| Threads | 128 | 128 |
+| Register M/N repetitions | 1×1 | 8×2 |
+| FP32 accumulators per thread | 8 | 128 |
+| Blocks for the full output | 1024 | 64 |
+| LDS bytes per block | 4608 | 18432 |
+| Logical staged input payload | 128 MiB | 32 MiB |
 
-The payload calculation counts logical global-to-LDS input movement before cache reuse; it is not a measured DRAM traffic claim. For one K stage, arithmetic intensity relative to its BF16 input payload is `BLOCK_M*BLOCK_N/(BLOCK_M+BLOCK_N)` FLOP/byte: 16 for a 32×32 output block and about 42.67 for 128×64.
+Within each selected wave, an A operand fragment serves two output-column tiles, and a B fragment serves eight output-row tiles. The extra accumulators retain those results throughout the K loop.
 
-Increasing block K has a different effect: fewer staging iterations and barriers, but larger operand/storage requirements. It does not change that M/N reuse formula. The bounded search tests K=16,32,64 rather than assuming larger K always wins.
+The staged payload counts input movement before cache reuse. For one K stage, arithmetic per byte of BF16 input is `BLOCK_M*BLOCK_N/(BLOCK_M+BLOCK_N)`: 16 FLOP/byte for a 32×32 output tile and 64 for 128×128. Increasing M/N improves this reuse. Increasing K changes the staging granularity instead.
 
-## 2. Keep MMA ownership distinct from view repetitions
+## 2. Derive ownership from the wave arrangement
 
-The four-wave layout remains:
+The selected MMA uses:
 
 ```python
-mma = fx.make_tiled_mma(atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0)))
+mma = fx.make_tiled_mma(
+    atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0))
+)
 ```
 
-For `(WM,WN)=(2,2)`, the MMA's natural footprint is still **32×32×16**. Giving `make_fragment_A/B/C` larger block views adds static repetitions. `fx.gemm` walks those repeated M/N/K fragments; the hardware instruction remains 16×16×16 WMMA.
+With `(WM,WN)=(1,4)`, the natural footprint is **16×64×16**. The 128×128 output view repeats this footprint eight times along M and twice along N. The hardware instruction remains 16×16×16 WMMA.
 
-A wave's aggregate output values are not necessarily a contiguous 64×32 rectangle. With the 2×2 group layout, 16-row/column tile stripes alternate between wave groups. For thread 17 in block 0:
+Follow thread 17 in block 0. It has lane 17 and wave 0, and owns:
 
 ```text
-lane = 17, wave = 0
-row = 32*m_repeat + 2*slot + 1   slot=0..7, m_repeat=0..3
-col = 32*n_repeat + 1           n_repeat=0..1
+row = 16*m_repeat + 2*slot + 1   m_repeat=0..7, slot=0..7
+col = 64*n_repeat + 1           n_repeat=0..1
 ```
 
-It owns `(row,col)=(1,1),(1,33),(3,1),(3,33),…` and 64 positions altogether. The checker confirms all 8192 positions and equal per-thread coverage. A fixed eight-slot conversion/store loop would leave most of this block unwritten; conversion must use the derived accumulator count.
+Its positions begin `(1,1),(1,65),(3,1),(3,65),…`: 128 values altogether. The [native ownership checker](ownership.py) checks all 16384 output positions and equal per-thread coverage. The conversion/store path must include every repeated accumulator tile; an eight-slot conversion loop would leave most of this block unwritten.
 
-## 3. Derive A and B staging plans separately
+## 3. Stage K=32, consume K=16
 
-The copy atom still moves eight BF16 values per 128-bit operation. Rectangular block tiles need separate A/B ownership geometry:
+The output accumulators must survive the whole product. Operand registers only need to survive their current WMMA update. Keep those lifetimes separate:
+
+```text
+next global K tile → staging registers
+current K tile    → LDS → 16-wide operand registers → WMMA → accumulators
+```
+
+![A 32-wide LDS K stage is consumed as two 16-wide operand fragments, updating the same output accumulator.](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/fragment-lifetime.svg)
+
+Trace stage 0. First, copy K=0–15 from LDS into operand registers and update the accumulator. Then reuse those registers for K=16–31 and update the same accumulator again. The prefetched next global tile waits in separate staging registers until the LDS handoff.
+
+The solution allocates MMA operand fragments for K=16 and slices each LDS stage into matching subviews. This API fragment shows the compute step:
+
+```python
+for rk in fx.range_constexpr(BLOCK_K // 16):
+    left_subview = fx.slice(
+        fx.flat_divide(left_view, (BLOCK_M, 16)), (None, None, 0, rk)
+    )
+    right_subview = fx.slice(
+        fx.flat_divide(right_operand, (BLOCK_N, 16)), (None, None, 0, rk)
+    )
+    left_source = lds2reg_left_thread_copy.partition_S(left_subview)
+    right_source = lds2reg_right_thread_copy.partition_S(right_subview)
+    fx.copy(copy_16b, left_source, left_r_destination)
+    fx.copy(copy_16b, right_source, right_r_destination)
+    fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)
+```
+
+A 32-wide LDS stage amortizes global staging and barriers across two WMMA K updates. Smaller operand fragments limit the register storage needed for each update while all 128 output accumulators remain live.
+
+## 4. Match staging to each operand
+
+Each staging chunk contains eight BF16 values, or 128 bits. A is contiguous along K; B is contiguous along N. Their thread layouts therefore use different extents:
 
 ```python
 left_copy_threads = fx.make_ordered_layout(
@@ -69,107 +132,86 @@ right_copy_threads = fx.make_ordered_layout(
 copy_values = fx.make_ordered_layout((1, 8), (1, 0))
 ```
 
-A's contiguous axis has extent K; B's has extent N. Build each plan with `make_layout_tv` and `make_tiled_copy`, then partition its own global and LDS views. MMA operand/output plans still come from `make_tiled_copy_A/B/C`.
+Build each plan with `make_layout_tv` and `make_tiled_copy`, then partition its own global and LDS views. For the selected tuple, A's thread layout is `(32,4)` and B's is `(8,16)`. Staging thread 17 loads:
 
-For the current 128×64×32 selection, A's thread layout is `(32,4)` and B's is `(16,8)`. Thread 17 stages:
-
-| Operand | Block-local positions within one K stage |
+| Operand | Block-local positions in one K stage |
 | --- | --- |
 | A | Rows 4,36,68,100; K columns 8–15 |
-| B | K rows 2,18; output columns 8–15 |
+| B | K rows 1,9,17,25; output columns 8–15 |
 
-Each thread therefore stages 32 BF16 values of A and 16 of B, using four and two 128-bit chunks respectively. This staging ownership is independent of its C accumulator ownership. A's physical LDS row stride remains `BLOCK_K+8`; B's is `BLOCK_N`. With one LDS buffer, the allocation is `2*(BLOCK_M*(BLOCK_K+8) + BLOCK_K*BLOCK_N)` bytes; multiply by `Config.buffers` for the optional second buffer.
+Each thread stages 32 values of each operand in four chunks. These positions differ from its accumulator ownership: staging distributes input chunks across the block, while MMA distributes output arithmetic across waves.
 
-## 4. Bound the search before measuring
+Global views use `fx.rocdl.make_buffer_tensor` with `BufferCopy128b` for loads and `BufferCopy16b` for BF16 output. LDS copies use `UniversalCopy` atoms. The row-major input layouts stay unchanged. A retains the padded LDS row stride `BLOCK_K+8`; B retains stride `BLOCK_N`.
 
-`tune.py --sweep` enumerates 71 valid configurations: the stage-07-sized reference plus combinations of M/N in 64/128, K in 16/32/64, and wave arrangements `(2,2)`, `(4,1)`, `(1,4)`. The initial one-buffer search had 37 candidates; the extended search adds the second-buffer alternatives and prunes three that exceed 64 KiB. All searched layouts have four waves. `validate_config` checks whole WMMA groups, complete aligned staging chunks, divisibility of the fixed workload, and the 64 KiB LDS limit.
+The block traversal also encourages reuse between workgroups. With eight output tile rows, logical blocks 0–7 visit `(row,col)=(0,0)` through `(7,0)`, then block 8 visits `(0,1)`. Those first eight blocks read the same B band, giving nearby workgroups an opportunity to reuse it in cache.
 
-Every candidate must pass full trace and seeded-random 1024³ output comparisons before it contributes timing data. Compilation and correctness checks finish before search timing begins. Candidate order is shuffled with a fixed seed. Each timing batch pairs a candidate with GPU `torch.matmul` on the same preallocated output and inputs, alternating which runs first.
+## 5. Tune the tradeoffs together
 
-The search score is the median of the paired `candidate_ms / torch_ms` ratios. Select the timing objective explicitly: the final tuple was chosen by `--timing direct-host`; the earlier graph search chose a different tuple. It selects a candidate using training seed 13; it does not prove that candidate will match PyTorch on subsequent measurements. Changing the search space or selecting another tuple after observing held-out results requires another independent verification.
+| Parameter | What increasing or changing it does | Cost to weigh |
+| --- | --- | --- |
+| Block M/N | Reuses operands across more output tiles | More accumulators/LDS and fewer output blocks |
+| Block K | Processes more K values per staging handoff | Larger staging fragments and LDS allocation |
+| Wave arrangement | Redistributes M/N repetitions among waves | Changes each wave's operand reuse and register demand |
+| LDS buffers | Allows publication into a different shared tile | Doubles LDS storage |
 
-### Try ping-pong LDS as a parameter
+One LDS buffer occupies `2*(BLOCK_M*(BLOCK_K+8) + BLOCK_K*BLOCK_N)` bytes. With two buffers, stage parity selects the current and future planes. The preceding ready barrier protects a plane's readers before reuse, so the extra single-buffer reader barrier can be omitted. Over 32 stages this reduces block barriers from 64 to 33, but doubles LDS. The search selected **one buffer**.
 
-`Config.buffers` is 1 or 2. The training search selected one buffer. Two buffers double the allocation; slice an extra layout mode with `tile_k % 2` to select current storage, and `(tile_k+1) % 2` for the future tile. The MMA register layouts and global input contract stay unchanged.
+The [tuner](tune.py) searches 132 valid tile/wave/buffer configurations. It rejects incomplete copy or WMMA groups and allocations above 64 KiB, then checks every candidate before timing. Select on training inputs, lock the tuple, and verify it on new inputs. This distinguishes a useful configuration from a favorable training measurement.
 
-A one-buffer handoff needs a reader barrier before overwriting the current tile. With two buffers, publication writes the other buffer, whose last readers finished at the preceding ready barrier. The extra reader barrier can therefore be omitted, while the publication/ready barrier remains essential. For 32 K stages this reduces block barriers from 64 to 33, including prologue and drain. It does not itself prove instruction overlap or a speedup.
+## The measured winner
 
-All 71 valid configurations passed full trace/random comparisons. The selected tile with both buffer counts also passed exact one-/two-/three-tile handoff checks. Restrict a search with `--buffers 1`, or use the default one/two-buffer sweep. A locked two-buffer verification requires `--verify --buffers 2`; the verifier accepts only one locked buffer count.
+For this 1024³ product, the selected kernel beat GPU `torch.matmul` in both direct-launch verification and GPU kernel traces:
 
-## 5. Remove dispatch noise without capturing an empty graph
+| Measurement | Native | GPU PyTorch |
+| --- | ---: | ---: |
+| Direct-launch confirmation, host time | 0.0723 ms | 0.0767 ms |
+| Profiler confirmation, GPU kernel duration | 59.10 µs | 63.24 µs |
 
-The default tuning metric is `graph-host`: both implementations are captured as 32 actual GPU matmuls per graph replay, then timed using synchronized host batches. This amortizes Python launch overhead. It is graph-replay throughput, not a device-event latency measurement. `--timing direct-host` retains the direct-launch comparison used in earlier lessons.
+The 18 held-out direct-launch rounds each had more than 5% lower median paired time. Both paths use identical logical inputs and preallocated BF16 output. See [validation notes](../../../../SOURCES.md#stage-08-parameter-tuning-2026-11-04) for measurement details.
 
-The native launcher accepts an explicit `fx.Stream`, so FlyDSL launches enter the same stream being captured by PyTorch. The harness queries HIP graph nodes, requires at least 32 kernel nodes, and records node counts. It then negates A in place, clears output to NaN, replays, and checks the entire new result against the negated CPU reference. It restores A and repeats the check. Both paths check trailing output sentinels. An empty graph, wrong stream, stale captured values, or missing output fails validation before timing.
+The kernel combines output reuse, smaller operand fragments, aligned staging, and cache-friendly block traversal. Its specialization uses **18432 LDS bytes, 212 compiler VGPRs, and zero private scratch**. The larger output tile still needs substantial register storage; the measured combination determines whether that tradeoff pays off.
 
-CPU reference work is limited to one CPU thread and stays outside timing. A one-second pre-measurement probe records sysfs GPU activity while no benchmark kernels run. This helps detect other GPU users; it does not prove exclusive access throughout the measurement.
+## Practice and run commands
 
-```bash
-pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-  --sweep --timing direct-host --output /tmp/tile-search-new.json
-pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-  --verify --timing direct-host --output /tmp/tile-heldout-new.json
-```
+[practice.py](practice.py) supplies the selected family. TODO 1 derives `right_copy_threads` from N's extent. TODO 2 derives `converted_slots` from the M/N repetitions. Compare with the [worked solution](solution.py).
 
-Use fresh output files so failed measurements remain available. After retuning, choose three previously unused seeds with `--seeds`; repeated default seeds are not independent held-out evidence. To verify a different locked tuple, supply `--config BM,BN,BK,WM,WN` explicitly.
-
-## 6. Verify a locked choice and inspect its cost
-
-The default held-out verification uses three seeds and three rounds per seed, with seven paired batches per round. Graph batches replay 20 graphs of 32 matmuls; direct-host batches use 50 launches. Every held-out input pair is checked for both implementations against CPU FP32 matmul on the quantized inputs, rounded to BF16.
-
-The predeclared performance labels are:
-
-- `win`: every held-out round has median paired ratio below 0.95.
-- `match`: every round has ratio at most 1.05.
-- `slower`: either criterion is unproven.
-
-Performance labels are recorded observations, not correctness test requirements. The lesson's ordinary checker never requires a speedup. Apply the labels only to the recorded measurement conditions. A graph-replay win under shared GPU load does not establish isolated device latency or direct-launch parity.
-
-The original, contended-host search and its failed held-out verification are retained under `results/initial-contended-host/`. A first graph verification on the remote machine also changed ordering while a separate model service kept the GPU busy. These exploratory results must not be promoted to a clean win.
-
-### Recorded shared-GPU verification
-
-The 71-candidate direct-launch training search selected 128×64×32, four waves, and one LDS buffer. That tuple was fixed before all three captures below; each used three new seeds and nine rounds. No configuration was changed between captures.
-
-| Capture | Native median ms | PyTorch median ms | Worst round paired ratio | Criterion |
-| --- | ---: | ---: | ---: | --- |
-| [Direct held-out](results/gmk-shared-gpu/selected-direct-heldout.json) | 0.2152 | 0.3734 | 0.8571 | win |
-| [Direct confirmation](results/gmk-shared-gpu/selected-direct-confirmation.json) | 0.2613 | 0.3142 | 0.8983 | win |
-| [Graph held-out](results/gmk-shared-gpu/selected-graph-heldout.json) | 0.2630 | 0.3702 | 0.7458 | win |
-
-The medians summarize nine per-round medians. The label uses the worst round's median paired ratio, rather than dividing the two summary medians. Both direct captures meet the predeclared win criterion in all 18 rounds. The graph capture also passes; each implementation has 32 real matmul kernel nodes and passes changed-input replay checks. Both implementations retain the same row-major BF16 inputs, preallocated BF16 output, and FP32 accumulation contract.
-
-A separate model service remained running. Every pre-measurement idle probe reported 100% GPU activity; it was not an exclusive-GPU capture. These are repeatable wins under that shared-load condition. Native/PyTorch summary times vary between captures, so they do not establish isolated device latency or a universal speedup. The [results directory](results/gmk-shared-gpu/README.md) retains earlier failed verifications, including the graph-selected 64×64×32 tuple's failed direct-launch check. Do not choose parameters using held-out results: each new timing objective or retune requires a new training selection and unused verification seeds.
-
-Inspect the selected kernel independently:
-
-```bash
-pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/inspect_kernel.py \
-  --output /tmp/tile-isa-new
-```
-
-The inspector runs the checker, verifies that the dumped IR is the 1024³ specialization, requires WMMA in final ISA, and records static LDS/register/scratch metadata. The selected 128×64×32 specialization reports 14336 LDS bytes, 165 compiler VGPRs, and zero private scratch bytes. These are static resources, not measured occupancy. Larger register tiles can improve reuse while reducing the number of resident waves; the sweep must measure that tradeoff.
-
-## Practice and correctness
-
-[practice.py](practice.py) supplies the native family and selected tuple. TODO 1 derives B's staging thread layout from its N extent. TODO 2 derives the number of accumulator values to convert from the per-wave M/N repetitions. Complete those expressions, then compare with the [worked solution](solution.py).
+Run from the repository root:
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/practice.py --check-only
-pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/solution.py --check-only
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/solution.py
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/ownership.py
 ```
 
-The unfinished scaffold reports `Practice not finished:`. The solution and completed practice check the full 1024³ trace/random workload, with first four trace outputs `[3,-6,-1,-3]`, NaN-initialized output, and 16 trailing sentinels. Tolerances remain `rtol=0, atol=0.001` for trace and `rtol=0.016, atol=0.03125` for random BF16-rounded outputs. One-, two-, and three-K-tile tag cases separately test prologue, handoffs, and drain. Only complete positive tiles are supported; broader shapes and tails are outside this tuning example.
+The starter reports `Practice not finished:`. The solution and completed practice check the full trace/random product against a CPU reference and return the trace checkpoint `[3,-6,-1,-3]`. One-, two-, and three-K-tile cases separately check the prefetch prologue, handoffs, and drain. The ordinary solution command also prints the native/PyTorch timing comparison.
 
-**Check yourself:** Why can enlarging the block improve input reuse but still lose performance?
+To explore another configuration, run a fresh search and verify its winner. Replace `--config` and `--buffers` with the selected tuple and use new verification seeds after each retune:
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
+  --sweep --timing direct-host --output /tmp/tile-search.json
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
+  --verify --timing direct-host --config 128,128,32,1,4 --buffers 1 \
+  --seeds 2026110410 2026110411 2026110412 --output /tmp/tile-heldout.json
+```
+
+The [profiler](profile.py) compares GPU dispatch durations and LDS counters; the [inspector](inspect_kernel.py) checks generated WMMA and static register/LDS usage:
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/profile.py \
+  --collect --output /tmp/tile-profile
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/inspect_kernel.py \
+  --output /tmp/tile-isa
+```
+
+**Check yourself:** Why can a larger output tile help, while a larger operand fragment hurts?
 
 <details><summary>Answer</summary>
 
-A larger M/N block reuses operands across more outputs, but also needs more accumulators and operand storage, consumes more LDS, and launches fewer blocks. Register pressure, scratch spills, insufficient parallelism, and changes in staging geometry can offset reuse. Correctness, resource inspection, and held-out paired measurements are needed together; the largest block is not automatically the winner.
+A larger output tile reuses each operand across more results, reducing repeated input movement. A larger operand fragment keeps more input values live in registers at once. The selected kernel keeps the output reuse of a 128×128 tile, stages K=32 in LDS, and reuses K=16 operand fragments between WMMA updates. Accumulators survive across those updates; operand registers can be reused.
 
 </details>
 
 [Previous: interleaved loads](../07-interleaved-loads/README.md) · [Matmul series](../README.md) · [Roadmap](../../../../ROADMAP.md#matmul-continuation-planned)
 
-Sources: [FlyDSL RDNA3 configurable register tiling](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/kernels/gemm/rdna3_f16_gemm.py), [FlyDSL tuning guidance](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_tuning_guide.md). The family was implemented from the preceding lesson, keeps row-major global B, and does not import the upstream pretransposed-B kernel.
+Sources: [FlyDSL RDNA3 register tiling and grouped scheduling](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/kernels/gemm/rdna3_f16_gemm.py), [FlyDSL tuning guidance](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_tuning_guide.md).

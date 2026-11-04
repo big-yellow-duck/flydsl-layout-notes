@@ -778,7 +778,7 @@ def interleaved_loads():
 
 
 def parameter_tuning():
-    f = Diagram(930, "08 - Larger register tiles repeat the same four-wave MMA")
+    f = Diagram(930, "08 - Tile size and wave arrangement change reuse")
     f.text(
         32,
         66,
@@ -788,11 +788,11 @@ def parameter_tuning():
     f.text(
         32,
         110,
-        "Both use atom layout (2,2,1):(1,2,0), 128 threads, and a 32-wide K stage.",
+        "Reference: 2x2 waves. Selected: 1x4 waves. Both: 128 threads, K stage 32.",
         18,
     )
     f.text(32, 161, "32x32: one atom tile / wave", 19)
-    f.text(420, 161, "128x64: eight atom tiles / wave", 19)
+    f.text(420, 161, "128x128: 16 atom tiles / wave", 19)
     colors = [BLUE, TEAL, GOLD, PURPLE]
     for row in range(2):
         for col in range(2):
@@ -801,30 +801,62 @@ def parameter_tuning():
             f.box(x, y, 108, 108, colors[wave])
             f.text(x + 37, y + 38, f"W{wave}", 24)
     for row in range(8):
-        for col in range(4):
-            wave = row % 2 + 2 * (col % 2)
+        for col in range(8):
+            wave = col % 4
             x, y = 468 + col * 58, 210 + row * 58
             f.box(x, y, 58, 58, colors[wave])
             f.text(x + 13, y + 15, f"W{wave}", 22)
     f.text(32, 469, "8 FP32 accumulators / thread", 19)
     f.text(32, 513, "1024 output blocks for 1024x1024", 18)
     f.text(32, 557, "4608 LDS bytes / block", 18)
-    f.text(420, 711, "64 FP32 accumulators / thread; 128 output blocks", 18)
-    f.text(420, 748, "14336 LDS bytes / block; repeated operand reuse", 18)
+    f.text(420, 711, "128 FP32 accumulators / thread; 64 output blocks", 18)
+    f.text(420, 748, "18432 LDS bytes / block; repeated operand reuse", 18)
     f.box(32, 802, 893, 83, GOLD)
     f.text(
         48,
         816,
-        "Wave 0 owns alternating tile stripes, rather than a contiguous 64x32 window.",
+        "Wave 0 owns all tile rows in tile columns 0 and 4; colors identify waves.",
         18,
     )
     f.text(
         48,
         851,
-        "Natural MMA footprint stays 32x32x16; larger views add static repetitions.",
+        "Selected natural MMA footprint: 16x64x16. M/N views repeat eight by two.",
         18,
     )
     f.save(f"{BASE}/08-parameter-tuning/register-reuse")
+
+    d = Diagram(550, "08 - Stage 32 K values, consume 16 at a time")
+    d.text(32, 70, "Selected block: 128x128x32. Example: stage 0, K=0..31.", 20)
+    d.card(32, 130, 430, "LDS: K=0..15", "A: 128x16; B: 16x128", BLUE)
+    d.card(496, 130, 430, "LDS: K=16..31", "A: 128x16; B: 16x128", TEAL)
+    d.text(32, 244, "rk=0: copy operands, then WMMA", 19)
+    d.text(496, 244, "rk=1: reuse operands, then WMMA", 19)
+    for x in (247, 711):
+        points = [(x, 280), (x, 329), (x - 5, 321), (x, 329), (x + 5, 321)]
+        d.draw.line([(px * 2, py * 2) for px, py in points], fill="#14253d", width=4)
+        coords = " ".join(f"{px},{py}" for px, py in points)
+        d.svg.append(
+            f'<polyline points="{coords}" fill="none" stroke="#14253d" stroke-width="2"/>'
+        )
+    d.card(
+        180,
+        350,
+        600,
+        "Same 128x128 FP32 accumulator",
+        "128 values / thread stay live across both updates",
+        GOLD,
+    )
+    d.text(
+        32, 470, "The prefetched next global tile uses separate staging registers.", 20
+    )
+    d.text(
+        32,
+        508,
+        "Logical view sizes are shown; register fragments follow native MMA ownership.",
+        18,
+    )
+    d.save(f"{BASE}/08-parameter-tuning/fragment-lifetime")
 
 
 def main():

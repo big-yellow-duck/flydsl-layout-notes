@@ -106,6 +106,7 @@ def comparison(kernel_map, timing="auto", repeats=20, *, right_layout="row-major
         else None,
         "scope": "warm repeated buffers; preallocated output; median of five batches",
         "warmups": 3,
+        "cpu_reference_threads": torch.get_num_threads(),
         "repeats": repeats,
         "shape_MNK": [m, n, k],
         "right_layout": right_layout,
@@ -152,6 +153,8 @@ def arguments():
 
 def lesson_main(kernel, solve, name, *, check_only=False, right_layout="row-major"):
     """Shared CLI for each matmul solution and completed practice."""
+    # On an APU, multithreaded CPU references can compete for the GPU power budget.
+    torch.set_num_threads(1)
     args = None if check_only else arguments()
     try:
         print("Exercise passed:", solve(), flush=True)
@@ -184,6 +187,7 @@ def lesson_main(kernel, solve, name, *, check_only=False, right_layout="row-majo
 
 
 def main():
+    torch.set_num_threads(1)
     args = arguments()
     architecture = torch.cuda.get_device_properties(0).gcnArchName.split(":")[0]
     if architecture not in ("gfx1151", "gfx1152"):

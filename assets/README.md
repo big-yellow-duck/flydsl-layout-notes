@@ -49,4 +49,6 @@ Stage 06 includes `lds-bank-map.svg` and its PNG preview. Regenerate it with `py
 
 Stage 07 includes `load-compute-schedule.svg` and its PNG preview. The diagram shows program order and buffer contents across prologue, steady state, and drain, rather than measured cycle durations. Regenerate it with `python3 tools/draw_matmul_lessons.py`.
 
-The stage-08 `register-reuse` SVG/PNG compares 32×32 and selected 128×64 tiles with the same four-wave MMA ownership. Cells identify wave owners; captions state derived accumulators, grid size, and LDS allocation. Performance measurements are recorded separately in the lesson.
+The stage-08 `register-reuse` SVG/PNG compares a 32×32 reference with the selected 128×128 output tile and its 1×4 wave arrangement. `fragment-lifetime` shows a 32-wide LDS stage consumed through two 16-wide operand fragments.
+
+Stage 08 includes `strategy.mp4`, a 4½-minute H.264 video of the complete dataflow, with `strategy.svg` and `strategy.png` as static previews. It distinguishes grouped output-block mapping, the K reduction, and M/N operand reuse. Longer holds, embedded chapters, and keyframes at every visual step support pausing and scrubbing. Regenerate these assets with `python3 tools/animate_matmul_tuning.py` (Pillow and FFmpeg with libx264 required); use `--ffmpeg PATH` to select a full FFmpeg build. Durations illustrate the sequence rather than GPU timing.

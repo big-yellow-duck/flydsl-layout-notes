@@ -26,7 +26,10 @@ python3 tools/draw_divide_comparison.py
 python3 tools/draw_thread_value_layouts.py
 python3 tools/draw_lesson_visuals.py
 python3 tools/draw_matmul_lessons.py
+python3 tools/animate_matmul_tuning.py
 ```
+
+The video generator also requires FFmpeg with the libx264 encoder; pass `--ffmpeg PATH` to select a full FFmpeg build. It writes a chaptered MP4 with keyframes at every visual step for scrubbing.
 
 The lesson-specific generators reuse the drawing helpers in `tools/`. `draw_lesson_visuals.py` covers coordinates, divide selections, block windows, copies, fragments, tails, launches, and copy widths.
 

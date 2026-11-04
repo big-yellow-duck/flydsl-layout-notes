@@ -98,16 +98,25 @@ def build(config):
     ):
         # 1. Describe the global row-major matrices, as in stage 04.
         left_global_view = fx.make_view(
-            fx.get_iter(left), fx.make_layout((m, k), (k, 1))
+            fx.get_iter(fx.rocdl.make_buffer_tensor(left)),
+            fx.make_layout((m, k), (k, 1)),
         )
         right_global_view = fx.make_view(
-            fx.get_iter(right), fx.make_layout((k, n), (n, 1))
+            fx.get_iter(fx.rocdl.make_buffer_tensor(right)),
+            fx.make_layout((k, n), (n, 1)),
         )
-        out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
-        block_row = fx.block_idx.y
-        block_col = fx.block_idx.x
+        out_global_view = fx.make_view(
+            fx.get_iter(fx.rocdl.make_buffer_tensor(out)),
+            fx.make_layout((m, n), (n, 1)),
+        )
+        pid = fx.block_idx.x + fx.block_idx.y * (n // BLOCK_N)
+        group_width = min(8, m // BLOCK_M)
+        block_row = (
+            pid // (group_width * (n // BLOCK_N))
+        ) * group_width + pid % group_width
+        block_col = (pid % (group_width * (n // BLOCK_N))) // group_width
 
-        # 2. Select a four-wave block tile, retaining global row strides.
+        # 2. Group neighboring blocks along M to share B tiles in cache.
         left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
         right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
         out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
@@ -151,11 +160,13 @@ def build(config):
         left_fragment = fx.make_fragment_like(left_lds_destination)
         right_fragment = fx.make_fragment_like(right_lds_destination)
 
-        # 5. Let WMMA define operand and accumulator ownership instead of a 4x4 tile.
-        left_mma_view = left_lds_view  # (M,K)
+        # 5. Keep only one 16-wide K fragment live for each WMMA step.
+        left_mma_view = fx.slice(
+            fx.flat_divide(left_lds_view, (BLOCK_M, 16)), (None, None, 0, 0)
+        )
         right_mma_view = fx.make_view(
             fx.get_iter(right_lds_view),
-            fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
+            fx.make_layout((BLOCK_N, 16), (1, BLOCK_N)),
         )  # (N,K), over the existing row-major B storage; no data transpose.
         atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
         mma = fx.make_tiled_mma(
@@ -194,8 +205,16 @@ def build(config):
             left_lds_source, right_lds_source = create_gmem2lds_sources(
                 left_block_view, right_block_view
             )
-            fx.copy(copy_128b, left_lds_source, left_fragment)
-            fx.copy(copy_128b, right_lds_source, right_fragment)
+            fx.copy(
+                fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16),
+                left_lds_source,
+                left_fragment,
+            )
+            fx.copy(
+                fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16),
+                right_lds_source,
+                right_fragment,
+            )
 
         def publish_lds_tile(buffer_index):
             left_view = fx.slice(left_lds_buffers, (None, None, buffer_index))
@@ -213,11 +232,18 @@ def build(config):
                 fx.get_iter(right_view),
                 fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
             )
-            left_source = lds2reg_left_thread_copy.partition_S(left_view)
-            right_source = lds2reg_right_thread_copy.partition_S(right_operand)
-            fx.copy(copy_16b, left_source, left_r_destination)
-            fx.copy(copy_16b, right_source, right_r_destination)
-            fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)
+            for rk in fx.range_constexpr(BLOCK_K // 16):
+                left_subview = fx.slice(
+                    fx.flat_divide(left_view, (BLOCK_M, 16)), (None, None, 0, rk)
+                )
+                right_subview = fx.slice(
+                    fx.flat_divide(right_operand, (BLOCK_N, 16)), (None, None, 0, rk)
+                )
+                left_source = lds2reg_left_thread_copy.partition_S(left_subview)
+                right_source = lds2reg_right_thread_copy.partition_S(right_subview)
+                fx.copy(copy_16b, left_source, left_r_destination)
+                fx.copy(copy_16b, right_source, right_r_destination)
+                fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)
 
         # 6. Compare the same padded kernel with two compile-time schedules.
         if schedule == "serial":
@@ -250,11 +276,12 @@ def build(config):
         for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
             out_registers[slot] = accumulator[slot].to(fx.BFloat16)
         # Replace stage 04's one-thread output plan with the collective C plan.
-        reg2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
+        copy_out = fx.make_copy_atom(fx.rocdl.BufferCopy16b(), fx.BFloat16)
+        reg2gmem_copy_plan = fx.make_tiled_copy_C(copy_out, mma)
         reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(fx.thread_idx.x)
         reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
         reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
-        fx.copy(copy_16b, reg2gmem_source, reg2gmem_dest)
+        fx.copy(copy_out, reg2gmem_source, reg2gmem_dest)
 
     @flyc.jit
     def run(
@@ -275,7 +302,7 @@ def build(config):
     return run
 
 
-SELECTED_CONFIG = Config(128, 64, 32, 2, 2, "prefetch")
+SELECTED_CONFIG = Config(128, 128, 32, 1, 4, "prefetch")
 run = build(SELECTED_CONFIG)
 
 

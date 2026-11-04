@@ -1,9 +1,9 @@
 """Search on training inputs, then verify a locked configuration on held-out inputs.
 
 Run: pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-    --sweep --output /tmp/flydsl-tile-search.json
+    --sweep --timing direct-host --output /tmp/flydsl-tile-search.json
 Run: pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-    --verify --output /tmp/flydsl-tile-verification.json
+    --verify --timing direct-host --output /tmp/flydsl-tile-verification.json
 """
 
 import argparse
@@ -249,8 +249,8 @@ def candidates(buffer_counts=(1, 2)):
     configs = [Config(32, 32, 32, 2, 2, buffers=b) for b in buffer_counts]
     for (bm, bn), bk, (wm, wn), buffers in product(
         ((64, 64), (64, 128), (128, 64), (128, 128)),
-        (16, 32, 64),
-        ((2, 2), (4, 1), (1, 4)),
+        (16, 32, 64, 128),
+        ((2, 2), (4, 1), (1, 4), (1, 2), (2, 1)),
         buffer_counts,
     ):
         config = Config(bm, bn, bk, wm, wn, buffers=buffers)
@@ -407,7 +407,7 @@ def main():
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
-        "--timing", choices=("graph-host", "direct-host"), default="graph-host"
+        "--timing", choices=("graph-host", "direct-host"), default="direct-host"
     )
     parser.add_argument("--buffers", type=int, nargs="+", choices=(1, 2), default=None)
     args = parser.parse_args()
