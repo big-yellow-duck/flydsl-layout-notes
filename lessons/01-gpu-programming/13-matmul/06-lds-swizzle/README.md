@@ -1,6 +1,6 @@
 # 06 · Measure LDS bank conflicts before choosing a layout
 
-Build on [stage 05's four-wave WMMA kernel](../05-matrix-instructions/README.md). Keep **M=N=K=1024**, BF16 inputs/output, FP32 accumulation, a **32×32×32** block tile, **128 threads**, and the MMA atom layout `(2,2,1):(1,2,0)`. Change only A's physical LDS placement. Does a native FlyDSL swizzle reduce bank conflicts, and does that make the whole kernel faster?
+Build on [stage 05's four-wave WMMA kernel](../05-matrix-instructions/README.md). Use **M=N=K=1024**, BF16 inputs/output, FP32 accumulation, a **32×32×32** block tile, **128 threads**, and the MMA atom layout `(2,2,1):(1,2,0)`. This layout experiment uses a smaller tile than stage 05's 64×64×64 tile and loads the complete K=32 operand fragments before GEMM. Change only A's physical LDS placement. Does a native FlyDSL swizzle reduce bank conflicts, and does that make the whole kernel faster?
 
 The [solution](solution.py) includes three compile-time `layout_mode` choices. The normal lesson CLI uses `"swizzle"`; the [profiling driver](profile.py) checks and measures all three:
 
@@ -10,7 +10,7 @@ The [solution](solution.py) includes three compile-time `layout_mode` choices. T
 | `swizzle` | `(32,32)` | `e ^ ((e & 0x1c0) >> 3)`, starting from packed `e` | 4096 bytes |
 | `padded` | `(32,32)` | `row*40 + k` | 4608 bytes |
 
-B remains packed row-major in all modes. Global storage, staging thread/value ownership, MMA ownership, barriers, accumulator conversion, and output stores match stage 05. Changing the A layout affects both the cooperative LDS stores and the instruction-compatible operand reads.
+B remains packed row-major in all modes. The three modes share global storage, staging ownership, MMA ownership, barriers, accumulator conversion, and output stores. Changing the A layout affects both the cooperative LDS stores and the instruction-compatible operand reads.
 
 ![At fixed K=2, compare packed, swizzled, and padded A element offsets and four-byte bank indices for rows 0–7.](../../../../assets/01-gpu-programming/13-matmul/06-lds-swizzle/lds-bank-map.svg)
 

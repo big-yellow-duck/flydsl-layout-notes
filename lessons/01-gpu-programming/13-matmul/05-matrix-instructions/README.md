@@ -1,27 +1,12 @@
-# 05 · Feed native block windows into a BF16 matrix instruction
+# 05 · Feed LDS tiles into BF16 matrix instructions
 
-The [vectorized-copy lesson](../04-vectorized-copy/README.md) stages BF16 inputs with `UniversalCopy128b` and performs scalar arithmetic into 4×4 register tiles. This lesson retains its global → register fragment → LDS copy pipeline and two barriers, then derives operand/output copy plans from `mma` and replaces scalar arithmetic with a collective 16×16×16 wave32 WMMA operation and FP32 accumulator fragments. The **1024³** logical problem and row-major input/output contract remain the same.
+The [vectorized-copy lesson](../04-vectorized-copy/README.md) stages inputs through global → registers → LDS, then uses scalar arithmetic. This lesson keeps that staging pipeline and replaces the arithmetic with wave32 WMMA instructions. The learning question is how a large LDS tile feeds several instruction-sized register fragments without manually defining each lane's operand layout.
 
-The block computes **32×32 outputs using 128 threads**, arranged as four wave32 groups. Each wave still executes a **16×16×16 WMMA atom**. The `(2,2,1)` atom layout distributes the waves across two M groups and two N groups, giving a natural MMA footprint of **32×32×16**. Set `BLOCK_M = BLOCK_N = BLOCK_K = 32`: increasing staged K to 32 supplies two instruction-sized K updates per wave, rather than adding more waves along K.
+The problem is **M=N=K=1024**, with row-major BF16 inputs, FP32 accumulation, and BF16 output. Each block has **128 threads** and computes **64×64 outputs**, staging **64 K positions** at a time. The WMMA atom remains **16×16×16**. An explicit inner loop consumes four K=16 slices before the next outer iteration replaces LDS.
 
-Both inputs remain row-major in LDS. The staging thread layout is `(32,4):(4,1)`, with `(1,8)` values per thread: 128 threads each move eight BF16 values to cover a 32×32 input tile once. Staging ownership and WMMA ownership remain separate. The gfx11 fragment convention targets **gfx1151/gfx1152**; execution was checked on gfx1151, while gfx1152 hardware validation remains outstanding. The 1024³ problem now uses a 32×32 block grid and 32 K stages.
+## 1. Select global windows and stage them in LDS
 
-## Follow stage 04's seven steps
-
-The [solution](solution.py) keeps stage 04's named block constants, `SharedStorage` struct, intermediate view names, and seven numbered kernel sections. The important ownership changes are:
-
-| Copy path | Stage 04 | This lesson |
-| --- | --- | --- |
-| Global → registers → LDS | `make_tiled_copy(copy_128b, tv, tile)` | Same generic builder, adapted to 128 threads |
-| LDS → A registers | Manual `(16,1)` / `(4,1)` layouts | `make_tiled_copy_A(copy_16b, mma)` |
-| LDS → B registers | Manual `(1,16)` / `(1,4)` layouts | `make_tiled_copy_B(copy_16b, mma)` |
-| Registers → global C | One logical slot in an already-selected 4×4 window | `make_tiled_copy_C(copy_16b, mma)` over the output block |
-
-The A/B/C helpers derive thread/value ownership and tile shape from `mma`; they still produce tiled copy plans. `get_slice`, source/destination partitioning, and `fx.copy` keep their roles. The atom width remains a separate choice: operand and output copies use `UniversalCopy16b` here because WMMA's element distribution differs from stage 04's contiguous B/output groups.
-
-This changes more than the builder names. Full block thread IDs replace stage 04's row/column copy slots; MMA allocates its required register fragments; `retile` exposes them to copies; and one `fx.gemm` consumes a complete 32-wide K stage through two WMMA K updates per wave. There is no scalar `inner_k` loop or per-thread 4×4 output selection.
-
-## 1. Keep the same native global and block views
+The global views use `(M,K):(K,1)`, `(K,N):(N,1)`, and `(M,N):(N,1)` layouts. Divide them into block windows:
 
 ```python
 left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
@@ -30,32 +15,21 @@ out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
 out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
 ```
 
-The three global views are ordinary row-major matrices. Each tiled shape is `(32,32,32,32)`. Inside the K loop, A fixes `(block_row,tile_k)` and B fixes `(tile_k,block_col)`, with two leading `None` entries to keep local coordinates. The selected global windows remain `(32,32)` with row stride 1024. No handwritten global storage offsets are needed.
+With `BLOCK_M = BLOCK_N = BLOCK_K = 64`, each divided view has shape `(64,64,16,16)`. Selecting a block retains its global row stride of 1024. Inside the outer K loop, A fixes `(block_row,tile_k)` and B fixes `(tile_k,block_col)`. No handwritten global pointer offsets are needed.
 
-![The native global windows are staged into LDS; MMA operand views then feed instruction-compatible copies and fragments.](../../../../assets/01-gpu-programming/13-matmul/05-matrix-instructions/native-mma-views.svg)
-
-Read top to bottom: block views select global data, shared views address actual LDS allocations, MMA views give that same LDS storage an operand-specific coordinate convention, and copies load the required register fragments.
-
-## 2. Stage into ordinary LDS layouts
-
-Set `BLOCK_M = BLOCK_N = BLOCK_K = 32` and `THREADS_PER_BLOCK = 128`. Declare the two aligned arrays in `SharedStorage`, allocate once, and attach `left_lds_view` and `right_lds_view` with row-major `(32,32):(32,1)` layouts, following stage 04. Both buffers together occupy 4096 bytes. Adapt lesson 04's staging plan to 128 threads:
+`SharedStorage` allocates two aligned arrays of 4096 BF16 elements. Each LDS view is row-major `(64,64):(64,1)`, for **16 KiB total LDS per block**. Staging uses:
 
 ```python
 copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-gmem2lds_thread_layout = fx.make_ordered_layout((32, 4), (1, 0))
+gmem2lds_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
 gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
-gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
-    gmem2lds_thread_layout, gmem2lds_val_layout
-)
-gmem2lds_copy_plan = fx.make_tiled_copy(
-    copy_128b, gmem2lds_tv_layout, gmem2lds_tilemn
-)
-gmem2lds_thread_copy = gmem2lds_copy_plan.get_slice(fx.thread_idx.x)
 ```
 
-Thread 17 copies local row 4, columns 8–15: `row=17//4`, `column_start=(17%4)*8`. At block `(x,y)=(1,2)` and `tile_k=2`, its first pair comes from global A `(68,72)` and B `(68,40)`. Each 1024-element input tile is completely covered by 128 threads moving eight elements each. The shared buffers each occupy 2048 bytes.
+The thread layout has strides `(8,1)`. Together with eight contiguous values per thread, it covers a 16×64 copy tile that repeats four times along the rows. Thread 17 starts at local row `17//8=2`, columns `(17%8)*8=8` through 15. Its other groups use rows 18, 34, and 50. Each thread stages 32 BF16 elements per operand.
 
-As in lesson 04, `create_gmem2lds_sources` selects each lane's source views, and `partition_D` selects its LDS destination views. Each operand is copied through a reusable register fragment:
+At block `(x,y)=(1,2)` and `tile_k=2`, thread 17's first group reads A row 130, columns 136–143, and B row 130, columns 72–79. The selected views already carry those block offsets.
+
+`make_tiled_copy` builds staging ownership; its thread slice partitions the source and LDS destination views. Copies move each input through a reusable register fragment:
 
 ```python
 fx.copy(copy_128b, left_lds_source, left_fragment)
@@ -65,67 +39,68 @@ fx.copy(copy_128b, right_fragment, right_lds_destination)
 fx.barrier()
 ```
 
-These are synchronous 128-bit transfers. Staging ownership does not define the register distribution required by WMMA. The later operand copies retain their separate 16-bit atoms because their instruction-derived layouts differ.
+The barrier makes all cooperative LDS writes visible before operand loads.
 
-## 3. Describe the instruction's operand views
+## 2. Describe B using the MMA coordinate convention
 
-The physical staged B tile uses coordinates `(K,N)`. The MMA API expects B coordinates `(N,K)`:
+The staged B storage is physically `(K,N)`. WMMA's B operand view uses `(N,K)`:
 
 ```python
-left_mma_view = left_lds_view
-right_mma_view = fx.make_view(
-    fx.get_iter(right_lds_view), fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N))
+right_mma_lds_view = fx.make_view(
+    fx.get_iter(right_lds_view),
+    fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
 )
 ```
 
-| Name | Coordinate meaning | Shape | Strides in elements |
-| --- | --- | --- | --- |
-| `left_lds_view` / `left_mma_view` | `(M,K)` | `(32,32)` | `(32,1)` |
-| `right_lds_view` | `(K,N)` | `(32,32)` | `(32,1)` |
-| `right_mma_view` | `(N,K)` | `(32,32)` | `(1,32)` |
-| `out_block_view` | `(M,N)` | `(32,32)` | `(1024,1)` |
+For coordinate `(n,k)=(1,2)`, this reaches element offset `1+2*64=129`, the same value as physical B coordinate `(k,n)=(2,1)`. Creating the view moves no data and allocates no transpose buffer.
 
-For right operand coordinate `(n,k)=(1,2)`, the MMA view reaches LDS offset `1+2*32=65`, the same stored value as physical B coordinate `(k,n)=(2,1)`. No transpose allocation or data movement happens in this view construction. Equal square shapes can hide the difference; the mode meanings and strides make it explicit.
-
-## 4. Let WMMA define the compute ownership
+## 3. Let WMMA define thread and value ownership
 
 ```python
-atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
-mma = fx.make_tiled_mma(atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
+mma_atom = fx.make_mma_atom(
+    fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
+)
+mma = fx.make_tiled_mma(mma_atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
 thread_mma = mma.thr_slice(fx.thread_idx.x)
+accumulator = thread_mma.make_fragment_C(out_block_view)
+accumulator.fill(0)
 ```
 
-The atom layout maps **wave-group coordinates `(wave_m,wave_n,wave_k)` to wave IDs**. Its shape `(2,2,1)` adds two groups along M and two along N; its strides `(1,2,0)` give `wave_id = wave_m + 2*wave_n`. Each group needs the atom's 32 lanes, so the block launches `2*2*1*32 = 128` threads. The instruction itself stays 16×16×16. No permutation argument is needed.
+`MMA_M = MMA_N = MMA_K = 16`. The atom layout maps wave-group coordinates to `wave_id = wave_m + 2*wave_n`. Four wave32 groups give 128 threads and a natural **32×32×16** MMA footprint.
 
-![Four wave32 groups cover a 32×32 output tile; M varies fastest in the wave-group layout. Each wave performs two 16-wide K updates per 32-wide LDS stage.](../../../../assets/01-gpu-programming/13-matmul/05-matrix-instructions/tiled-mma-waves.svg)
+![Four waves form a natural 32×32 footprint; this smaller illustration shows the wave arrangement and a two-step K example.](../../../../assets/01-gpu-programming/13-matmul/05-matrix-instructions/tiled-mma-waves.svg)
 
-Read the wave IDs and their block-local output windows:
+The illustration shows one natural 32×32 footprint and K=32. The runnable kernel repeats that footprint across a **64×64 output tile** and explicitly processes **four** K=16 slices per LDS stage. Wave ownership repeats every 32 rows and columns:
 
-| Wave ID | Block thread IDs | `(wave_m,wave_n)` | Output rows | Output columns |
-| --- | --- | --- | --- | --- |
-| 0 | 0–31 | `(0,0)` | 0–15 | 0–15 |
-| 1 | 32–63 | `(1,0)` | 16–31 | 0–15 |
-| 2 | 64–95 | `(0,1)` | 0–15 | 16–31 |
-| 3 | 96–127 | `(1,1)` | 16–31 | 16–31 |
+| Wave | Threads | Local output row ranges | Local output column ranges |
+| --- | --- | --- | --- |
+| 0 | 0–31 | 0–15, 32–47 | 0–15, 32–47 |
+| 1 | 32–63 | 16–31, 48–63 | 0–15, 32–47 |
+| 2 | 64–95 | 0–15, 32–47 | 16–31, 48–63 |
+| 3 | 96–127 | 16–31, 48–63 | 16–31, 48–63 |
 
-MMA's natural K footprint remains **16**, because the atom layout's K extent is 1. The **32-wide input views** introduce a second K repetition in the operand fragments; `fx.gemm` iterates those fragments to issue both updates. Increasing `BLOCK_K` changes the work per stage and operand storage, while the `(2,2,1)` layout determines the four-wave spatial arrangement.
+Each wave computes four 16×16 output subtiles. Each thread owns **32 FP32 accumulator values**, giving `128*32=4096` unique outputs. Pass the full scalar `fx.thread_idx.x` to MMA and copy-plan thread slices.
 
-`make_fragment_A/B/C` derives the required register layouts from the MMA and the views. Each thread holds 32 BF16 values per operand for the two K slices, and eight FP32 accumulator slots. The lane convention inside each wave stays the same:
+![Within one 16×16 WMMA output subtile, the lane halves own different row parities.](../../../../assets/01-gpu-programming/13-matmul/05-matrix-instructions/wave-fragments.svg)
 
-![The gfx11 WMMA output layout interleaves rows across the two lane halves; lane 1 owns even rows at column 1 and lane 17 owns odd rows.](../../../../assets/01-gpu-programming/13-matmul/05-matrix-instructions/wave-fragments.svg)
+The diagram uses a smaller LDS example with strides `(32,1)` and `(1,32)`; the runnable tile uses `(64,1)` and `(1,64)`. Read its lane grid within one instruction-sized subtile: lane 1 owns even rows at column 1 and lane 17 owns odd rows. Repeating the subtile across M/N increases each thread's accumulator count; it does not change the atom's lane convention.
 
-For each 16-wide K slice, A/B fragments hold 16 BF16 values per lane, replicated across the wave's two lane halves on gfx11. With `lane = thread_id % 32` and `wave_id = thread_id // 32`, C ownership within the 32×32 output block is:
+## 4. Allocate registers for one K slice
 
-```text
-wave_m = wave_id % 2
-wave_n = wave_id // 2
-column = 16*wave_n + lane%16
-row = 16*wave_m + 2*slot + lane//16       slot = 0..7
+Give fragment allocation views whose K extent is only 16:
+
+```python
+left_mma_lds_view = fx.slice(
+    fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)), (None, None, 0, 0)
+)
+right_mma_slice = fx.slice(
+    fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)), (None, None, 0, 0)
+)
+left_r_tile = thread_mma.make_fragment_A(left_mma_lds_view)
+right_r_tile = thread_mma.make_fragment_B(right_mma_slice)
 ```
 
-Thread 17 is still lane 17 in wave 0: it owns block-local rows 1,3,…,15 at column 1. In block `(x,y)=(1,2)`, these are global rows 65,67,…,79 at column 33. Thread 49 is lane 17 in wave 1 and owns local rows 17,19,…,31 at column 1. Thread 81 is lane 17 in wave 2 and owns rows 1,3,…,15 at column 17. All `128*8 = 1024` outputs have unique writers. Pass the **full thread ID**, including its wave group, to `mma.thr_slice` and each copy plan's `get_slice`.
-
-## 5. Copy into register fragments, then execute WMMA
+The A/B views have shape `(64,16)` with their respective operand conventions. `make_fragment_A/B` allocates instruction-compatible registers; it does not load or initialize them. Copies supply the values.
 
 ```python
 copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
@@ -133,43 +108,80 @@ lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
 lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(fx.thread_idx.x)
 lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(fx.thread_idx.x)
-left_r_tile = thread_mma.make_fragment_A(left_mma_view)
-right_r_tile = thread_mma.make_fragment_B(right_mma_view)
-left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
-right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
 left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
 right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
 ```
 
-`partition_S` selects source positions for this lane; `retile` presents its MMA register fragment with compatible copy ownership. It aliases the fragment without allocating another buffer or moving values. Unlike stage 04's `make_fragment_like(source)`, `make_fragment_A/B` ensures that `fx.gemm` receives the instruction's required layout. Those steps describe access. After the cooperative LDS staging barrier, the copies perform the transfers:
+The A/B helpers derive thread/value ownership from `mma`. `retile` creates a copy-compatible alias of an existing register fragment, without another allocation or data transfer. Staging ownership stays independent of WMMA ownership.
+
+## 5. Consume four slices in an explicit inner K loop
+
+After staging each 64-wide K tile and synchronizing, run this inner loop directly inside the outer `tile_k` loop:
 
 ```python
-fx.copy(copy_16b, left_r_source, left_r_destination)
-fx.copy(copy_16b, right_r_source, right_r_destination)
-fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)
+for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
+    left_subview = fx.slice(
+        fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
+        (None, None, 0, inner_k),
+    )
+    right_subview = fx.slice(
+        fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
+        (None, None, 0, inner_k),
+    )
+    left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
+    right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
+    fx.copy(copy_16b, left_r_source, left_r_destination)
+    fx.copy(copy_16b, right_r_source, right_r_destination)
+    fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
 fx.barrier()
 ```
 
-The sources cover the whole LDS tile and are partitioned once before the K loop. Each stage overwrites that same LDS storage, so the source views read the new values after the barrier. The 16-bit copy width matches BF16 elements; the WMMA atom separately specifies FP32 accumulation. `fx.gemm` performs two 16-wide K updates per wave for the current 32-wide stage. Initialize `accumulator` once before the 32-stage loop, and retain its values across all stages. The second barrier protects LDS reuse after the operand reads and computation.
+These API fragments use the tuple defined before the outer loop:
 
-## 6. Convert and copy through the output block view
+```python
+lds2reg_thread_copies = (lds2reg_left_thread_copy, lds2reg_right_thread_copy)
+```
 
-After all K stages, convert the eight accumulator slots to a BF16 output fragment. `make_tiled_copy_C` supplies the instruction's output ownership:
+Tuple access avoids FlyDSL 0.4.1 treating method calls on copy wrappers as loop-carried state. The loads and WMMA calls remain inline. `range_constexpr` unrolls the four steps during compilation.
+
+Follow `tile_k=2`: the staged global K interval is 128–191. `inner_k=0,1,2,3` selects intervals 128–143, 144–159, 160–175, and 176–191. Each step refills the same operand registers and accumulates into the same C fragment. Each `fx.gemm` processes one K slice across the wave's four output subtiles. Initialize C once before the outer loop; the 16 outer stages together cover K=1024. The final barrier protects LDS from being overwritten while other waves still read it.
+
+An explicit inner loop is needed here because each register fragment contains only K=16. Passing full K=64 views to `make_fragment_A/B` would instead allocate registers for all four K fragments; after copies populate them, `fx.gemm` can traverse those fragments internally. Both approaches compute the same reduction. Loading one slice at a time reduces live operand storage for the same tile dimensions, while accumulator storage remains unchanged. A performance claim requires comparing identical tile dimensions and inspecting register allocation and spills.
+
+Larger M/N dimensions provide reuse: each staged A value contributes across 64 output columns, and each B value across 64 rows. Advancing `inner_k` consumes different values; the K loop itself does not create reuse of the same operand values.
+
+## 6. Convert and store with C ownership
 
 ```python
 out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
-for slot in fx.range_constexpr(8):
+for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
     out_registers[slot] = accumulator[slot].to(fx.BFloat16)
-reg2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
-reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(fx.thread_idx.x)
-reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
-reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
-fx.copy(copy_16b, reg2gmem_source, reg2gmem_dest)
+rmem2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
+rmem2gmem_thread_copy = rmem2gmem_copy_plan.get_slice(fx.thread_idx.x)
+rmem2gmem_source = rmem2gmem_thread_copy.retile(out_registers)
+rmem2gmem_dest = rmem2gmem_thread_copy.partition_D(out_block_view)
+fx.copy(copy_16b, rmem2gmem_source, rmem2gmem_dest)
 ```
 
-`partition_D` describes the global store destination; `retile` describes the private register source. Every thread supplies its full block thread ID to the C plan. The output block view retains row stride 1024 and its selected base; the C copy maps the instruction's unique results into that view. Do not replace it with lesson 04's scalar output ownership rule.
+`ACCUMULATOR_VALUES = BLOCK_M * BLOCK_N // THREADS_PER_BLOCK = 32`. The C plan derives output ownership from MMA and maps all 4096 values into the selected global block view, retaining row stride 1024.
 
-## Inspect the actual instruction
+## Practice, validation, and timing
+
+The completed [practice](practice.py) and [worked solution](solution.py) implement the same larger tile and inline inner loop. Trace the K slices, the `(N,K)` B view, and the instruction-derived A/B/C copy plans.
+
+The checker compares every output with an independent CPU FP32 matrix product of the quantized BF16 inputs, rounded to BF16. It uses two patterns: a trace pattern with `A[r,k]=((r*1024+k)%5)-2` and `B[k,c]=((k*1024+c)%7)-3`, and seeded random inputs. The first four trace outputs are **[3, -6, -1, -3]**. Trace tolerances are `rtol=0, atol=0.001`; random tolerances are `rtol=0.016, atol=0.03125`. Output starts as NaN to detect missing writes, and sixteen trailing sentinels detect writes past its end. The fixed dimensions contain only complete tiles; this kernel implements no tails.
+
+Run from the repository root:
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/practice.py --check-only
+pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/solution.py --check-only
+pixi run gpu-check
+```
+
+Without `--check-only`, each file compares its GPU kernel with GPU `torch.matmul` on the same 1024³ problem and preallocated output. The default timing mode tries GPU events and retimes both rows with synchronized host batches if event durations are unavailable. Use `--timing host` to request that mode explicitly. CPU references and allocation remain outside timing. See the [benchmark guide](../README.md#compare-the-stages) for measurement limits.
+
+To inspect generated instructions:
 
 ```bash
 FLYDSL_DUMP_IR=1 FLYDSL_DUMP_DIR=/tmp/flydsl-native-matmul-wmma \
@@ -177,50 +189,16 @@ FLYDSL_DUMP_IR=1 FLYDSL_DUMP_DIR=/tmp/flydsl-native-matmul-wmma \
 rg 'v_wmma' /tmp/flydsl-native-matmul-wmma -g '*.s'
 ```
 
-Earlier instruction checks on gfx1151 found `v_wmma_f32_16x16x16_bf16` and LDS staging operations. Instruction selection is evidence of the intended operation, not a speedup or a win over a library. The per-lesson benchmark compares GPU `torch.matmul` under the same shape and timing method.
+This lesson targets gfx1151/gfx1152 using the gfx11 wave32 fragment convention. The adjacent LDS-layout experiment uses a smaller 32×32×32 baseline to isolate layout effects; its measurements should be compared within that experiment.
 
-TODO 1 constructs `right_mma_view` with the `(N,K)` stride convention. TODO 2 constructs the BF16-input, FP32-accumulating WMMA atom (named `mma_atom` in the practice). Keep native K-window selection, staging, fragment copies, barriers, and output conversion supplied.
-
-## Practice and checkpoint
-
-The two numbered practice expressions construct the B operand view and the WMMA atom. The current `practice.py` contains their completed expressions; compare them with the worked solution. Its four-wave layout, launch, initialization, stores, and checker match the solution.
-
-Every exercise runs **M = N = K = 1024**: row-major BF16 inputs, FP32 accumulation, and BF16 output. The checker evaluates all 1,048,576 outputs for two input patterns. The trace pattern uses `A[r,k] = ((r*1024+k) % 5)-2` and `B[k,c] = ((k*1024+c) % 7)-3`; the first four values of output row 0 are `[3, -6, -1, -3]`. A second pattern uses seeded random values quantized to BF16 before either implementation sees them. An independent CPU FP32 matrix product, rounded to BF16, supplies the untimed reference. Trace checks use `rtol=0, atol=0.001` to accommodate the small WMMA residue near zero; random checks use `rtol=0.016, atol=0.03125` for BF16 rounding and accumulation differences. These are exercise tolerances, not a numerical guarantee for arbitrary inputs.
-
-Sixteen output sentinels must remain unchanged. Output data starts as NaN, so incomplete writes fail the reference comparison. The sentinel checks writes; full-tile dimension constraints make all input reads in these programs valid. No tails are implemented here.
-
-## Compare this kernel with GPU PyTorch
-
-Running this lesson's solution, or a completed practice, prints a timing table after the correctness checkpoint. The two rows compare **this file's kernel** with **GPU `torch.matmul`**, reporting milliseconds and effective TFLOP/s. A completed practice benchmarks your implementation, not the worked solution. Both implementations use the same 1024×1024 BF16 GPU inputs and preallocated BF16 GPU output; CPU reference arithmetic and allocations stay outside timing.
-
-```bash
-pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/solution.py
-# Select the timing method explicitly or skip performance measurement:
-pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/solution.py --timing host
-pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/practice.py --check-only
-```
-
-The default `--timing auto` tries GPU events first. If either row has an unavailable event duration, **both rows** are retimed with synchronized host batches, and the fallback is printed. Host timing still runs GPU computation but includes dispatch and synchronization overhead. `--timing gpu-event` disables fallback and reports unavailable values if events return zero. Each implementation gets three warm-ups and five batches of 20 launches; `--repeats` changes launches per batch. TFLOP/s is `2 * 1024**3 / (milliseconds * 1e9)`. Higher throughput means less time for this fixed operation count; it does not imply a universal speedup.
-
-`pixi run gpu-check` and `pixi run lessons-check` run correctness only for the matmul stages. For the full-series comparison and measurement limits, see the [benchmark guide](../README.md#compare-the-stages).
-
-**Check yourself:** Do replicated A/B fragments mean every output is computed and stored twice?
+**Check yourself:** If the inner loop is removed but the operand fragments still cover only K=16, will `fx.gemm` automatically consume the remaining LDS slices?
 
 <details><summary>Answer</summary>
 
-No. Replicated inputs satisfy the gfx11 instruction convention. C ownership is injective: lane 1 and lane 17 own different row parities, with eight accumulator slots each. The result copy uses that C ownership and adds the wave's M/N offset, giving 1024 unique outputs across four waves.
+No. `fx.gemm` sees the supplied register fragments, not the remaining LDS tile. Only the loaded K=16 slice contributes. Either explicitly load and compute every slice, or allocate and populate fragments covering the complete staged K extent before calling `fx.gemm`.
 
 </details>
 
-Run from the repository root:
-
-```bash
-pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/practice.py
-pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/solution.py
-```
-
-A completed practice prints `Exercise passed:` with `shapes_MNK: [(1024, 1024, 1024)]`, two patterns, and the first-four checkpoint. Compare your implementation with the [worked solution](solution.py).
-
 [Previous](../04-vectorized-copy/README.md) · [Matmul series](../README.md) · [Next: LDS bank conflicts](../06-lds-swizzle/README.md)
 
-Sources: [FlyDSL 0.4.1 kernel guide](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_authoring_guide.md), [gfx11 WMMA tests and fragment convention](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/tests/kernels/test_rdna3_wmma_atom.py). API expressions were checked against the installed 0.4.1 package, including `flydsl/expr/derived.py` for the A/B/C plan builders and `retile`.
+Sources: [FlyDSL 0.4.1 kernel guide](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_authoring_guide.md), [gfx11 WMMA tests](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/tests/kernels/test_rdna3_wmma_atom.py). API patterns also follow the installed FlyDSL 0.4.1 package and the course's parameter-tuning implementation.
