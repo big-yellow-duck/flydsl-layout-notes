@@ -24,13 +24,13 @@ selected global block view → per-thread staging registers → LDS
 | Private MMA operand registers | `left_r_tile`, `right_r_tile` | One K=16 slice of the current tile |
 | Private FP32 accumulator | `accumulator` | 32 owned output sums across all processed K tiles |
 
-Each thread stages 32 BF16 values per operand, using the same `(16,8)` thread layout and `(1,8)` value layout as stage 06. Operand fragments are allocated for K=16, and the inline inner loop refills them for four slices of the staged K=64 tile. A global staging fragment cannot replace an MMA operand fragment: their ownership and register layouts differ.
+Each thread stages 32 BF16 values per operand, using the same `(16,8)` thread layout and `(1,8)` value layout as stage 06. Operand fragments are allocated for K=16, and the inner loop in `compulte_lds()` refills them for four slices of the staged K=64 tile. A global staging fragment cannot replace an MMA operand fragment: their ownership and register layouts differ.
 
 There is one shared tile per operand. Future data waits in private registers until every wave has finished reading the current LDS contents. This first pipeline step does not allocate a second LDS tile or require a new asynchronous-copy API.
 
 ## 2. Separate global loads, LDS publication, and current-tile compute
 
-Two tracing-time helpers name the global-load and LDS-publication steps without changing the copy plans:
+Three tracing-time helpers name the global-load, LDS-publication, and compute steps without changing the copy plans:
 
 ```python
 def gmem2reg_load_tile(tile_k):
@@ -47,46 +47,58 @@ def gmem2reg_load_tile(tile_k):
 
 ```python
 def reg2lds_copy_tile():
-    fx.copy(copy_128b, left_fragment, left_lds_destination)
-    fx.copy(copy_128b, right_fragment, right_lds_destination)
+    fx.copy(copy_128b, left_fragment, gmem2lds_left_destination)
+    fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
     fx.barrier()
 
 ```
 
-`reg2lds_copy_tile` stores the staged values and waits until the block can consume them. Both helpers expand into the same kernel during tracing; they do not launch extra kernels.
+`reg2lds_copy_tile` stores the staged values and waits until the block can consume them. All three helpers expand into the same kernel during tracing; they do not launch extra kernels.
 
-The compute remains inline, with the same K=16 operand views and copies as stage 06:
+Prepare the divided LDS views once, then slice one K=16 region per inner step:
 
 ```python
-for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-    left_subview = fx.slice(
-        fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
-        (None, None, 0, inner_k),
-    )
-    right_subview = fx.slice(
-        fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
-        (None, None, 0, inner_k),
-    )
-    left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
-    right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
-    fx.copy(copy_16b, left_r_source, left_r_destination)
-    fx.copy(copy_16b, right_r_source, right_r_destination)
-    fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
+right_lds_tranposed_view = fx.make_view(
+    fx.get_iter(right_lds_view),
+    fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
+)
+right_lds_transposed_tiled = fx.flat_divide(
+    right_lds_tranposed_view, (BLOCK_N, MMA_K)
+)
 ```
 
-The tuple of thread copy wrappers is defined before runtime loops, as in stage 06. The runnable kernel repeats this inline compute block in the serial loop, prefetch loop, and drain. The following schedule sketches abbreviate it as `compute_current_tile()` to make the ordering visible; this is conceptual pseudocode, not another helper in the program.
+The initial slices at `(None, None, 0, 0)` define `left_lds_initial_view` and `right_lds_transposed_initial_view`. `make_fragment_A/B` allocates their K=16 operand registers. The copy plan's `retile` supplies compatible aliases of those same registers; it allocates no additional operand buffer and moves no data.
+
+The practice and solution name the compute helper `compulte_lds`:
+
+```python
+def compulte_lds():
+    for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
+        left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
+        right_mma_view = fx.slice(
+            right_lds_transposed_tiled, (None, None, 0, inner_k)
+        )
+        left_r_source = lds2reg_thread_copies[0].partition_S(left_mma_view)
+        right_r_source = lds2reg_thread_copies[1].partition_S(right_mma_view)
+        fx.copy(copy_16b, left_r_source, left_r_destination)
+        fx.copy(copy_16b, right_r_source, right_r_destination)
+        fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+```
+
+The tuple of thread copy wrappers is defined before the runtime loops, as in stage 06. The helper slices the existing views, preserving A's padding and B's `(N,K)` convention, then refills the same operand fragments for four K slices. Each schedule calls this helper instead of repeating the compute block.
 
 ## 3. Compare serial order with one-tile lookahead
 
-The serial specialization matches stage 06 with `layout_mode="padded"`: load the current global tile into registers, copy it into LDS and synchronize, compute its four K=16 slices, then synchronize before replacing LDS. The two tracing helpers only name the copy steps; they preserve stage 06's order. `reg2lds_copy_tile()` includes the ready barrier after its copies.
+The serial specialization matches stage 06 with `layout_mode="padded"`: load the current global tile into registers, copy it into LDS and synchronize, compute its four K=16 slices, then synchronize before replacing LDS. The tracing helpers name the same copy and compute steps; they preserve stage 06's order. `reg2lds_copy_tile()` includes the ready barrier after its copies.
 
-Conceptual schedule:
+The serial schedule is:
 
 ```python
 for tile_k in range(k // BLOCK_K):
     gmem2reg_load_tile(tile_k)
     reg2lds_copy_tile()
-    compute_current_tile()
+    compulte_lds()
     fx.barrier()
 ```
 
@@ -102,14 +114,18 @@ reg2lds_copy_tile()
 for tile_k in range(k // BLOCK_K - 1):
     next_tile_k = tile_k + 1
     gmem2reg_load_tile(next_tile_k)
-    compute_current_tile()
+    compulte_lds()
     fx.barrier()  # All readers must finish before LDS is reused.
     reg2lds_copy_tile()  # Store t+1, then wait until it is ready.
 
 # Drain: the last tile is already in LDS; no future global read is needed.
-compute_current_tile()
+compulte_lds()
 fx.barrier()
 ```
+
+The separate staging registers allow the next tile's global loads to be issued without overwriting the current LDS tile or its MMA operands. Within a wave, independent LDS reads and WMMA can execute while those global requests are outstanding. The compiler inserts the global-memory wait before the staging values are consumed by the LDS stores. Scheduling other ready waves can also hide latency; overlap does not require assigning different waves to loading and compute.
+
+The drain must remain outside the steady-state loop. With one K tile, the loop is empty and the drain performs all computation. Placing the drain inside would skip that case and count middle tiles twice for longer reductions.
 
 The loop invariant is: **at the start of iteration t, LDS contains tile t**. The prefetch writes the private staging registers while that LDS tile remains intact. Once tile t is consumed and all readers reach the barrier, publishing those registers establishes tile t+1 for the following iteration.
 
@@ -144,6 +160,8 @@ Run from the repository root:
 pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/profile.py \
   --collect --output /tmp/flydsl-interleaved-new
 ```
+
+Add `--implementation practice.py` to profile your completed practice instead of the solution; both serial and prefetch schedules are selected explicitly.
 
 Use a fresh output directory. The driver checks both schedules, captures rocprofv3 counters, dumps final ISA and origin IR, and records a main-loop excerpt with source line numbers. It verifies that the dump is the full 1024³ specialization rather than an overwritten boundary-case specialization. It also checks that prefetch global loads precede WMMA and that the first VMEM wait follows all sixteen WMMA instructions in the main loop, before the LDS stores.
 
@@ -191,15 +209,14 @@ The driver writes counter data, assembly, IR, loop-order excerpts, logs, and a m
 
 ## Practice and verification
 
-In [practice.py](practice.py), TODO 1 chooses `initial_tile_k` for the prologue. TODO 2 chooses `next_tile_k` inside the steady-state loop. The copy plans, positive full-tile workload contract, reader/ready barriers, drain, output conversion, and checker are supplied. Compare with the [worked solution](solution.py).
-
+The completed [practice.py](practice.py) and [solution.py](solution.py) use the same three tracing helpers and prologue/steady-state/drain structure. Follow `initial_tile_k = 0` and `next_tile_k = tile_k + 1`, then trace which values occupy the staging registers and LDS at each helper call. The `run()` and `solve()` defaults select prefetch; use `solve("serial")` to check the stage-06 ordering explicitly.
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/practice.py --check-only
 pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/solution.py --check-only
 # Omit --check-only for the usual per-file GPU PyTorch comparison.
 ```
 
-The scaffold reports `Practice not finished:`. A completed practice and solution report `Exercise passed:` with the fixed main comparison `shapes_MNK: [(1024,1024,1024)]`, two patterns, and `first_four: [3,-6,-1,-3]`. Trace tolerances remain `rtol=0, atol=0.001`; seeded BF16 random checks use `rtol=0.016, atol=0.03125`, against independent CPU FP32 matmul rounded to BF16. Output starts as NaN; 16 trailing sentinels check stray writes.
+The completed practice and solution report `Exercise passed:` with the fixed main comparison `shapes_MNK: [(1024,1024,1024)]`, two patterns, and `first_four: [3,-6,-1,-3]`. Trace tolerances remain `rtol=0, atol=0.001`; seeded BF16 random checks use `rtol=0.016, atol=0.03125`, against independent CPU FP32 matmul rounded to BF16. Output starts as NaN; 16 trailing sentinels check stray writes.
 
 The additional `pipeline_boundaries` checkpoint covers 64×64 outputs with **one, two, and three K tiles**. A's successive K tiles contain values 1,2,4 and B contains 1, so every output must equal 64, 192, or 448 exactly. These checks exercise the zero-trip loop, first handoff, and repeated handoff without changing the 1024³ performance comparison. No partial tile or K=0 path is implemented.
 
@@ -211,6 +228,6 @@ The steady-state iteration loads tile `t+1`. For the final current tile, that wo
 
 </details>
 
-[Previous: LDS bank conflicts](../06-lds-swizzle/README.md) · [Matmul series](../README.md) · [Next: parameter tuning](../08-parameter-tuning/README.md)
+[Previous: LDS bank conflicts](../06-lds-swizzle/README.md) · [Matmul series](../README.md) · [Next: buffer access](../07a-buffer-access/README.md)
 
 Sources: [FlyDSL global-prefetch/compute pipeline example](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/kernels/gemm/rdna3_f16_gemm.py), [native tiled-copy and MMA helpers](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/python/flydsl/expr/derived.py), [rocprofv3 counter collection](https://rocmdocs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocprofv3.html). The upstream production pipeline also uses two LDS buffers and other optimizations; this teaching kernel isolates one shared-tile lookahead into registers. API expressions were checked against installed FlyDSL 0.4.1.

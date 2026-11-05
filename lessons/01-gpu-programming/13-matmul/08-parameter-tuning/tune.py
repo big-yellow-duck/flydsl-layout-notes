@@ -64,25 +64,22 @@ def environment():
 
 
 def inputs(seed, trace=False):
+    m, n, k = SHAPE
     if trace:
-        a_cpu = ((torch.arange(1024 * 1024).reshape(1024, 1024) % 5) - 2).to(
-            torch.bfloat16
-        )
-        b_cpu = ((torch.arange(1024 * 1024).reshape(1024, 1024) % 7) - 3).to(
-            torch.bfloat16
-        )
+        a_cpu = ((torch.arange(m * k).reshape(m, k) % 5) - 2).to(torch.bfloat16)
+        b_cpu = ((torch.arange(k * n).reshape(k, n) % 7) - 3).to(torch.bfloat16)
     else:
         generator = torch.Generator().manual_seed(seed)
-        a_cpu = torch.randn(1024, 1024, generator=generator).to(torch.bfloat16)
-        b_cpu = torch.randn(1024, 1024, generator=generator).to(torch.bfloat16)
+        a_cpu = torch.randn(m, k, generator=generator).to(torch.bfloat16)
+        b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
-    storage = torch.full((1024 * 1024 + 16,), -99, dtype=torch.bfloat16, device="cuda")
+    storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
     return a_cpu.cuda(), b_cpu.cuda(), storage, expected
 
 
 def validate(launch, data, trace=False):
     a, b, storage, expected = data
-    out = storage[:-16].view(1024, 1024)
+    out = storage[:-16].view(SHAPE[0], SHAPE[1])
     out.fill_(float("nan"))
     launch(a, b, out)
     torch.cuda.synchronize()
@@ -142,7 +139,7 @@ def graph_nodes(graph):
 
 def capture(launch, data, operations=32):
     a, b, storage, expected = data
-    out = storage[:-16].view(1024, 1024)
+    out = storage[:-16].view(SHAPE[0], SHAPE[1])
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream):
         for _ in range(3):
@@ -181,7 +178,7 @@ def capture(launch, data, operations=32):
 
 def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing):
     a, b, storage, _ = data
-    out = storage[:-16].view(1024, 1024)
+    out = storage[:-16].view(SHAPE[0], SHAPE[1])
     graph_metadata = {}
     graphs = []
     if timing == "graph-host":
@@ -234,41 +231,60 @@ def torch_launch(a, b, out, stream=None):
 
 
 def launch_for(config):
+    shape = SHAPE
+    MODULE["validate_config"](config, shape)
     run = BUILD(config)
 
     def launch(a, b, out, stream=None):
         if stream is None:
-            run(a, b, out, *SHAPE)
+            run(a, b, out, *shape)
         else:
-            run(a, b, out, *SHAPE, flydsl.expr.Stream(stream))
+            run(a, b, out, *shape, flydsl.expr.Stream(stream))
 
     return launch
 
 
-def candidates(buffer_counts=(1, 2)):
-    configs = [Config(32, 32, 32, 2, 2, buffers=b) for b in buffer_counts]
+def candidates(buffer_counts=(1, 2), group_m=8, extended=False):
+    if extended:
+        configs = []
+        for (bm, bn), bk, (wm, wn), buffers in product(
+            ((64, 256), (128, 256), (256, 64), (256, 128), (128, 128)),
+            (32, 64),
+            ((2, 4), (4, 2)),
+            buffer_counts,
+        ):
+            config = Config(bm, bn, bk, wm, wn, buffers=buffers, group_m=group_m)
+            try:
+                MODULE["validate_config"](config, SHAPE)
+            except ValueError:
+                continue
+            configs.append(config)
+        return configs
+    configs = [
+        Config(32, 32, 32, 2, 2, buffers=b, group_m=group_m) for b in buffer_counts
+    ]
     for (bm, bn), bk, (wm, wn), buffers in product(
         ((64, 64), (64, 128), (128, 64), (128, 128)),
         (16, 32, 64, 128),
         ((2, 2), (4, 1), (1, 4), (1, 2), (2, 1)),
         buffer_counts,
     ):
-        config = Config(bm, bn, bk, wm, wn, buffers=buffers)
+        config = Config(bm, bn, bk, wm, wn, buffers=buffers, group_m=group_m)
         try:
-            MODULE["validate_config"](config)
+            MODULE["validate_config"](config, SHAPE)
         except ValueError:
             continue
         configs.append(config)
     return configs
 
 
-def prepare(buffer_counts):
+def prepare(buffer_counts, group_m=8, extended=False):
     trace_data, training_data = inputs(0, True), inputs(13)
     validate(torch_launch, trace_data, True)
     validate(torch_launch, training_data)
     accepted, failures = [], []
     # Compile and check every candidate before recording any search timings.
-    for config in candidates(buffer_counts):
+    for config in candidates(buffer_counts, group_m, extended):
         try:
             launch = launch_for(config)
             validate(launch, trace_data, True)
@@ -287,8 +303,8 @@ def prepare(buffer_counts):
     return accepted, failures, training_data
 
 
-def sweep(timing, buffer_counts):
-    accepted, failures, training_data = prepare(buffer_counts)
+def sweep(timing, buffer_counts, group_m=8, extended=False):
+    accepted, failures, training_data = prepare(buffer_counts, group_m, extended)
     random.Random(41).shuffle(accepted)
     rows = []
     for index, (config, launch) in enumerate(accepted):
@@ -313,8 +329,10 @@ def sweep(timing, buffer_counts):
         "environment": environment(),
         "training_seed": 13,
         "trace_check": True,
-        "candidate_count": len(candidates(buffer_counts)),
+        "candidate_count": len(candidates(buffer_counts, group_m, extended)),
         "buffer_counts": buffer_counts,
+        "extended": extended,
+        "group_m": group_m,
         "selection": "minimum median paired kernel/torch ratio on training inputs",
         "winner": rows[0],
         "ranking": rows,
@@ -338,7 +356,7 @@ def idle_probe():
 
 def verify(config, seeds, timing):
     print("LOCKED", config.name, flush=True)
-    checkpoint = MODULE["solve"](config)
+    checkpoint = MODULE["solve"](config, shape=SHAPE)
     kernel = launch_for(config)
     rounds = []
     idle_samples = []
@@ -392,6 +410,7 @@ def verify(config, seeds, timing):
 
 
 def main():
+    global SHAPE
     parser = argparse.ArgumentParser(description=__doc__)
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--sweep", action="store_true")
@@ -405,37 +424,58 @@ def main():
     parser.add_argument(
         "--seeds", type=int, nargs="+", default=[20261104, 20261105, 20261106]
     )
+    parser.add_argument(
+        "--shape", type=int, nargs=3, default=SHAPE, metavar=("M", "N", "K")
+    )
+    parser.add_argument(
+        "--extended",
+        action="store_true",
+        help="search wider tiles with eight-wave blocks",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
         "--timing", choices=("graph-host", "direct-host"), default="direct-host"
+    )
+    parser.add_argument(
+        "--group-m",
+        type=int,
+        default=None,
+        help="output tile rows per group; defaults to Config.group_m",
     )
     parser.add_argument("--buffers", type=int, nargs="+", choices=(1, 2), default=None)
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Use a fresh output file to retain prior measurements")
+    SHAPE = tuple(args.shape)
+    if any(size <= 0 for size in SHAPE):
+        parser.error("shape dimensions must be positive")
     config = (
-        MODULE["SELECTED_CONFIG"]
+        MODULE["CONFIGS_BY_SHAPE"].get(SHAPE, MODULE["SELECTED_CONFIG"])
         if args.config is None
         else Config(*map(int, args.config.split(",")))
     )
+    if args.group_m is not None:
+        config = replace(config, group_m=args.group_m)
+    group_m = config.group_m
+    extended = args.extended
     buffer_counts = args.buffers or (1, 2)
     if args.verify and args.buffers:
         if len(args.buffers) != 1:
             parser.error("Verification requires one locked buffer count")
         config = replace(config, buffers=args.buffers[0])
-    MODULE["validate_config"](config)
+    MODULE["validate_config"](config, SHAPE)
     if args.check_candidates:
-        accepted, rejected, _ = prepare(buffer_counts)
+        accepted, rejected, _ = prepare(buffer_counts, group_m, extended)
         report = {
             "kind": "candidate_correctness_only",
             "environment": environment(),
             "checked": [asdict(config) for config, _ in accepted],
             "rejected": rejected,
-            "candidate_count": len(candidates(buffer_counts)),
+            "candidate_count": len(candidates(buffer_counts, group_m, extended)),
             "note": "No performance measurements or parity claim",
         }
     elif args.sweep:
-        report = sweep(args.timing, buffer_counts)
+        report = sweep(args.timing, buffer_counts, group_m, extended)
     else:
         report = verify(config, args.seeds, args.timing)
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -26,6 +26,9 @@ STAGES = (
     "05-matrix-instructions",
     "06-lds-swizzle",
     "07-interleaved-loads",
+    "07a-buffer-access",
+    "07b-operand-staging",
+    "07c-grouped-traversal",
     "08-parameter-tuning",
 )
 
@@ -57,9 +60,16 @@ def measure(launch, timing, repeats):
     return median if median > 0 else None
 
 
-def comparison(kernel_map, timing="auto", repeats=20, *, right_layout="row-major"):
+def comparison(
+    kernel_map,
+    timing="auto",
+    repeats=20,
+    *,
+    right_layout="row-major",
+    shape=(1024, 1024, 1024),
+):
     """Validate and time GPU launches on shared inputs and a preallocated output."""
-    m = n = k = 1024
+    m, n, k = shape
     generator = torch.Generator().manual_seed(13)
     a_cpu = torch.randn(m, k, generator=generator).to(torch.bfloat16)
     b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)

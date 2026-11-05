@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" role="img">
+<title>07a - Buffer global transfers; retain the shared staging plan</title>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">07a - Buffer global transfers; retain the shared staging plan</text>
+<text x="32" y="66" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Fixed: 64x64x64 tile, 128 threads, padded A, one LDS tile per operand.</text>
+<rect x="32" y="120" width="893" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="132" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Global A/B/C -&gt; make_buffer_tensor -&gt; row-major views</text>
+<text x="44" y="169" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Resource wrapping describes access; it allocates no new matrix and loads no values.</text>
+<rect x="32" y="235" width="893" height="87" fill="#ffedbe" stroke="#8294aa"/>
+<text x="44" y="247" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">BufferCopy128b: global A/B -&gt; private staging registers</text>
+<text x="44" y="284" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">One shared (16,8) thread plan; eight BF16 values per group, four row groups.</text>
+<rect x="32" y="350" width="893" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="44" y="362" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">UniversalCopy128b: staging registers -&gt; ordinary LDS views</text>
+<text x="44" y="399" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">A stride 72, B stride 64. Keep the reader and ready barriers.</text>
+<rect x="32" y="465" width="893" height="87" fill="#e5dcff" stroke="#8294aa"/>
+<text x="44" y="477" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Four K=16 steps -&gt; WMMA -&gt; FP32 accumulators -&gt; BF16</text>
+<text x="44" y="514" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">BufferCopy16b stores through the same instruction-derived C ownership.</text>
+<text x="32" y="602" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Next: derive independent A and B staging plans without changing this schedule.</text>
+</svg>

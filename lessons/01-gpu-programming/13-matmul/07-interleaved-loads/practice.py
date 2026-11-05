@@ -1,6 +1,6 @@
 """BF16 matmul: 07-interleaved-loads.
 
-Run: pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/solution.py
+Run: pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/practice.py
 """
 
 import runpy
@@ -35,7 +35,7 @@ def exercise_kernel(
     m: fx.Constexpr,
     n: fx.Constexpr,
     k: fx.Constexpr,
-    schedule: fx.Constexpr = "prefetch",
+    schedule: fx.Constexpr = "serial",
 ):
     # 1. Describe the global row-major matrices, as in stage 04.
     left_global_view = fx.make_view(fx.get_iter(left), fx.make_layout((m, k), (k, 1)))
@@ -55,9 +55,7 @@ def exercise_kernel(
     left_lds_view = lds.left.view(fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1)))
     right_lds_view = lds.right.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))
 
-    # 4. Keep stage 04's generic staging plan; adapt ownership to 128 threads.
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-    # copy_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
     gmem2lds_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
     gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
     gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
@@ -67,28 +65,31 @@ def exercise_kernel(
         copy_128b, gmem2lds_tv_layout, gmem2lds_tilemn
     )
     gmem2lds_thread_copy = gmem2lds_copy_plan.get_slice(fx.thread_idx.x)
-    left_lds_destination = gmem2lds_thread_copy.partition_D(left_lds_view)
-    right_lds_destination = gmem2lds_thread_copy.partition_D(right_lds_view)
-    left_fragment = fx.make_fragment_like(left_lds_destination)
-    right_fragment = fx.make_fragment_like(right_lds_destination)
+    gmem2lds_left_destination = gmem2lds_thread_copy.partition_D(left_lds_view)
+    gmem2lds_right_destination = gmem2lds_thread_copy.partition_D(right_lds_view)
+    left_fragment = fx.make_fragment_like(gmem2lds_left_destination)
+    right_fragment = fx.make_fragment_like(gmem2lds_right_destination)
 
-    # Allocate registers for only one K=16 slice of the K=64 LDS tile.
-    left_mma_lds_view = fx.slice(
-        fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)), (None, None, 0, 0)
-    )
-
-    # right mma requires (N,K) pattern transpose the view without transpoing the data
-    right_mma_lds_view = fx.make_view(
+    # create tiled view ready for mma to consume
+    left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
+    right_lds_tranposed_view = fx.make_view(
         fx.get_iter(right_lds_view), fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N))
     )
-    # create mma atom
+    right_lds_transposed_tiled = fx.flat_divide(
+        right_lds_tranposed_view, (BLOCK_N, MMA_K)
+    )
+
+    # setup initial views
+    left_lds_initial_view = fx.slice(left_lds_tiled, (None, None, 0, 0))
+    right_lds_transposed_initial_view = fx.slice(
+        right_lds_transposed_tiled, (None, None, 0, 0)
+    )
+    # setup mma
     mma_atom = fx.make_mma_atom(
         fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
     )
-    # create a mma of shape (2,2,1) col major
     mma = fx.make_tiled_mma(mma_atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
 
-    # prepare accumulator for mma
     thread_mma = mma.thr_slice(fx.thread_idx.x)
     accumulator = thread_mma.make_fragment_C(out_block_view)
     accumulator.fill(0)
@@ -101,23 +102,18 @@ def exercise_kernel(
     lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(fx.thread_idx.x)
     lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(fx.thread_idx.x)
 
-    left_r_tile = thread_mma.make_fragment_A(left_mma_lds_view)
-    right_mma_slice = fx.slice(
-        fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)), (None, None, 0, 0)
-    )
-    right_r_tile = thread_mma.make_fragment_B(right_mma_slice)
+    left_r_tile = thread_mma.make_fragment_A(left_lds_initial_view)
+    right_r_tile = thread_mma.make_fragment_B(right_lds_transposed_initial_view)
 
     left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
     right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
 
-    # Tracing-time helper keeps the copy wrapper outside runtime loop state.
     def create_gmem2lds_sources(left_block_view, right_block_view):
         return (
             gmem2lds_thread_copy.partition_S(left_block_view),
             gmem2lds_thread_copy.partition_S(right_block_view),
         )
 
-    # Tracing helpers emit ordinary copies and WMMA; they launch no extra kernels.
     def gmem2reg_load_tile(tile_k):
         left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
         right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
@@ -128,90 +124,46 @@ def exercise_kernel(
         fx.copy(copy_128b, right_lds_source, right_fragment)
 
     def reg2lds_copy_tile():
-        fx.copy(copy_128b, left_fragment, left_lds_destination)
-        fx.copy(copy_128b, right_fragment, right_lds_destination)
+        fx.copy(copy_128b, left_fragment, gmem2lds_left_destination)
+        fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
         fx.barrier()
 
-    # Keep copy wrappers outside FlyDSL runtime loop-carried state.
+    def compulte_lds():
+        for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
+            left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
+            right_mma_view = fx.slice(
+                right_lds_transposed_tiled, (None, None, 0, inner_k)
+            )
+            left_r_source = lds2reg_thread_copies[0].partition_S(left_mma_view)
+            right_r_source = lds2reg_thread_copies[1].partition_S(right_mma_view)
+            fx.copy(copy_16b, left_r_source, left_r_destination)
+            fx.copy(copy_16b, right_r_source, right_r_destination)
+            fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+
+    # Tuple access avoids carrying ThrCopy wrappers through the runtime loop.
     lds2reg_thread_copies = (lds2reg_left_thread_copy, lds2reg_right_thread_copy)
 
-    # 6. Compare the same padded kernel with two compile-time schedules.
     if schedule == "serial":
         for tile_k in range(k // BLOCK_K):
             gmem2reg_load_tile(tile_k)
             reg2lds_copy_tile()
-            # Consume four distinct K=16 slices before replacing the LDS tile.
-            # range_constexpr unrolls this inner loop during compilation.
-            for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-                left_subview = fx.slice(
-                    fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
-                    (None, None, 0, inner_k),
-                )
-                right_subview = fx.slice(
-                    fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
-                    (None, None, 0, inner_k),
-                )
-                left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
-                right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
-                fx.copy(copy_16b, left_r_source, left_r_destination)
-                fx.copy(copy_16b, right_r_source, right_r_destination)
-                fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+            compulte_lds()
             fx.barrier()
     else:
-        # Prologue: make tile 0 visible in LDS before any consumer reads it.
-        # TODO 1: Choose the tile that must be ready before the steady-state loop.
-        initial_tile_k = None
+        # get the first block ready
         initial_tile_k = 0
-        if initial_tile_k is None:
-            raise NotImplementedError("Fill in initial_tile_k.")
         gmem2reg_load_tile(initial_tile_k)
         reg2lds_copy_tile()
-        # Steady state: prefetch next globals into private registers, consume LDS,
-        # then protect current readers before publishing the prefetched tile.
+
         for tile_k in range(k // BLOCK_K - 1):
-            # TODO 2: Prefetch the tile after the one currently visible in LDS.
-            next_tile_k = None
-            next_tile_k = tile_k +1
-            if next_tile_k is None:
-                raise NotImplementedError("Fill in next_tile_k.")
+            next_tile_k = tile_k + 1
             gmem2reg_load_tile(next_tile_k)
-            # Consume four distinct K=16 slices before replacing the LDS tile.
-            # range_constexpr unrolls this inner loop during compilation.
-            for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-                left_subview = fx.slice(
-                    fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
-                    (None, None, 0, inner_k),
-                )
-                right_subview = fx.slice(
-                    fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
-                    (None, None, 0, inner_k),
-                )
-                left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
-                right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
-                fx.copy(copy_16b, left_r_source, left_r_destination)
-                fx.copy(copy_16b, right_r_source, right_r_destination)
-                fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+            compulte_lds()
             fx.barrier()
             reg2lds_copy_tile()
-        # Drain: the final tile is already in LDS; do not read a nonexistent next tile.
-        # Consume four distinct K=16 slices before replacing the LDS tile.
-        # range_constexpr unrolls this inner loop during compilation.
-        for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-            left_subview = fx.slice(
-                fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
-                (None, None, 0, inner_k),
-            )
-            right_subview = fx.slice(
-                fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
-                (None, None, 0, inner_k),
-            )
-            left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
-            right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
-            fx.copy(copy_16b, left_r_source, left_r_destination)
-            fx.copy(copy_16b, right_r_source, right_r_destination)
-            fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+        # Drain the final LDS tile once, even when the steady-state loop is empty.
+        compulte_lds()
         fx.barrier()
-
     # 7. Convert to BF16, then store through the instruction's C ownership.
     out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
     for slot in fx.range_constexpr(ACCUMULATOR_VALUES):

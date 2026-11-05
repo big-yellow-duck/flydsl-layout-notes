@@ -2,13 +2,13 @@
 
 A larger output tile lets each block reuse its inputs across more results. It also needs more accumulators, so the useful question is: **how much output work can a block own while keeping its operand fragments small?**
 
-Build on [stage 07](../07-interleaved-loads/README.md), retaining its global prefetch, padded A LDS, packed B LDS, and native WMMA copies. Keep **M=N=K=1024**, row-major BF16 inputs/output, and FP32 accumulation. The [solution](solution.py) selects:
+Build on [stage 07c](../07c-grouped-traversal/README.md), retaining its grouped block traversal, buffer global access, separate A/B staging plans, global prefetch, padded A LDS, packed B LDS, and native WMMA copies. The standard walkthrough keeps **M=N=K=1024**, row-major BF16 inputs/output, and FP32 accumulation. A separately tuned rectangular workload is described below. The [solution](solution.py) selects:
 
 ```python
-SELECTED_CONFIG = Config(128, 128, 32, 1, 4, "prefetch")
+SELECTED_CONFIG = Config(128, 128, 32, 1, 4, "prefetch", group_m=8)
 ```
 
-This means a **128×128 output tile**, a **32-wide K stage**, **1×4 wave groups**, and **one LDS buffer per operand**. The strategy combines more output reuse with 16-wide operand fragments, vectorized global staging, and grouped block traversal.
+`group_m` is part of `Config`, so each specialization and its report record the traversal choice. This means a **128×128 output tile**, a **32-wide K stage**, **1×4 wave groups**, and **one LDS buffer per operand**. The strategy combines more output reuse with 16-wide operand fragments, vectorized global staging, and grouped block traversal.
 
 ## Watch the full strategy
 
@@ -39,7 +39,7 @@ Orange borders mark WMMA updates; the bottom strip tracks K stages. The video il
 
 ![A 32×32 reference tile uses a 2×2 wave arrangement; the selected 128×128 tile uses 1×4 waves and repeats ownership over 16 atom tiles per wave.](../../../../assets/01-gpu-programming/13-matmul/08-parameter-tuning/register-reuse.svg)
 
-Each cell is a **16×16 output tile**. Follow wave 0 in the larger block: it owns every tile row in tile columns 0 and 4. Repeated labels give the same wave more work. Both blocks still launch 128 threads.
+Each cell is a **16×16 output tile**. Follow wave 0 in the larger block: it owns every tile row in tile columns 0 and 4. Repeated labels give the same wave more work. Both illustrated blocks launch 128 threads. The small reference in this diagram is 32×32; the preceding stage 07c uses a 64×64 tile with 32 accumulator values per thread.
 
 For `WM` by `WN` wave groups:
 
@@ -50,20 +50,20 @@ register_N_tiles    = BLOCK_N // (16 * WN)
 accumulators/thread = 8 * register_M_tiles * register_N_tiles
 ```
 
-| Property | Stage 07 | Selected configuration |
+| Property | Stage 07c | Selected configuration |
 | --- | ---: | ---: |
-| Block M×N×K | 32×32×32 | 128×128×32 |
+| Block M×N×K | 64×64×64 | 128×128×32 |
 | Wave arrangement | 2×2 | 1×4 |
 | Threads | 128 | 128 |
-| Register M/N repetitions | 1×1 | 8×2 |
-| FP32 accumulators per thread | 8 | 128 |
-| Blocks for the full output | 1024 | 64 |
-| LDS bytes per block | 4608 | 18432 |
-| Logical staged input payload | 128 MiB | 32 MiB |
+| Register M/N repetitions | 2×2 | 8×2 |
+| FP32 accumulators per thread | 32 | 128 |
+| Blocks for the full output | 256 | 64 |
+| LDS bytes per block | 17408 | 18432 |
+| Logical staged input payload | 64 MiB | 32 MiB |
 
 Within each selected wave, an A operand fragment serves two output-column tiles, and a B fragment serves eight output-row tiles. The extra accumulators retain those results throughout the K loop.
 
-The staged payload counts input movement before cache reuse. For one K stage, arithmetic per byte of BF16 input is `BLOCK_M*BLOCK_N/(BLOCK_M+BLOCK_N)`: 16 FLOP/byte for a 32×32 output tile and 64 for 128×128. Increasing M/N improves this reuse. Increasing K changes the staging granularity instead.
+The staged payload counts input movement before cache reuse. For one K stage, arithmetic per byte of BF16 input is `BLOCK_M*BLOCK_N/(BLOCK_M+BLOCK_N)`: 32 FLOP/byte for the preceding 64×64 output tile and 64 for 128×128. Increasing M/N improves this reuse. Increasing K changes the staging granularity instead.
 
 ## 2. Derive ownership from the wave arrangement
 
@@ -143,7 +143,25 @@ Each thread stages 32 values of each operand in four chunks. These positions dif
 
 Global views use `fx.rocdl.make_buffer_tensor` with `BufferCopy128b` for loads and `BufferCopy16b` for BF16 output. LDS copies use `UniversalCopy` atoms. The row-major input layouts stay unchanged. A retains the padded LDS row stride `BLOCK_K+8`; B retains stride `BLOCK_N`.
 
-The block traversal also encourages reuse between workgroups. With eight output tile rows, logical blocks 0–7 visit `(row,col)=(0,0)` through `(7,0)`, then block 8 visits `(0,1)`. Those first eight blocks read the same B band, giving nearby workgroups an opportunity to reuse it in cache.
+Block selection follows 07c's native layout pattern with `GROUP_M = config.group_m` (eight in the selected configuration):
+
+```python
+tiles_m = m // BLOCK_M
+tiles_n = n // BLOCK_N
+flat_block_id = fx.block_idx.x + fx.block_idx.y * tiles_n
+group_width = min(GROUP_M, tiles_m)
+block_tile_order = fx.make_layout(
+    (group_width, tiles_n, tiles_m // group_width),
+    (tiles_n, 1, group_width * tiles_n),
+)
+output_tile_offset = fx.crd2idx(flat_block_id, block_tile_order)
+output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
+output_tile_coords = fx.idx2crd(output_tile_offset, output_tile_layout)
+```
+
+The selected 128×128 tiles give an 8×8 output tile grid. Its traversal layout is `(8,8,1):(8,1,64)`: the single row group spans all eight tile rows. Offsets here count output tiles; the matrix views still supply element addresses. This representation preserves the grouped strategy and the selected tile/wave/buffer configuration.
+
+The grouped block traversal introduced with two rows in [stage 07c](../07c-grouped-traversal/README.md) uses eight rows here and encourages reuse between workgroups. With eight output tile rows, logical blocks 0–7 visit `(row,col)=(0,0)` through `(7,0)`, then block 8 visits `(0,1)`. Those first eight blocks read the same B band, giving nearby workgroups an opportunity to reuse it in cache.
 
 ## 5. Tune the tradeoffs together
 
@@ -152,15 +170,18 @@ The block traversal also encourages reuse between workgroups. With eight output 
 | Block M/N | Reuses operands across more output tiles | More accumulators/LDS and fewer output blocks |
 | Block K | Processes more K values per staging handoff | Larger staging fragments and LDS allocation |
 | Wave arrangement | Redistributes M/N repetitions among waves | Changes each wave's operand reuse and register demand |
+| Group M | Groups nearby IDs along more output tile rows to encourage B cache reuse | Changes cache locality; complete row groups are required |
 | LDS buffers | Allows publication into a different shared tile | Doubles LDS storage |
 
 One LDS buffer occupies `2*(BLOCK_M*(BLOCK_K+8) + BLOCK_K*BLOCK_N)` bytes. With two buffers, stage parity selects the current and future planes. The preceding ready barrier protects a plane's readers before reuse, so the extra single-buffer reader barrier can be omitted. Over 32 stages this reduces block barriers from 64 to 33, but doubles LDS. The search selected **one buffer**.
 
-The [tuner](tune.py) searches 132 valid tile/wave/buffer configurations. It rejects incomplete copy or WMMA groups and allocations above 64 KiB, then checks every candidate before timing. Select on training inputs, lock the tuple, and verify it on new inputs. This distinguishes a useful configuration from a favorable training measurement.
+Use `Config(..., group_m=2)` to select two-row groups, or pass `--group-m 2` to the tuner. Group size must be positive and form complete row groups after clamping to the chosen shape's tile row count. Shape dimensions must contain complete block tiles; general matrix tails are not implemented. `group_m=1` visits columns first; a group larger than the row count uses all tile rows. Configuration names include `_gm2`, `_gm8`, and so on.
+
+The [tuner](tune.py) searches 132 valid tile/wave/buffer configurations. For the standard shape, the default sweep holds `group_m=8`; `--group-m` selects one fixed group size for all candidates rather than adding a search dimension. It rejects incomplete copy or WMMA groups and allocations above 64 KiB, then checks every candidate before timing. Select on training inputs, lock the tuple, and verify it on new inputs. This distinguishes a useful configuration from a favorable training measurement.
 
 ## The measured winner
 
-For this 1024³ product, the selected kernel beat GPU `torch.matmul` in both direct-launch verification and GPU kernel traces:
+In the 2026-11-04 measurements, the selected kernel beat GPU `torch.matmul` in both direct-launch verification and GPU kernel traces:
 
 | Measurement | Native | GPU PyTorch |
 | --- | ---: | ---: |
@@ -170,6 +191,77 @@ For this 1024³ product, the selected kernel beat GPU `torch.matmul` in both dir
 The 18 held-out direct-launch rounds each had more than 5% lower median paired time. Both paths use identical logical inputs and preallocated BF16 output. See [validation notes](../../../../SOURCES.md#stage-08-parameter-tuning-2026-11-04) for measurement details.
 
 The kernel combines output reuse, smaller operand fragments, aligned staging, and cache-friendly block traversal. Its specialization uses **18432 LDS bytes, 212 compiler VGPRs, and zero private scratch**. The larger output tile still needs substantial register storage; the measured combination determines whether that tradeoff pays off.
+
+## Native layout confirmation (2026-11-06)
+
+With block selection expressed through `block_tile_order`, `crd2idx`, and `idx2crd`, the locked 128×128×32, 1×4-wave, one-buffer configuration remained faster than GPU `torch.matmul` on the tested Radeon 8060S (`gfx1151`):
+
+| Measurement | Native | GPU PyTorch |
+| --- | ---: | ---: |
+| Paired direct-launch host batches | 71.79 µs | 75.64 µs |
+| Paired GPU-event batches | 75.22 µs | 79.96 µs |
+
+These are separate captures with different timing scopes. Host batches include dispatch and synchronization; GPU-event batches can include gaps between host launches. Both use warm identical row-major BF16 inputs and a shared preallocated output. Full outputs and sentinels passed before timing.
+
+Host verification used three fresh seeds, three rounds per seed, and seven alternating batches of fifty launches per round. Every round favored native, but the worst paired ratio was 0.9523. The verifier therefore reports **match**: its strict win criterion requires every round below 0.95. GPU-event confirmation used nine alternating batches of one hundred launches per seed across the same three seeds; median paired ratio was 0.9428 and worst was 0.9607. The median time reduction was about 5–6%; these captures do not establish a greater-than-5% gain in every round.
+
+Static inspection reports 212 VGPRs, 18432 LDS bytes, and zero private scratch. The generated instruction stream differs from the arithmetic mapping; expressing the same tile traversal through native layouts does not imply identical assembly. No retuning was performed.
+
+Reproduce the paired host verification with a fresh output path:
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
+  --verify --timing direct-host --config 128,128,32,1,4 --buffers 1 --group-m 8 \
+  --seeds 2026110601 2026110602 2026110603 --output /tmp/native-layout-heldout.json
+```
+
+## Select a configuration for a rectangular workload
+
+The standard 1024³ example remains the default. A second locked configuration targets **(M,N,K)=(1024,4096,2048)**:
+
+```python
+CONFIGS_BY_SHAPE = {
+    (1024, 1024, 1024): Config(128, 128, 32, 1, 4, "prefetch", group_m=8),
+    (1024, 4096, 2048): Config(128, 128, 32, 1, 4, "prefetch", group_m=2),
+}
+```
+
+The block dimensions and wave arrangement coincide, but the traversal config differs. The rectangular output has 8×32 tiles. Its two-row traversal layout is `(2,32,4):(32,1,64)`, grouping 128 matrix rows at a time. Each block performs 64 K stages, still consuming 16-wide operand fragments. Smaller groups trade B reuse against A locality; the timings select this group size rather than assuming eight is always best.
+
+The tuner checked 132 base configurations, 20 wider-tile/eight-wave configurations, and a focused 28-case refinement over promising tile/wave choices with group sizes 1, 2, 4, and 8. Every case passed full trace/random correctness before measurement. Training used seed 13; the selected config was then locked before fresh verification inputs.
+
+| Measurement on Radeon 8060S (`gfx1151`) | Native | GPU Torch | Result |
+| --- | ---: | ---: | --- |
+| Direct-launch host verification, median across 18 rounds | 488.26 µs | 539.28 µs | 9.46% lower median time; strict win in all rounds |
+| GPU-event confirmation, median of five 100-launch batches | 478.06 µs | 570.13 µs | Lower native median in this separate capture |
+| Graph-replay host verification, median across nine rounds | 632.00 µs | 691.62 µs | Meets parity; not a strict win in every round |
+
+All comparisons use identical row-major BF16 inputs and preallocated output. CPU FP32 arithmetic on the actual BF16 inputs is the untimed reference; all outputs and sentinels pass. Host times include dispatch/replay and synchronization, while event batches can include gaps between host launches. Captures occur separately, so compare rows within the same measurement. Direct verification used six fresh seeds and three rounds per seed; each round contains seven alternating batches of fifty launches. Its worst paired native/Torch ratio is 0.9198. Graph verification used three further seeds; its worst round is 1.0480, within the 1.05 parity threshold but above the 0.95 win threshold. These observations apply to warmed buffers on this GPU, not every shape or execution mode.
+
+The [saved measurement record](results-1024x4096x2048.json) contains training finalists, raw held-out samples, timing scope, versions, and source hashes. The rectangular trace checkpoint is approximately `[0,-3,8,-2]`; its first value may be a tiny residual within the trace tolerance.
+
+Run the selected configuration or verify it on fresh inputs:
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/solution.py \
+  --shape 1024 4096 2048 --timing gpu-event --repeats 100
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
+  --shape 1024 4096 2048 --verify --timing direct-host \
+  --seeds 2026110610 2026110611 2026110612 2026110613 2026110614 2026110615 \
+  --output /tmp/rectangular-heldout.json
+```
+
+To search again, use fresh output paths and reserve new seeds for verification:
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
+  --shape 1024 4096 2048 --sweep --group-m 2 --output /tmp/rectangular-search.json
+pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
+  --shape 1024 4096 2048 --sweep --extended --buffers 1 \
+  --output /tmp/rectangular-wide-search.json
+```
+
+`--extended` searches wider output tiles with eight-wave blocks as a separate search space. Validation uses the selected problem dimensions and requires complete matrix tiles and row groups. There is no general tail path. The course-wide correctness checker tests both locked shapes in this lesson; the shared full-series benchmark retains its original 1024³ workload. Both the solution and completed practice accept `--shape M N K`.
 
 ## Practice and run commands
 
@@ -191,7 +283,7 @@ To explore another configuration, run a fresh search and verify its winner. Repl
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
   --sweep --timing direct-host --output /tmp/tile-search.json
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-  --verify --timing direct-host --config 128,128,32,1,4 --buffers 1 \
+  --verify --timing direct-host --config 128,128,32,1,4 --buffers 1 --group-m 8 \
   --seeds 2026110410 2026110411 2026110412 --output /tmp/tile-heldout.json
 ```
 
@@ -212,6 +304,6 @@ A larger output tile reuses each operand across more results, reducing repeated 
 
 </details>
 
-[Previous: interleaved loads](../07-interleaved-loads/README.md) · [Matmul series](../README.md) · [Roadmap](../../../../ROADMAP.md#matmul-continuation-planned)
+[Previous: grouped traversal](../07c-grouped-traversal/README.md) · [Matmul series](../README.md) · [Roadmap](../../../../ROADMAP.md#matmul-continuation-planned)
 
 Sources: [FlyDSL RDNA3 register tiling and grouped scheduling](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/kernels/gemm/rdna3_f16_gemm.py), [FlyDSL tuning guidance](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_tuning_guide.md).

@@ -37,9 +37,9 @@ COUNTERS = (
 )
 
 
-def worker(mode):
+def worker(mode, implementation="solution.py"):
     """Three small boundary checks, two full checks, three warm-ups, five samples."""
-    module = runpy.run_path(str(HERE / "solution.py"))
+    module = runpy.run_path(str(HERE / implementation))
     checkpoint = module["solve"](mode)
     generator = torch.Generator().manual_seed(13)
     a_cpu = torch.randn(1024, 1024, generator=generator).to(torch.bfloat16)
@@ -185,7 +185,7 @@ def loop_evidence(path):
     }
 
 
-def collect(output, timing, repeats):
+def collect(output, timing, repeats, implementation="solution.py"):
     profiler = shutil.which("rocprofv3")
     if profiler is None:
         raise SystemExit(
@@ -224,6 +224,8 @@ def collect(output, timing, repeats):
             str(Path(__file__).resolve()),
             "--worker",
             mode,
+            "--implementation",
+            implementation,
         ]
         commands[mode] = command
         # Dump each compiled variant's ISA separately for instruction inspection.
@@ -266,14 +268,14 @@ def collect(output, timing, repeats):
             )
         print(mode, json.dumps(results[mode]), flush=True)
     # These launches run after profiler subprocesses exit, without counter instrumentation.
-    module = runpy.run_path(str(HERE / "solution.py"))
+    module = runpy.run_path(str(HERE / implementation))
     benchmark = runpy.run_path(str(ROOT / "examples/matmul_benchmark.py"))
     kernels = {mode: partial(module["run"], schedule=mode) for mode in MODES}
     metadata, timings = benchmark["comparison"](kernels, timing, repeats)
     report = {
         "source_sha256": {
             name: hashlib.sha256((HERE / name).read_bytes()).hexdigest()
-            for name in ("solution.py", "profile.py")
+            for name in (implementation, "profile.py")
         },
         "gpu": torch.cuda.get_device_name(),
         "architecture": torch.cuda.get_device_properties(0).gcnArchName,
@@ -282,6 +284,7 @@ def collect(output, timing, repeats):
         "rocm": torch.version.hip,
         "kernel": platform.release(),
         "profiler_version": profiler_version,
+        "implementation": implementation,
         "shape_MNK": [1024, 1024, 1024],
         "block_tile_MNK": [module["BLOCK_M"], module["BLOCK_N"], module["BLOCK_K"]],
         "mma_K": module["MMA_K"],
@@ -309,13 +312,17 @@ def main():
         "--timing", choices=("auto", "host", "gpu-event"), default="auto"
     )
     parser.add_argument("--repeats", type=int, default=20)
+    parser.add_argument(
+        "--implementation", choices=("solution.py", "practice.py"), default="solution.py",
+        help="profile the worked solution or the current completed practice",
+    )
     args = parser.parse_args()
     if args.repeats < 1:
         parser.error("--repeats must be positive")
     if args.worker:
-        worker(args.worker)
+        worker(args.worker, args.implementation)
     else:
-        collect(args.output.resolve(), args.timing, args.repeats)
+        collect(args.output.resolve(), args.timing, args.repeats, args.implementation)
 
 
 if __name__ == "__main__":

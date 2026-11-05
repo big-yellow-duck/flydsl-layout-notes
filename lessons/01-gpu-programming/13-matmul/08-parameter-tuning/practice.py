@@ -1,5 +1,7 @@
 """Tune native BF16 WMMA block tiles without changing global input layouts."""
 
+import argparse
+import json
 import runpy
 from dataclasses import dataclass
 from functools import lru_cache
@@ -19,10 +21,11 @@ class Config:
     waves_n: int = 2
     schedule: str = "prefetch"
     buffers: int = 1
+    group_m: int = 8
 
     @property
     def name(self):
-        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_{self.schedule}_lds{self.buffers}"
+        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_{self.schedule}_lds{self.buffers}_gm{self.group_m}"
 
     @property
     def threads(self):
@@ -45,10 +48,14 @@ class Config:
         )
 
 
-def validate_config(config):
+def validate_config(config, shape=(1024, 1024, 1024)):
     bm, bn, bk = config.block_m, config.block_n, config.block_k
-    if any(value <= 0 or 1024 % value for value in (bm, bn, bk)):
-        raise ValueError("Block dimensions must be positive divisors of 1024")
+    if any(value <= 0 for value in (bm, bn, bk)):
+        raise ValueError("Block dimensions must be positive")
+    if len(shape) != 3 or any(value <= 0 for value in shape):
+        raise ValueError("Shape must contain positive M,N,K")
+    if any(size % tile for size, tile in zip(shape, (bm, bn, bk), strict=True)):
+        raise ValueError("Shape must contain complete block tiles")
     if config.waves_m < 1 or config.waves_n < 1 or config.threads not in (64, 128, 256):
         raise ValueError("Use two, four, or eight wave32 groups")
     if bm % (16 * config.waves_m) or bn % (16 * config.waves_n) or bk % 16:
@@ -61,6 +68,11 @@ def validate_config(config):
             raise ValueError(
                 "Every cooperative staging thread must own complete chunks"
             )
+    if config.group_m < 1:
+        raise ValueError("group_m must be positive")
+    tile_rows = shape[0] // bm
+    if tile_rows % min(config.group_m, tile_rows):
+        raise ValueError("group_m must form complete output tile row groups")
     if config.buffers not in (1, 2):
         raise ValueError("Use one or two LDS buffers")
     if config.lds_bytes > 65536:
@@ -73,12 +85,13 @@ def validate_config(config):
 @lru_cache(None)
 def build(config):
     """Create one native specialization; compilation is lazy on its first launch."""
-    validate_config(config)
+    validate_config(config, (config.block_m, config.block_n, config.block_k))
     BLOCK_M, BLOCK_N, BLOCK_K = config.block_m, config.block_n, config.block_k
     WAVES_M, WAVES_N = config.waves_m, config.waves_n
     THREADS_PER_BLOCK = 32 * WAVES_M * WAVES_N
     schedule = config.schedule
     LDS_STAGES = config.buffers
+    GROUP_M = config.group_m
 
     @fx.struct
     class SharedStorage:
@@ -108,12 +121,20 @@ def build(config):
             fx.get_iter(fx.rocdl.make_buffer_tensor(out)),
             fx.make_layout((m, n), (n, 1)),
         )
-        pid = fx.block_idx.x + fx.block_idx.y * (n // BLOCK_N)
-        group_width = min(8, m // BLOCK_M)
-        block_row = (
-            pid // (group_width * (n // BLOCK_N))
-        ) * group_width + pid % group_width
-        block_col = (pid % (group_width * (n // BLOCK_N))) // group_width
+        # Keep the grouped strategy; express block selection with native layouts.
+        tiles_m = m // BLOCK_M
+        tiles_n = n // BLOCK_N
+        flat_block_id = fx.block_idx.x + fx.block_idx.y * tiles_n
+        group_width = min(GROUP_M, tiles_m)
+        block_tile_order = fx.make_layout(
+            (group_width, tiles_n, tiles_m // group_width),
+            (tiles_n, 1, group_width * tiles_n),
+        )
+        output_tile_offset = fx.crd2idx(flat_block_id, block_tile_order)
+        output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
+        output_tile_coords = fx.idx2crd(output_tile_offset, output_tile_layout)
+        block_row = fx.get_scalar(output_tile_coords[0])
+        block_col = fx.get_scalar(output_tile_coords[1])
 
         # 2. Group neighboring blocks along M to share B tiles in cache.
         left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
@@ -306,7 +327,11 @@ def build(config):
     return run
 
 
-SELECTED_CONFIG = Config(128, 128, 32, 1, 4, "prefetch")
+SELECTED_CONFIG = Config(128, 128, 32, 1, 4, "prefetch", group_m=8)
+CONFIGS_BY_SHAPE = {
+    (1024, 1024, 1024): SELECTED_CONFIG,
+    (1024, 4096, 2048): Config(128, 128, 32, 1, 4, "prefetch", group_m=2),
+}
 run = build(SELECTED_CONFIG)
 
 
@@ -337,7 +362,11 @@ def check_boundaries(config):
     return checked
 
 
-def solve(config=SELECTED_CONFIG):
+def solve(config=None, shape=(1024, 1024, 1024)):
+    shape = tuple(shape)
+    if config is None:
+        config = CONFIGS_BY_SHAPE[shape]
+    validate_config(config, shape)
     architecture = torch.cuda.get_device_properties(0).gcnArchName.split(":")[0]
     if architecture not in ("gfx1151", "gfx1152"):
         raise RuntimeError(
@@ -347,7 +376,7 @@ def solve(config=SELECTED_CONFIG):
     boundaries = check_boundaries(config)
     generator = torch.Generator().manual_seed(13)
     checkpoint = None
-    m = n = k = 1024
+    m, n, k = shape
     for pattern in ("trace", "random"):
         if pattern == "trace":
             a_cpu = ((torch.arange(m * k).reshape(m, k) % 5) - 2).to(torch.bfloat16)
@@ -372,7 +401,7 @@ def solve(config=SELECTED_CONFIG):
         if pattern == "trace":
             checkpoint = out[0, :4].cpu().tolist()
     return {
-        "shapes_MNK": [(1024, 1024, 1024)],
+        "shapes_MNK": [shape],
         "patterns": 2,
         "first_four": checkpoint,
         "config": config.name,
@@ -382,13 +411,50 @@ def solve(config=SELECTED_CONFIG):
     }
 
 
+def main():
+    torch.set_num_threads(1)
+    if globals().get("_COURSE_CHECK_ONLY", False):
+        for shape in CONFIGS_BY_SHAPE:
+            print("Exercise passed:", solve(shape=shape), flush=True)
+        return
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--shape",
+        type=int,
+        nargs=3,
+        default=(1024, 1024, 1024),
+        metavar=("M", "N", "K"),
+    )
+    parser.add_argument("--check-only", action="store_true")
+    parser.add_argument(
+        "--timing", choices=("auto", "host", "gpu-event"), default="auto"
+    )
+    parser.add_argument("--repeats", type=int, default=20)
+    args = parser.parse_args()
+    shape = tuple(args.shape)
+    if shape not in CONFIGS_BY_SHAPE:
+        parser.error(
+            "No locked config for this shape; use tune.py --shape M N K --sweep first"
+        )
+    if args.repeats < 1:
+        parser.error("repeats must be positive")
+    try:
+        print("Exercise passed:", solve(shape=shape), flush=True)
+        if args.check_only:
+            return
+        benchmark = runpy.run_path(
+            str(Path(__file__).resolve().parents[4] / "examples/matmul_benchmark.py")
+        )
+        config = CONFIGS_BY_SHAPE[shape]
+        metadata, rows = benchmark["comparison"](
+            {config.name: build(config)}, args.timing, args.repeats, shape=shape
+        )
+        print(json.dumps(metadata))
+        for row in rows:
+            print(json.dumps(row))
+    except NotImplementedError as error:
+        raise SystemExit(f"Practice not finished: {error}") from None
+
+
 if __name__ == "__main__":
-    benchmark = runpy.run_path(
-        str(Path(__file__).resolve().parents[4] / "examples/matmul_benchmark.py")
-    )
-    benchmark["lesson_main"](
-        run,
-        solve,
-        Path(__file__).parent.name,
-        check_only=globals().get("_COURSE_CHECK_ONLY", False),
-    )
+    main()

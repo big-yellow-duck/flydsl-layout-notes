@@ -36,6 +36,9 @@ assets/
         ├── 05-matrix-instructions/
         ├── 06-lds-swizzle/
         ├── 07-interleaved-loads/
+        ├── 07a-buffer-access/
+        ├── 07b-operand-staging/
+        ├── 07c-grouped-traversal/
         └── 08-parameter-tuning/
 ```
 
@@ -52,3 +55,9 @@ Stage 07 includes `load-compute-schedule.svg` and its PNG preview. The diagram s
 The stage-08 `register-reuse` SVG/PNG compares a 32×32 reference with the selected 128×128 output tile and its 1×4 wave arrangement. `fragment-lifetime` shows a 32-wide LDS stage consumed through two 16-wide operand fragments.
 
 Stage 08 includes `strategy.mp4`, a 4½-minute H.264 video of the complete dataflow, with `strategy.svg` and `strategy.png` as static previews. It distinguishes grouped output-block mapping, the K reduction, and M/N operand reuse. Longer holds, embedded chapters, and keyframes at every visual step support pausing and scrubbing. Regenerate these assets with `python3 tools/animate_matmul_tuning.py` (Pillow and FFmpeg with libx264 required); use `--ffmpeg PATH` to select a full FFmpeg build. Durations illustrate the sequence rather than GPU timing.
+
+Stage 07a includes `buffer-staging.svg` and its PNG preview, tracing buffer global transfers with the existing shared staging plan at the fixed 64×64×64 tile. Regenerate with `python3 tools/draw_matmul_lessons.py`.
+
+Stage 07b includes `operand-staging.svg` and its PNG preview, deriving A and B ownership from contiguous K and N at fixed 64×64×64 dimensions. Regenerate with `python3 tools/draw_matmul_lessons.py`.
+
+Stage 07c includes `grouped-traversal.svg` and its PNG preview. It compares row-major and two-row grouped block IDs at the same 64×64×64 tile size. Regenerate with `python3 tools/draw_grouped_traversal.py`.

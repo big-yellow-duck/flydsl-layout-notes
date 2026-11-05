@@ -20,15 +20,15 @@ The course now has two sections. Work through each lesson's README and practice 
 - [10-predicates-and-tails](lessons/01-gpu-programming/10-predicates-and-tails/README.md)
 - [11-vector-addition](lessons/01-gpu-programming/11-vector-addition/README.md)
 - [12-inspect-and-tune](lessons/01-gpu-programming/12-inspect-and-tune/README.md)
-- [13-matmul](lessons/01-gpu-programming/13-matmul/README.md): BF16 GPU optimization, stages 00–08 complete
+- [13-matmul](lessons/01-gpu-programming/13-matmul/README.md): BF16 GPU optimization, stages 00–08 complete, including the 07a buffer-access, 07b operand-staging, and 07c grouped-traversal bridges
 
-All 26 native programs (13 foundational lessons, four focused divide tutorials, nine completed matmul stages) compile and run on gfx1151 with the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. Lesson 12 runs a small copy benchmark; individual matmul files print local timing comparisons, and `pixi run matmul-bench` compares the full series. Results are observations, not pass/fail performance thresholds.
+All 29 native programs (13 foundational lessons, four focused divide tutorials, twelve completed matmul stages) compile and run on gfx1151 with the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. Lesson 12 runs a small copy benchmark; individual matmul files print local timing comparisons, and `pixi run matmul-bench` compares the full series. Results are observations, not pass/fail performance thresholds.
 
 The vector-add lesson uses per-value guarded scalar accesses for both full tiles and tails. The full-tile fragment lesson separately teaches tiled copies. A full-block vectorized path plus a guarded tail path is a useful next optimization, not a prerequisite for correctness.
 
 ## 13 · BF16 matmul: complete through parameter tuning
 
-All nine exercises and the GPU PyTorch baseline use **M=N=K=1024**, contiguous BF16 input/output, and FP32 accumulation. Diagrams zoom into tiles of the full workload. Each stage includes its README, reproducible SVG/PNG diagram, `practice.py`, and `solution.py`.
+All twelve exercises and the GPU PyTorch baseline use **M=N=K=1024**, contiguous BF16 input/output, and FP32 accumulation. Diagrams zoom into tiles of the full workload. Each stage includes its README, reproducible SVG/PNG diagram, `practice.py`, and `solution.py`.
 
 | Stage | Learning goal | Status |
 | --- | --- | --- |
@@ -40,9 +40,12 @@ All nine exercises and the GPU PyTorch baseline use **M=N=K=1024**, contiguous B
 | [05 · Matrix instructions](lessons/01-gpu-programming/13-matmul/05-matrix-instructions/README.md) | Four-wave `(2,2,1)` BF16 WMMA tiling and FP32 fragments | Complete; gfx1151 checked |
 | [06 · LDS bank conflicts](lessons/01-gpu-programming/13-matmul/06-lds-swizzle/README.md) | Native swizzling and padding; raw counter, ISA, and timing evidence | Complete; gfx1151 checked |
 | [07 · Interleaved loads](lessons/01-gpu-programming/13-matmul/07-interleaved-loads/README.md) | Prefetch into registers while computing from one current LDS tile; verify instruction order | Complete; gfx1151 checked |
+| [07a · Buffer access](lessons/01-gpu-programming/13-matmul/07a-buffer-access/README.md) | Buffer global transfers with the shared staging plan at fixed 64×64×64 | Complete; gfx1151 checked |
+| [07b · Operand staging](lessons/01-gpu-programming/13-matmul/07b-operand-staging/README.md) | Separate A/B staging plans derived from contiguous K/N | Complete; gfx1151 checked |
+| [07c · Grouped traversal](lessons/01-gpu-programming/13-matmul/07c-grouped-traversal/README.md) | Remap block IDs into two-row groups to encourage B cache reuse at fixed 64×64×64 | Complete; gfx1151 checked |
 | [08 · Parameter tuning](lessons/01-gpu-programming/13-matmul/08-parameter-tuning/README.md) | Larger register tiles, bounded sweep, matched graph capture, and held-out PyTorch comparison | Complete; gfx1151 checked; revised kernel wins 18 direct rounds and meets graph parity |
 
-The course-wide `pixi run gpu-check` runs matmul correctness only. Individual matmul solutions and completed practices print their own GPU PyTorch timing/TFLOP/s comparison after checking correctness; `--check-only` skips it. `pixi run matmul-bench` compares all nine stages. The baseline is GPU `torch.matmul` on the same BF16 buffers with a preallocated GPU output. Stage 01 uses column-major B; other stages use row-major B. Full-series results are grouped by B layout and include a matching PyTorch baseline for each. Packing is outside timing. Default automatic timing retimes all compared implementations with synchronized host batches if any event duration is unavailable; the actual method is printed. Explicit event-only and host modes are also available. Host timing still runs GPU computation and includes dispatch/synchronization overhead. The underlying PyTorch BLAS backend is not yet identified. The new lessons have not yet been hardware-validated on gfx1152.
+The course-wide `pixi run gpu-check` runs matmul correctness only. Individual matmul solutions and completed practices print their own GPU PyTorch timing/TFLOP/s comparison after checking correctness; `--check-only` skips it. `pixi run matmul-bench` compares all twelve stages. The baseline is GPU `torch.matmul` on the same BF16 buffers with a preallocated GPU output. Stage 01 uses column-major B; other stages use row-major B. Full-series results are grouped by B layout and include a matching PyTorch baseline for each. Packing is outside timing. Default automatic timing retimes all compared implementations with synchronized host batches if any event duration is unavailable; the actual method is printed. Explicit event-only and host modes are also available. Host timing still runs GPU computation and includes dispatch/synchronization overhead. The underlying PyTorch BLAS backend is not yet identified. The new lessons have not yet been hardware-validated on gfx1152.
 
 Stages 01–07 use the same named native-view path as the naive lesson. Register tiling selects 4×1 per-thread output windows with `flat_divide`; the standard LDS kernel selects 16-wide K windows and WMMA selects 32-wide K windows; vectorized-copy stage 04 uses 64-wide windows and 4×4 thread output tiles. Stage 05 inherits its 128-bit staging pipeline with a 128-thread staging plan and a `(2,2,1)` four-wave MMA layout. Global block views retain row stride 1024, while packed LDS views use their local row width. The READMEs trace those domains and distinguish staging ownership from compute/WMMA ownership.
 
@@ -61,3 +64,5 @@ Reliable timing is required before a performance claim. The gfx1151 setup curren
 ## Further study
 
 Asynchronous copies, reductions, dynamic shapes, general strided tilers, and broader occupancy/register-pressure tuning remain beyond the completed sequence. Extend the correctness checks before tuning a new access pattern.
+
+Stage 08 now also has a separately locked `(M,N,K)=(1024,4096,2048)` configuration with `group_m=2`. It passed all 18 direct-launch held-out win rounds against GPU Torch; graph replay met parity. This extends aligned per-shape tuning without adding general tails or changing the standard 1024³ benchmark. See the [rectangular workload measurements](lessons/01-gpu-programming/13-matmul/08-parameter-tuning/README.md#select-a-configuration-for-a-rectangular-workload).

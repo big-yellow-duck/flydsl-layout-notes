@@ -26,6 +26,7 @@ python3 tools/draw_divide_comparison.py
 python3 tools/draw_thread_value_layouts.py
 python3 tools/draw_lesson_visuals.py
 python3 tools/draw_matmul_lessons.py
+python3 tools/draw_grouped_traversal.py
 python3 tools/animate_matmul_tuning.py
 ```
 
