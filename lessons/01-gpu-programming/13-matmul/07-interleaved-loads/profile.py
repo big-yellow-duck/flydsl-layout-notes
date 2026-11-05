@@ -67,7 +67,7 @@ def summarize(path):
     for row in rows:
         if not row["Kernel_Name"].startswith("exercise_kernel"):
             continue
-        if int(row["Grid_Size"]) != 131072:
+        if int(row["Grid_Size"]) != 32768:
             boundary_dispatches.add(int(row["Dispatch_Id"]))
             continue
         dispatches.setdefault(int(row["Dispatch_Id"]), []).append(row)
@@ -166,8 +166,8 @@ def loop_evidence(path):
         )
     ]
     opportunity = (
-        len(global_loads) == 2
-        and len(wmma) == 2
+        len(global_loads) == 8
+        and len(wmma) == 16
         and bool(vmem_waits)
         and max(global_loads) < min(wmma)
         and min(vmem_waits) > max(wmma)
@@ -283,6 +283,9 @@ def collect(output, timing, repeats):
         "kernel": platform.release(),
         "profiler_version": profiler_version,
         "shape_MNK": [1024, 1024, 1024],
+        "block_tile_MNK": [module["BLOCK_M"], module["BLOCK_N"], module["BLOCK_K"]],
+        "mma_K": module["MMA_K"],
+        "threads_per_block": module["THREADS_PER_BLOCK"],
         "method": "last five of ten full-workload dispatches: two checks, three warm-ups, five samples; three smaller boundary checks excluded",
         "commands": commands,
         "profiles": results,

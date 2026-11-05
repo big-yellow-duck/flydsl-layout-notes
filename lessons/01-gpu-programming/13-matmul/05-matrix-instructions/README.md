@@ -189,7 +189,7 @@ FLYDSL_DUMP_IR=1 FLYDSL_DUMP_DIR=/tmp/flydsl-native-matmul-wmma \
 rg 'v_wmma' /tmp/flydsl-native-matmul-wmma -g '*.s'
 ```
 
-This lesson targets gfx1151/gfx1152 using the gfx11 wave32 fragment convention. The adjacent LDS-layout experiment uses a smaller 32×32×32 baseline to isolate layout effects; its measurements should be compared within that experiment.
+This lesson targets gfx1151/gfx1152 using the gfx11 wave32 fragment convention. The adjacent LDS-layout experiment keeps this 64×64×64 tile and inner K loop while changing A's physical placement.
 
 **Check yourself:** If the inner loop is removed but the operand fragments still cover only K=16, will `fx.gemm` automatically consume the remaining LDS slices?
 

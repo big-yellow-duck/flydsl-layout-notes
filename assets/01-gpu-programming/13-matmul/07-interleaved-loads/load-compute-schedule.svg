@@ -2,17 +2,17 @@
 <title>07 - Prefetch the next global tile while consuming current LDS</title>
 <rect width="100%" height="100%" fill="#f8fafc"/>
 <text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">07 - Prefetch the next global tile while consuming current LDS</text>
-<text x="32" y="66" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Fixed: 32x32x32 block tile, four wave32 groups, padded A, 4608 LDS bytes.</text>
+<text x="32" y="66" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Fixed: 64x64x64 block tile, four wave32 groups, padded A, 17408 LDS bytes.</text>
 <text x="32" y="111" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Rows show program order and buffer contents, not measured cycle durations.</text>
 <rect x="32" y="164" width="893" height="87" fill="#dcecff" stroke="#8294aa"/>
 <text x="44" y="176" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Prologue: load tile 0 -&gt; staging registers -&gt; LDS -&gt; ready barrier</text>
 <text x="44" y="213" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">LDS holds tile 0. Its staging registers may now be reused for tile 1.</text>
-<text x="32" y="288" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Steady-state iteration t (t = 0..30):</text>
+<text x="32" y="288" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Steady-state iteration t (t = 0..14):</text>
 <rect x="32" y="330" width="893" height="87" fill="#ccefe6" stroke="#8294aa"/>
 <text x="44" y="342" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">1. Load global tile t+1</text>
 <text x="44" y="379" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Private staging registers receive the next A/B chunks.</text>
 <rect x="32" y="434" width="893" height="87" fill="#ffedbe" stroke="#8294aa"/>
-<text x="44" y="446" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">2. Read LDS tile t; execute two WMMA updates</text>
+<text x="44" y="446" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">2. Read LDS tile t; compute four K=16 slices</text>
 <text x="44" y="483" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Compute uses current operand fragments, separate from staging registers.</text>
 <rect x="32" y="538" width="893" height="87" fill="#e5dcff" stroke="#8294aa"/>
 <text x="44" y="550" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">3. Reader barrier; publish prefetched tile t+1</text>
@@ -21,6 +21,6 @@
 <text x="44" y="654" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">4. Ready barrier</text>
 <text x="44" y="691" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Every wave may now read tile t+1; the next iteration can prefetch t+2.</text>
 <rect x="32" y="762" width="893" height="87" fill="#ffedbe" stroke="#8294aa"/>
-<text x="44" y="774" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Drain: consume tile 31, then convert and store the output</text>
-<text x="44" y="811" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">No tile 32 load. With one K tile, the steady-state loop has zero iterations.</text>
+<text x="44" y="774" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Drain: consume tile 15, then convert and store the output</text>
+<text x="44" y="811" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">No tile 16 load. With one K tile, the steady-state loop has zero iterations.</text>
 </svg>

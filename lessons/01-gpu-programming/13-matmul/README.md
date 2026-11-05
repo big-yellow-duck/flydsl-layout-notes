@@ -12,11 +12,11 @@ All runnable exercises and comparisons use **M = N = K = 1024**. A is row-major 
 | [03 · Shared memory](03-shared-memory/README.md) | Select native K windows, stage them in LDS, and synchronize | 16×16 / 64 |
 | [04 · Vectorized copies](04-vectorized-copy/README.md) | Keep 4×4 thread accumulators; stage inputs with UniversalCopy128b | 64×64 / 256 |
 | [05 · Matrix instructions](05-matrix-instructions/README.md) | Keep the stage-04 copy structure; derive A/B/C plans from WMMA and consume explicit K=16 slices | 64×64 / 128 |
-| [06 · LDS bank conflicts](06-lds-swizzle/README.md) | Compare native swizzling and aligned padding with counter, ISA, and timing evidence | 32×32 / 128 |
-| [07 · Interleaved loads](07-interleaved-loads/README.md) | Prefetch next global tile into registers while WMMA consumes current LDS | 32×32 / 128 |
+| [06 · LDS bank conflicts](06-lds-swizzle/README.md) | Compare native swizzling and aligned padding with counter, ISA, and timing evidence | 64×64 / 128 |
+| [07 · Interleaved loads](07-interleaved-loads/README.md) | Keep stage 06's padded tile; prefetch next globals while WMMA consumes current LDS | 64×64 / 128 |
 | [08 · Parameter tuning](08-parameter-tuning/README.md) | Tile/wave/buffer search, register reuse, and held-out paired PyTorch verification | 128×128 / 128 |
 
-Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labels carefully: input values, storage offsets, thread IDs, and accumulator slots describe different things. Keep the same arithmetic and shape while changing one part of the implementation at a time. All stages use named `*_global_view`, `*_tiled_view`, `*_block_view`, and thread/fragment views instead of handwritten global storage offsets. Stages 00–02 select full-K input windows; stage 03 selects 16-wide K windows (64 in its 4×4 variant), stage 04 selects 64-wide windows, stage 05 selects 64-wide windows, and stages 06–07 select 32-wide windows. Changes in block size and instruction ownership are stated explicitly; they also affect resource usage.
+Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labels carefully: input values, storage offsets, thread IDs, and accumulator slots describe different things. Keep the same arithmetic and shape while changing one part of the implementation at a time. All stages use named `*_global_view`, `*_tiled_view`, `*_block_view`, and thread/fragment views instead of handwritten global storage offsets. Stages 00–02 select full-K input windows; stage 03 selects 16-wide K windows (64 in its 4×4 variant), stage 04 selects 64-wide windows, stages 05–07 select 64-wide windows. Changes in block size and instruction ownership are stated explicitly; they also affect resource usage.
 
 ## Practice workflow
 
@@ -30,7 +30,7 @@ pixi run gpu-check
 
 The starter is intentionally unfinished and reports `Practice not finished: ...`. Complete its two TODOs and compare with its solution before continuing to the next stage. All nine check the entire 1024×1024 output with trace and seeded random inputs, against an untimed CPU FP32 reference computed from the quantized BF16 inputs and rounded to BF16. Sixteen trailing sentinels check for stray writes. The common trace checkpoint is `[3, -6, -1, -3]` for the first four outputs in row 0. Each walkthrough specifies the numerical tolerances.
 
-Stages 00–03 use a 64×64 grid of 16×16 output tiles. Stage 04 follows the shared-memory 4×4 variant: a 16×16 grid of 64×64 output tiles with 16 K stages of width 64. Stage 05 uses a 16×16 grid of 64×64 output tiles, four waves per block, and 16 K stages of width 64, consumed through four explicit K=16 inner steps. Stages 06–07 use a 32×32 grid of 32×32 output tiles, four waves per block, and 32 K stages of width 32; each wave executes two 16-wide WMMA K updates per stage. The standard LDS kernel uses 64 K stages of width 16. These kernels assume complete tiles and contiguous storage. General strides and partial tiles belong to the later shape-tuning work.
+Stages 00–03 use a 64×64 grid of 16×16 output tiles. Stage 04 follows the shared-memory 4×4 variant: a 16×16 grid of 64×64 output tiles with 16 K stages of width 64. Stages 05–07 use a 16×16 grid of 64×64 output tiles, four waves per block, and 16 K stages of width 64, consumed through four explicit K=16 inner steps. The standard LDS kernel uses 64 K stages of width 16. These kernels assume complete tiles and contiguous storage. General strides and partial tiles belong to the later shape-tuning work.
 
 ## Compare the stages
 
@@ -56,7 +56,7 @@ Explicit `host` timing uses a monotonic CPU clock around GPU launches, with GPU 
 
 ## Measure LDS layout changes
 
-[Stage 06](06-lds-swizzle/README.md) uses a four-wave 32×32×32 baseline while comparing packed, native-swizzled, and padded A LDS layouts. Its profiling driver records raw bank-conflict counters and generated ISA, then times the variants separately. On gfx1151, both layout changes reduced the conflict metric, while padding preserved vector loads and gave the better host-timed result. The main series benchmark uses the stage-06 default swizzle; run its dedicated profiler to compare all three modes.
+[Stage 06](06-lds-swizzle/README.md) retains stage 05's four-wave 64×64×64 tile and explicit inner K loop while comparing packed, native-swizzled, and padded A LDS layouts. Its profiling driver records raw bank-conflict counters and generated ISA, then times the variants separately. On gfx1151, both layout changes reduced the conflict metric, while padding preserved vector loads and gave the better host-timed result. The main series benchmark uses the stage-06 default swizzle; run its dedicated profiler to compare all three modes.
 
 ## Interleave loads with compute
 

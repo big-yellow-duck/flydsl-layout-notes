@@ -668,14 +668,14 @@ def vectorized_copy():
 
 def lds_swizzle():
     f = Diagram(850, "06 - Change A's LDS placement; keep logical coordinates")
-    f.text(32, 66, "A tile: 32x32 BF16. Trace fixed k=2 across rows r=0..7.", 20)
+    f.text(32, 66, "A tile: 64x64 BF16. Trace fixed k=2 across rows r=0..7.", 20)
     f.text(
         32,
         108,
         "e = element offset; bank = (2*e // 4) % 32 for 32 four-byte banks.",
         18,
     )
-    titles = ["Packed: stride 32", "Swizzle<3,3,3>", "Padded: stride 40"]
+    titles = ["Packed: stride 64", "Swizzle<3,3,3>", "Padded: stride 72"]
     colors = [BLUE, GOLD, TEAL]
     for column, title in enumerate(titles):
         x = 32 + 304 * column
@@ -683,8 +683,8 @@ def lds_swizzle():
         f.text(x + 12, 184, title, 21)
         f.text(x + 12, 225, "Row   element e   bank", 17)
         for row in range(8):
-            packed = row * 32 + 2
-            offset = [packed, packed ^ ((packed & 0x1C0) >> 3), row * 40 + 2][column]
+            packed = row * 64 + 2
+            offset = [packed, packed ^ ((packed & 0x1C0) >> 3), row * 72 + 2][column]
             f.text(
                 x + 12,
                 274 + row * 39,
@@ -694,7 +694,7 @@ def lds_swizzle():
     f.text(
         32,
         635,
-        "Row 2, k=2: packed e=66 -> XOR 8 -> swizzled e=74 -> byte 148 -> bank 5.",
+        "Row 2, k=2: packed e=130 -> XOR 16 -> swizzled e=146 -> byte 292 -> bank 9.",
         18,
     )
     f.text(
@@ -724,7 +724,7 @@ def interleaved_loads():
     f.text(
         32,
         66,
-        "Fixed: 32x32x32 block tile, four wave32 groups, padded A, 4608 LDS bytes.",
+        "Fixed: 64x64x64 block tile, four wave32 groups, padded A, 17408 LDS bytes.",
         18,
     )
     f.text(
@@ -741,7 +741,7 @@ def interleaved_loads():
         "LDS holds tile 0. Its staging registers may now be reused for tile 1.",
         BLUE,
     )
-    f.text(32, 288, "Steady-state iteration t (t = 0..30):", 21)
+    f.text(32, 288, "Steady-state iteration t (t = 0..14):", 21)
     steps = [
         (
             "1. Load global tile t+1",
@@ -749,7 +749,7 @@ def interleaved_loads():
             TEAL,
         ),
         (
-            "2. Read LDS tile t; execute two WMMA updates",
+            "2. Read LDS tile t; compute four K=16 slices",
             "Compute uses current operand fragments, separate from staging registers.",
             GOLD,
         ),
@@ -770,8 +770,8 @@ def interleaved_loads():
         32,
         762,
         893,
-        "Drain: consume tile 31, then convert and store the output",
-        "No tile 32 load. With one K tile, the steady-state loop has zero iterations.",
+        "Drain: consume tile 15, then convert and store the output",
+        "No tile 16 load. With one K tile, the steady-state loop has zero iterations.",
         GOLD,
     )
     f.save(f"{BASE}/07-interleaved-loads/load-compute-schedule")

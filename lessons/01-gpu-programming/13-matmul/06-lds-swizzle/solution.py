@@ -1,7 +1,4 @@
-"""BF16 matmul: 06-lds-swizzle.
-
-Run: pixi run python lessons/01-gpu-programming/13-matmul/06-lds-swizzle/solution.py
-"""
+"""BF16 matmul: 06-lds-swizzle. See README.md for the exercise."""
 
 import runpy
 from pathlib import Path
@@ -10,10 +7,14 @@ import flydsl.compiler as flyc
 import flydsl.expr as fx
 import torch
 
-BLOCK_M = 32
-BLOCK_N = 32
-BLOCK_K = 32
+BLOCK_M = 64
+BLOCK_N = 64
+BLOCK_K = 64
+MMA_M = 16
+MMA_N = 16
+MMA_K = 16
 THREADS_PER_BLOCK = 128
+ACCUMULATOR_VALUES = (BLOCK_M * BLOCK_N) // THREADS_PER_BLOCK
 
 
 @fx.struct
@@ -30,7 +31,7 @@ class PaddedSharedStorage:
 
 def create_lds_views(layout_mode):
     """Tracing-time selection: the storage wrappers never cross a runtime branch."""
-    # Packed/swizzled A needs 1024 elements; padded A reserves 32*40 elements.
+    # Packed/swizzled A needs 4096 elements; padded A reserves 64*72 elements.
     if layout_mode == "padded":
         lds = fx.SharedAllocator().allocate(PaddedSharedStorage).peek()
         left_lds_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
@@ -72,12 +73,12 @@ def exercise_kernel(
     out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
     out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
 
-    # 3. Change A's physical placement while retaining logical (M,K) coordinates.
+    # 3. Change A's physical placement; preserve its logical coordinates.
     left_lds_view, right_lds_view = create_lds_views(layout_mode)
 
     # 4. Keep stage 04's generic staging plan; adapt ownership to 128 threads.
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-    gmem2lds_thread_layout = fx.make_ordered_layout((32, 4), (1, 0))
+    gmem2lds_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
     gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
     gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
         gmem2lds_thread_layout, gmem2lds_val_layout
@@ -91,67 +92,97 @@ def exercise_kernel(
     left_fragment = fx.make_fragment_like(left_lds_destination)
     right_fragment = fx.make_fragment_like(right_lds_destination)
 
-    # 5. Let WMMA define operand and accumulator ownership instead of a 4x4 tile.
-    left_mma_view = left_lds_view  # (M,K)
-    right_mma_view = fx.make_view(
+    # Allocate registers for only one K=16 slice of the K=64 LDS tile.
+    left_mma_lds_view = fx.slice(
+        fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)), (None, None, 0, 0)
+    )
+
+    # right mma requires (N,K) pattern transpose the view without transpoing the data
+    right_mma_lds_view = fx.make_view(
         fx.get_iter(right_lds_view), fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N))
-    )  # (N,K), over the existing row-major B storage; no data transpose.
-    atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
-    mma = fx.make_tiled_mma(atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
+    )
+    # create mma atom
+    mma_atom = fx.make_mma_atom(
+        fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
+    )
+    # create a mma of shape (2,2,1) col major
+    mma = fx.make_tiled_mma(mma_atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
+
+    # prepare accumulator for mma
     thread_mma = mma.thr_slice(fx.thread_idx.x)
     accumulator = thread_mma.make_fragment_C(out_block_view)
     accumulator.fill(0)
 
-    # Replace manual operand thread/value layouts with instruction-derived plans.
+    # lds to register copies using mma compatible plans
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
     lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
     lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
-    # Full block thread IDs select both wave group and lane ownership.
+
     lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(fx.thread_idx.x)
     lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(fx.thread_idx.x)
-    # MMA defines the fragment layout. Retile provides a copy-compatible alias.
-    left_r_tile = thread_mma.make_fragment_A(left_mma_view)
-    right_r_tile = thread_mma.make_fragment_B(right_mma_view)
-    left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
-    right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
+
+    left_r_tile = thread_mma.make_fragment_A(left_mma_lds_view)
+    right_mma_slice = fx.slice(
+        fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)), (None, None, 0, 0)
+    )
+    right_r_tile = thread_mma.make_fragment_B(right_mma_slice)
+
     left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
     right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
 
-    # Tracing-time helper keeps the copy wrapper outside runtime loop state.
     def create_gmem2lds_sources(left_block_view, right_block_view):
         return (
             gmem2lds_thread_copy.partition_S(left_block_view),
             gmem2lds_thread_copy.partition_S(right_block_view),
         )
 
-    # 6. Stage, synchronize, load operands, execute WMMA, then protect LDS reuse.
+    # Tuple access keeps FlyDSL from treating copy wrappers as loop-carried state.
+    lds2reg_thread_copies = (lds2reg_left_thread_copy, lds2reg_right_thread_copy)
+
+    # loop through tile K
     for tile_k in range(k // BLOCK_K):
         left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
         right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+
         left_lds_source, right_lds_source = create_gmem2lds_sources(
             left_block_view, right_block_view
         )
+        # load block tile to lds
         fx.copy(copy_128b, left_lds_source, left_fragment)
         fx.copy(copy_128b, right_lds_source, right_fragment)
         fx.copy(copy_128b, left_fragment, left_lds_destination)
         fx.copy(copy_128b, right_fragment, right_lds_destination)
         fx.barrier()
-        # Load 32 K positions per operand; GEMM iterates two 16-wide K fragments.
-        fx.copy(copy_16b, left_r_source, left_r_destination)
-        fx.copy(copy_16b, right_r_source, right_r_destination)
-        fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)
+
+        # Consume four distinct K=16 slices before replacing the LDS tile.
+        # range_constexpr unrolls this inner loop during compilation.
+        for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
+            left_subview = fx.slice(
+                fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
+                (None, None, 0, inner_k),
+            )
+            right_subview = fx.slice(
+                fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
+                (None, None, 0, inner_k),
+            )
+            left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
+            right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
+            fx.copy(copy_16b, left_r_source, left_r_destination)
+            fx.copy(copy_16b, right_r_source, right_r_destination)
+            fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+        # All waves must finish reading before the next outer tile overwrites LDS.
         fx.barrier()
 
-    # 7. Convert to BF16, then store through the instruction's C ownership.
     out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
-    for slot in fx.range_constexpr(8):
+    # A 64x64 output over 128 threads has 32 accumulator values per thread.
+    for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
         out_registers[slot] = accumulator[slot].to(fx.BFloat16)
-    # Replace stage 04's one-thread output plan with the collective C plan.
-    reg2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
-    reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(fx.thread_idx.x)
-    reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
-    reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
-    fx.copy(copy_16b, reg2gmem_source, reg2gmem_dest)
+
+    rmem2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
+    rmem2gmem_thread_copy = rmem2gmem_copy_plan.get_slice(fx.thread_idx.x)
+    rmem2gmem_source = rmem2gmem_thread_copy.retile(out_registers)
+    rmem2gmem_dest = rmem2gmem_thread_copy.partition_D(out_block_view)
+    fx.copy(copy_16b, rmem2gmem_source, rmem2gmem_dest)
 
 
 @flyc.jit
@@ -169,7 +200,7 @@ def run(
     )
 
 
-def solve(layout_mode="padded"):
+def solve(layout_mode="swizzle"):
     if layout_mode not in ("packed", "swizzle", "padded"):
         raise ValueError(f"Unknown LDS layout: {layout_mode}")
     architecture = torch.cuda.get_device_properties(0).gcnArchName.split(":")[0]
@@ -177,7 +208,7 @@ def solve(layout_mode="padded"):
         raise RuntimeError(
             f"This lesson supports gfx1151/gfx1152; detected {architecture}"
         )
-    # Fixed comparison workload: 32 x 32 output tiles, each with 32 K tiles.
+    # Fixed comparison workload: 16 x 16 output tiles, each with 16 K tiles.
     shapes = [(1024, 1024, 1024)]
     generator = torch.Generator().manual_seed(13)
     checkpoint = None
