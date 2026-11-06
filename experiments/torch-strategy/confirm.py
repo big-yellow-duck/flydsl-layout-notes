@@ -1,0 +1,101 @@
+"""Recheck training finalists on the final lesson factory before locking choices."""
+
+import argparse
+import json
+import random
+import runpy
+import statistics
+from dataclasses import asdict
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+LESSON = ROOT / "lessons/01-gpu-programming/13-matmul/12-operand-paths"
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--search", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if args.output.exists():
+        parser.error("Use a fresh output directory")
+    args.output.mkdir(parents=True)
+    bench = runpy.run_path(str(LESSON / "tune.py"))
+    native, common = bench["MODULE"], bench["COMMON"]
+    selected = {
+        "training_seed": 13,
+        "criterion": "Minimize the worst training-round ratio to tuned prefetch; lock before held-out verification.",
+        "shapes": {},
+    }
+    for shape in native["SHAPES"]:
+        key = "x".join(map(str, shape))
+        rows = []
+        for phase in ("refine", "further"):
+            rows.extend(
+                json.loads((args.search / f"operand-{phase}-{key}.json").read_text())[
+                    "ranking"
+                ]
+            )
+        rows.sort(key=lambda row: row["ratio_to_prefetch"])
+        configs = []
+        for row in rows:
+            config = native["Config"](**row["config"])
+            if config not in configs:
+                configs.append(config)
+            if len(configs) == 3:
+                break
+        bench["configure"](shape)
+        data = common["inputs"](13)
+        report = {
+            "shape_MNK": shape,
+            "environment": bench["environment"](shape),
+            "training_seed": 13,
+            "finalists": [],
+        }
+        launches = {}
+        for config in configs:
+            checks = native["solve"](config, shape)
+            launches[config] = {
+                "operand_paths": native["launch_for"](config, shape),
+                **bench["controls"](shape, config),
+            }
+            report["finalists"].append(
+                {"config": asdict(config), "checks": checks, "rounds": []}
+            )
+        by_config = {
+            native["Config"](**row["config"]): row for row in report["finalists"]
+        }
+        for repetition in range(3):
+            ordered = list(configs)
+            random.Random(13 + repetition).shuffle(ordered)
+            for index, config in enumerate(ordered):
+                for launch in launches[config].values():
+                    common["validate"](launch, data)
+                measured = bench["measure"](
+                    launches[config], data, 7, 12, repetition * 100 + index
+                )
+                by_config[config]["rounds"].append({"round": repetition, **measured})
+                print("CONFIRM", key, config.name, measured["median_ms"], flush=True)
+        for row in report["finalists"]:
+            row["worst_training_ratio"] = max(
+                sample["ratio_to_prefetch"] for sample in row["rounds"]
+            )
+            row["median_training_ratio_to_torch"] = statistics.median(
+                sample["ratio_to_torch"] for sample in row["rounds"]
+            )
+        report["finalists"].sort(key=lambda row: row["worst_training_ratio"])
+        (args.output / f"{key}.json").write_text(json.dumps(report, indent=2) + "\n")
+        selected["shapes"][key] = {
+            "config": report["finalists"][0]["config"],
+            "native_factory_sha256": report["environment"]["native_factory_sha256"],
+            "worst_training_ratio": report["finalists"][0]["worst_training_ratio"],
+        }
+        (args.output / "selection.json").write_text(
+            json.dumps(selected, indent=2) + "\n"
+        )
+        print("SELECTED", key, selected["shapes"][key], flush=True)
+
+
+if __name__ == "__main__":
+    main()

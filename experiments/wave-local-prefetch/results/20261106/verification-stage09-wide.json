@@ -1,0 +1,867 @@
+{
+  "kind": "locked_heldout_verification",
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-06T07:51:29.548409+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.0.0",
+    "hip": "7.15.26333",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      4096,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "7e0b933d7110ec331e713e202e328c3f7c4d6dbdefea0dbbb905da85931a0490",
+    "source_sha256": {
+      "solution.py": "3610a4eae71843522735f7ccf1f8e8bbb328550b129e3cb75fe57d64bfaa37cc",
+      "tune.py": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755"
+    }
+  },
+  "config": {
+    "block_m": 16,
+    "block_n": 32,
+    "block_k": 16,
+    "waves_m": 1,
+    "waves_n": 1,
+    "group_m": 1,
+    "split_k": 1
+  },
+  "name": "m16n32k16_w1x1_prefetch_lds1_gm1_sk1",
+  "correctness": {
+    "shape_MNK": [
+      16,
+      4096,
+      8192
+    ],
+    "config": "m16n32k16_w1x1_prefetch_lds1_gm1_sk1",
+    "first_four": [
+      8.0,
+      5.0,
+      2.0,
+      -1.0
+    ],
+    "patterns": 2,
+    "workspace_reuses_per_pattern": 3,
+    "split_boundaries": [
+      {
+        "tiles_per_split": 1,
+        "partial_values": [
+          16
+        ],
+        "sum_before_bf16": 16
+      },
+      {
+        "tiles_per_split": 2,
+        "partial_values": [
+          48
+        ],
+        "sum_before_bf16": 48
+      },
+      {
+        "tiles_per_split": 3,
+        "partial_values": [
+          112
+        ],
+        "sum_before_bf16": 112
+      }
+    ]
+  },
+  "selection": "config locked before these held-out inputs and timings",
+  "seeds": [
+    2026111301,
+    2026111302,
+    2026111303
+  ],
+  "rounds": [
+    {
+      "seed": 2026111301,
+      "round": 0,
+      "kernel_ms": 0.3026492312500295,
+      "torch_ms": 0.29083065781208006,
+      "paired_ratio": 1.0406402290059575,
+      "samples_ms": {
+        "kernel": [
+          0.30366405937485297,
+          0.302261040624785,
+          0.3023269609371937,
+          0.3029315187504267,
+          0.3029159421885197,
+          0.3026492312500295,
+          0.30259927968643296
+        ],
+        "torch": [
+          0.29067692812532187,
+          0.29045680937542784,
+          0.2906965046875598,
+          0.2910780093756671,
+          0.29083065781208006,
+          0.2910143718750646,
+          0.2919349531254056
+        ]
+      },
+      "paired_ratios": [
+        1.0446789201099989,
+        1.0406402290059575,
+        1.0400089304896676,
+        1.0407227924918965,
+        1.0415543686740498,
+        1.039980360076374,
+        1.0365298038034052
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111301,
+      "round": 1,
+      "kernel_ms": 0.3026906203118074,
+      "torch_ms": 0.29092288906298336,
+      "paired_ratio": 1.0404496575938937,
+      "samples_ms": {
+        "kernel": [
+          0.3028230703137069,
+          0.3026906203118074,
+          0.3024816734367164,
+          0.3028295078124188,
+          0.30417109062454983,
+          0.30213393437463765,
+          0.30243072343836275
+        ],
+        "torch": [
+          0.2909780281243002,
+          0.29092288906298336,
+          0.2909180765627184,
+          0.29092927968719096,
+          0.2913823906240509,
+          0.2907434093756933,
+          0.290807298438267
+        ]
+      },
+      "paired_ratios": [
+        1.040707685957466,
+        1.0404496575938937,
+        1.0397486364911568,
+        1.0409041954732883,
+        1.0438897490445784,
+        1.0391772423093026,
+        1.039969509233494
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111301,
+      "round": 2,
+      "kernel_ms": 0.3026025625004536,
+      "torch_ms": 0.29083567187484505,
+      "paired_ratio": 1.0395864755326563,
+      "samples_ms": {
+        "kernel": [
+          0.3020818750002263,
+          0.302598937498999,
+          0.3029640343754636,
+          0.3021917609373759,
+          0.3027528062503393,
+          0.3026025625004536,
+          0.3027110875009953
+        ],
+        "torch": [
+          0.29083567187484505,
+          0.2909057968750517,
+          0.29162625781253837,
+          0.2906845828121618,
+          0.29075950468779865,
+          0.29057683750011165,
+          0.2912703015624629
+        ]
+      },
+      "paired_ratios": [
+        1.0386685823402737,
+        1.0401956260396203,
+        1.03887776309297,
+        1.0395864755326563,
+        1.0412481840461876,
+        1.0413856971663729,
+        1.0392789305231618
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111302,
+      "round": 0,
+      "kernel_ms": 0.2945609500002888,
+      "torch_ms": 0.28984201718884606,
+      "paired_ratio": 1.0166580612671934,
+      "samples_ms": {
+        "kernel": [
+          0.295680914062757,
+          0.2940091999988681,
+          0.2946467281248033,
+          0.2945609500002888,
+          0.29403747968785865,
+          0.29542270312532537,
+          0.29409477656230365
+        ],
+        "torch": [
+          0.28984201718884606,
+          0.2902519718759322,
+          0.28968717656283616,
+          0.28973453437544094,
+          0.29000877656244484,
+          0.2902390359381002,
+          0.2896670359376685
+        ]
+      },
+      "paired_ratios": [
+        1.020145101564438,
+        1.0129447117918011,
+        1.0171203697064284,
+        1.0166580612671934,
+        1.0138916593255114,
+        1.0178599931276326,
+        1.0152856213352075
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111302,
+      "round": 1,
+      "kernel_ms": 0.2942970515618981,
+      "torch_ms": 0.290007682812643,
+      "paired_ratio": 1.0145761719223154,
+      "samples_ms": {
+        "kernel": [
+          0.2935200437505614,
+          0.2942970515618981,
+          0.29407694843683885,
+          0.2944551703123466,
+          0.2942041468756429,
+          0.2947410687497154,
+          0.29465996249911086
+        ],
+        "torch": [
+          0.2898962187501297,
+          0.2899624031243775,
+          0.28985201562505836,
+          0.2911660218757106,
+          0.2902476609378368,
+          0.290007682812643,
+          0.2901582093741695
+        ]
+      },
+      "paired_ratios": [
+        1.0125004217580194,
+        1.014949001631985,
+        1.0145761719223154,
+        1.0112964707057748,
+        1.0136314136865807,
+        1.0163215880736869,
+        1.015514822533028
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111302,
+      "round": 2,
+      "kernel_ms": 0.29459993125016126,
+      "torch_ms": 0.2899436843748049,
+      "paired_ratio": 1.0162560143846213,
+      "samples_ms": {
+        "kernel": [
+          0.2947670062511065,
+          0.2959405015616312,
+          0.29454288750088153,
+          0.29459993125016126,
+          0.2936028218741171,
+          0.2940778078126982,
+          0.2952240843754339
+        ],
+        "torch": [
+          0.289865109374432,
+          0.28997735468720975,
+          0.2900985546887114,
+          0.2898875156262193,
+          0.2897430984376115,
+          0.2899436843748049,
+          0.2901630062495997
+        ]
+      },
+      "paired_ratios": [
+        1.016910958642982,
+        1.02056418123013,
+        1.015320079126003,
+        1.0162560143846213,
+        1.0133211919708132,
+        1.0142583669197953,
+        1.0174421894480947
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111303,
+      "round": 0,
+      "kernel_ms": 0.30179655468742794,
+      "torch_ms": 0.29056838437497845,
+      "paired_ratio": 1.0384953997702333,
+      "samples_ms": {
+        "kernel": [
+          0.3015519671876632,
+          0.301826756249568,
+          0.3023706312490049,
+          0.30179655468742794,
+          0.30114226093758134,
+          0.30338024062501745,
+          0.30166694843813957
+        ],
+        "torch": [
+          0.2906498671876534,
+          0.2905637296876762,
+          0.2911622249996526,
+          0.29056838437497845,
+          0.2903393921869224,
+          0.2907583468740427,
+          0.29053329218697854
+        ]
+      },
+      "paired_ratios": [
+        1.0375093926775167,
+        1.038762672044437,
+        1.0384953997702333,
+        1.0386420922448312,
+        1.0372077266859607,
+        1.043410254208257,
+        1.0383214473196956
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111303,
+      "round": 1,
+      "kernel_ms": 0.30187342656233795,
+      "torch_ms": 0.290590023438142,
+      "paired_ratio": 1.0386017691655043,
+      "samples_ms": {
+        "kernel": [
+          0.3023449906251585,
+          0.3017957109378244,
+          0.30187342656233795,
+          0.3022349312502115,
+          0.3020201421861657,
+          0.30150154843653354,
+          0.30170044843771393
+        ],
+        "torch": [
+          0.2906802093747274,
+          0.2905788531251119,
+          0.2906123203118227,
+          0.2914483421875502,
+          0.29058317968804204,
+          0.2905169171881994,
+          0.290590023438142
+        ]
+      },
+      "paired_ratios": [
+        1.0401292584573365,
+        1.0386017691655043,
+        1.0387495830817917,
+        1.037010294797697,
+        1.0393586528662873,
+        1.03781064233591,
+        1.0382340207971283
+      ],
+      "orders": [
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026111303,
+      "round": 2,
+      "kernel_ms": 0.3018479906245375,
+      "torch_ms": 0.29048748125006796,
+      "paired_ratio": 1.0376178769883606,
+      "samples_ms": {
+        "kernel": [
+          0.3025331875008419,
+          0.30185672499953853,
+          0.30126892968667107,
+          0.3016727000002106,
+          0.3010002984382254,
+          0.3018479906245375,
+          0.30211401406177174
+        ],
+        "torch": [
+          0.29036929687435986,
+          0.29102327656289617,
+          0.29034670312455546,
+          0.2913275812503002,
+          0.29033887499991806,
+          0.29048748125006796,
+          0.29050515156257006
+        ]
+      },
+      "paired_ratios": [
+        1.0418911047325545,
+        1.0372253675533787,
+        1.0376178769883606,
+        1.0355102620407992,
+        1.0367206197871723,
+        1.0391084301656697,
+        1.039960952281775
+      ],
+      "orders": [
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ],
+        [
+          "kernel",
+          "torch"
+        ],
+        [
+          "torch",
+          "kernel"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups": 5,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "kernel": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    }
+  ],
+  "worst_round_paired_ratio": 1.0406402290059575,
+  "thresholds": {
+    "win": "every round ratio < 0.95",
+    "match": "every round ratio <= 1.05"
+  },
+  "performance_status": "match",
+  "median_kernel_ms": 0.3018479906245375,
+  "median_torch_ms": 0.29056838437497845,
+  "note": "Warm, preallocated buffers and persistent workspace; synchronized host batches; timing mode recorded"
+}

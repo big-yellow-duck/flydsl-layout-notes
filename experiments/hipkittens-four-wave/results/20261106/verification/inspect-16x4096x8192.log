@@ -1,0 +1,68 @@
+{
+  "config": {
+    "block_m": 16,
+    "block_n": 64,
+    "block_k": 16,
+    "waves_m": 1,
+    "waves_n": 1,
+    "group_m": 1,
+    "split_k": 1,
+    "wave_groups": 4,
+    "k_unroll": 4,
+    "right_cache_modifier": 2,
+    "schedule": "interleave",
+    "issue_group": 1,
+    "compiler_fence": false,
+    "global_issue": "front"
+  },
+  "schedule": "interleave",
+  "compiler_scheduling_fences": 0,
+  "wave32_wgp_mode": true,
+  "shape_MNK": [
+    16,
+    4096,
+    8192
+  ],
+  "module": "/home/akk/jeff/flydsl-layout-notes/experiments/hipkittens-four-wave/kernel.py",
+  "source_sha256": "c68b12555066f227333aee0af8dd5d117e64161abee7c83f49b302efe28fef1b",
+  "resources": {
+    "group_segment_fixed_size": 11264,
+    "private_segment_fixed_size": 0,
+    "vgpr_count": 120,
+    "sgpr_count": 14
+  },
+  "workgroup_barrier_sites": 0,
+  "input_load_and_wmma_blocks": {
+    "entry": {
+      "buffer_loads": 5,
+      "wmma": 0
+    },
+    "86": {
+      "buffer_loads": 20,
+      "wmma": 16
+    },
+    "997": {
+      "buffer_loads": 15,
+      "wmma": 16
+    }
+  },
+  "isa_path": "/home/akk/jeff/flydsl-layout-notes/experiments/hipkittens-four-wave/results/20261106/verification/inspection-16x4096x8192/ir/exercise_kernel_0/22_final_isa.s",
+  "llvm_path": "/home/akk/jeff/flydsl-layout-notes/experiments/hipkittens-four-wave/results/20261106/verification/inspection-16x4096x8192/ir/exercise_kernel_0/21_llvm_ir.ll",
+  "command": [
+    "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/bin/python",
+    "/home/akk/jeff/flydsl-layout-notes/experiments/hipkittens-four-wave/inspect_kernel.py",
+    "--worker",
+    "--module",
+    "/home/akk/jeff/flydsl-layout-notes/experiments/hipkittens-four-wave/kernel.py",
+    "--shape",
+    "16",
+    "4096",
+    "8192",
+    "--config",
+    "{\"block_m\": 16, \"block_n\": 64, \"block_k\": 16, \"waves_m\": 1, \"waves_n\": 1, \"group_m\": 1, \"split_k\": 1, \"wave_groups\": 4, \"k_unroll\": 4, \"right_cache_modifier\": 2, \"schedule\": \"interleave\", \"issue_group\": 1, \"compiler_fence\": false, \"global_issue\": \"front\"}",
+    "--output",
+    "/home/akk/jeff/flydsl-layout-notes/experiments/hipkittens-four-wave/results/20261106/verification/inspection-16x4096x8192"
+  ],
+  "checks": "BF16 WMMA, global loads, static scheduler fences, wave32 WGP mode, LDS allocation, complete CPU reference and split-K boundaries/ordering",
+  "scope": "Static control flow/resources and correctness, not a cycle-level overlap or occupancy measurement"
+}

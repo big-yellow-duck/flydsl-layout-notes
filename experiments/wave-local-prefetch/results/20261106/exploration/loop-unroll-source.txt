@@ -1,0 +1,45 @@
+import json
+import runpy
+import tempfile
+from pathlib import Path
+import torch
+
+prefix=Path(__file__).with_name('wave-groups-source.txt').read_text().split('for cache in (0,2):')[0]
+exec(compile(prefix,'/tmp/probe_skinny_wave_tiles.py','exec'))
+rows=[]
+old='''        for tile_k in range(tiles_per_split - 1):
+            next_tile_k = initial_tile_k + tile_k + 1
+            gmem2reg_load_tile(next_tile_k)
+            compute_lds()
+            fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]), scope=gpu.BarrierScope.Subgroup)
+            reg2lds_copy_tile()
+'''
+assert source.count(old)==1
+for cache in (2,3,0,1):
+ for unroll in (1,2,4):
+  loop=f'''        for group_k in range((tiles_per_split - 1) // {unroll}):
+            for step in fx.range_constexpr({unroll}):
+                next_tile_k = initial_tile_k + group_k * {unroll} + step + 1
+                gmem2reg_load_tile(next_tile_k)
+                compute_lds()
+                fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]), scope=gpu.BarrierScope.Subgroup)
+                reg2lds_copy_tile()
+        for tail in fx.range_constexpr((tiles_per_split - 1) % {unroll}):
+            next_tile_k = initial_tile_k + ((tiles_per_split - 1) // {unroll}) * {unroll} + tail + 1
+            gmem2reg_load_tile(next_tile_k)
+            compute_lds()
+            fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]), scope=gpu.BarrierScope.Subgroup)
+            reg2lds_copy_tile()
+'''
+  variant=source.replace(old,loop)
+  variant=variant.replace('gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)', f'gmem_left_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)\n        gmem_right_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b({cache}), fx.BFloat16)')
+  variant=variant.replace('fx.copy(gmem_load_128b, left_lds_source','fx.copy(gmem_left_load, left_lds_source').replace('fx.copy(gmem_load_128b, right_lds_source','fx.copy(gmem_right_load, right_lds_source')
+  with tempfile.NamedTemporaryFile(mode='w',suffix='.py',prefix='_wave_unroll_',dir=base) as f:
+   f.write(variant);f.flush();m=runpy.run_path(f.name)
+   for bn,groups in ((64,2),(16,8),(32,2)):
+    c=m['Config'](16,bn,16,1,1,split_k=1,wave_groups=groups)
+    launch=m['launch_for'](c,shape);u['validate'](launch,data)
+    r=u['paired_measure'](launch,u['torch_launch'],data,3,5,0,'graph-host')
+    rows.append({'cache':cache,'unroll':unroll,'bn':bn,'wave_groups':groups,**r})
+    print(cache,unroll,bn,groups,round(r['kernel_ms']*1000,3),round(r['torch_ms']*1000,3),round(r['paired_ratio'],4),flush=True)
+Path('/tmp/skinny-wave-unroll-probe.json').write_text(json.dumps(rows,indent=2)+'\n')

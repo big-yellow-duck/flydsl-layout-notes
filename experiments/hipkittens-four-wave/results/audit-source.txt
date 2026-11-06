@@ -1,0 +1,53 @@
+"""Reconcile archived proposal counts and verify the final native factory hash."""
+
+import hashlib
+import inspect
+import json
+import runpy
+from pathlib import Path
+
+base = Path("experiments/hipkittens-four-wave")
+results = base / "results/20261106"
+native = runpy.run_path(str(base / "kernel.py"))
+factory_hash = hashlib.sha256(inspect.getsource(native["build"].__wrapped__).encode()).hexdigest()
+audit = {"scope": "Host-only audit; timing samples unchanged", "searches": []}
+temperatures = []
+waves = {}
+for phase in ("coarse", "refine", "front"):
+    for shape in native["SHAPES"]:
+        key = "x".join(map(str, shape))
+        path = results / f"{phase}-{key}.json"
+        report = json.loads(path.read_text())
+        counts = {"proposed": report["candidate_count"], "measured": len(report["ranking"]), "pruned": len(report["pruned"]), "rejected": len(report["rejected"])}
+        assert counts["proposed"] == sum(counts[k] for k in ("measured", "pruned", "rejected"))
+        audit["searches"].append({"report": str(path.relative_to(base / "results")), **counts})
+        for row in report["ranking"]:
+            count = native["Config"](**row["config"]).threads // 32
+            waves[count] = waves.get(count, 0) + 1
+            temperatures.extend(row.get("telemetry", {}).values())
+audit["totals"] = {k: sum(row[k] for row in audit["searches"]) for k in ("proposed", "measured", "pruned", "rejected")}
+audit["measured_by_physical_wave_count"] = waves
+audit["preliminary_pilot_measurements_excluded"] = 2
+audit["temperature_millidegrees_C"] = {"min": min(temperatures), "max": max(temperatures), "scope": "read-only per-candidate samples, outside timing"}
+audit["native_factory_sha256"] = factory_hash
+audit["factory_matches"] = []
+for shape in native["SHAPES"]:
+    key = "x".join(map(str, shape))
+    path = results / f"confirmation/{key}.json"
+    assert json.loads(path.read_text())["environment"]["kernel_build_sha256"] == factory_hash
+    audit["factory_matches"].append(str(path.relative_to(base / "results")))
+    for timing in ("graph-host", "direct-host"):
+        path = results / f"verification/{key}-{timing}.json"
+        report = json.loads(path.read_text())
+        assert report["environment"]["kernel_build_sha256"] == factory_hash
+        assert report["environment"]["native_module_sha256"] == hashlib.sha256((base / "kernel.py").read_bytes()).hexdigest()
+        for row in report["rounds"]:
+            for metadata in row["graph_metadata"].values():
+                assert metadata["kernel_nodes"] == metadata["nodes"] == metadata["matmuls_per_replay"] == 32
+        audit["factory_matches"].append(str(path.relative_to(base / "results")))
+audit["numerical_scope"] = "All measured candidates checked against CPU references; selected factory rechecked on all three shapes with split 1/2/4, boundary partials, workspace/sentinels and changed-input graph replay."
+(base / "results/audit.json").write_text(json.dumps(audit, indent=2) + "\n")
+(base / "results/audit-source.txt").write_text(Path(__file__).read_text())
+print(audit["totals"])
+print("Physical waves:", waves)
+print("Final factory:", factory_hash)

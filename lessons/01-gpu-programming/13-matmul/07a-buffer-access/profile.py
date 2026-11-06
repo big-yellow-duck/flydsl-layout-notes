@@ -57,7 +57,7 @@ def main():
     modules = {name: runpy.run_path(str(path)) for name, path in paths.items()}
     checks = {}
     for name, module in modules.items():
-        checks[name] = module["solve"]("prefetch")
+        checks[name] = module["solve"]()
         print(f"{name}: correctness passed", flush=True)
     gen = torch.Generator().manual_seed(13)
     a_cpu = torch.randn(1024, 1024, generator=gen).to(torch.bfloat16)
@@ -66,7 +66,7 @@ def main():
     out = torch.empty_like(a)
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     launches = {
-        name: partial(module["run"], a, b, out, 1024, 1024, 1024, schedule="prefetch")
+        name: partial(module["run"], a, b, out, 1024, 1024, 1024)
         for name, module in modules.items()
     }
     for launch in launches.values():

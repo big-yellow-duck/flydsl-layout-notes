@@ -13,7 +13,7 @@ def main():
     d.text(
         32,
         99,
-        "Cells label flattened physical block IDs (pid). Gold = pid 0 and 1.",
+        "Cells label scalar physical block IDs (pid). Gold = pid 0 and 1.",
         19,
     )
     d.text(

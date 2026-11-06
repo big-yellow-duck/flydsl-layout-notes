@@ -1,0 +1,34 @@
+import json
+import runpy
+import tempfile
+from pathlib import Path
+import torch
+
+torch.set_num_threads(1)
+base=(Path(__file__).resolve().parents[4] / '09-split-k')
+u=runpy.run_path(str(base/'tune.py'));u['inputs'].__globals__['SHAPE']=(16,4096,8192)
+data=u['inputs'](13);rows=[]
+for bn,wn,av,bv in ((32,1,8,8),(32,2,4,8),(32,2,4,4),(64,4,2,8),(64,4,2,4),(128,8,1,8),(128,8,1,4),(64,2,4,8),(128,4,2,8)):
+ for b_cache in (0,2):
+  source=(base/'solution.py').read_text()
+  source=source.replace('fx.barrier()', 'fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]))')
+  source=source.replace('for rows, columns in ((bm, bk), (bk, bn)):',f'for rows, columns, values in ((bm, bk, {av}), (bk, bn, {bv})):').replace('chunks = columns // 8','chunks = columns // values').replace('if columns % 8 or','if columns % values or')
+  source=source.replace('copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)',f'left_staging_copy = fx.make_copy_atom(fx.UniversalCopy({16*av}), fx.BFloat16)\n        right_staging_copy = fx.make_copy_atom(fx.UniversalCopy({16*bv}), fx.BFloat16)')
+  source=source.replace('gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)',f'gmem_left_load = fx.make_copy_atom(fx.rocdl.BufferCopy({16*av}), fx.BFloat16)\n        gmem_right_load = fx.make_copy_atom(fx.rocdl.BufferCopy({16*bv}, {b_cache}), fx.BFloat16)')
+  source=source.replace('(BLOCK_K // 8)',f'(BLOCK_K // {av})').replace('BLOCK_K // 8',f'BLOCK_K // {av}').replace('(BLOCK_N // 8)',f'(BLOCK_N // {bv})').replace('BLOCK_N // 8',f'BLOCK_N // {bv}')
+  source=source.replace('copy_values = fx.make_ordered_layout((1, 8), (1, 0))',f'left_copy_values = fx.make_ordered_layout((1, {av}), (1, 0))\n        right_copy_values = fx.make_ordered_layout((1, {bv}), (1, 0))')
+  source=source.replace('left_copy_threads, copy_values','left_copy_threads, left_copy_values').replace('right_copy_threads, copy_values','right_copy_threads, right_copy_values')
+  source=source.replace('fx.make_tiled_copy(copy_128b, left_copy_tv','fx.make_tiled_copy(left_staging_copy, left_copy_tv').replace('fx.make_tiled_copy(copy_128b, right_copy_tv','fx.make_tiled_copy(right_staging_copy, right_copy_tv')
+  source=source.replace('fx.copy(gmem_load_128b, left_lds_source','fx.copy(gmem_left_load, left_lds_source').replace('fx.copy(gmem_load_128b, right_lds_source','fx.copy(gmem_right_load, right_lds_source')
+  source=source.replace('fx.copy(copy_128b, left_fragment','fx.copy(left_staging_copy, left_fragment').replace('fx.copy(copy_128b, right_fragment','fx.copy(right_staging_copy, right_fragment')
+  with tempfile.NamedTemporaryFile(mode='w',suffix='.py',prefix=f'_copy_{bn}_{wn}_{av}_{bv}_{b_cache}_',dir=base) as f:
+   f.write(source);f.flush()
+   try:
+    m=runpy.run_path(f.name);c=m['Config'](16,bn,16,1,wn,split_k=1);launch=m['launch_for'](c,(16,4096,8192))
+    u['validate'](launch,data)
+    r=u['paired_measure'](launch,u['torch_launch'],data,5,5,0,'graph-host')
+    row={'bn':bn,'wn':wn,'a_values':av,'b_values':bv,'b_cache':b_cache,**r};rows.append(row)
+    print(bn,wn,av,bv,b_cache,round(r['kernel_ms']*1000,3),round(r['torch_ms']*1000,3),round(r['paired_ratio'],4),flush=True)
+   except (ValueError,RuntimeError,AssertionError) as error:
+    print('FAILED',bn,wn,av,bv,b_cache,str(error)[:1000],flush=True)
+Path('/tmp/skinny-local-copies-probe.json').write_text(json.dumps(rows,indent=2)+'\n')

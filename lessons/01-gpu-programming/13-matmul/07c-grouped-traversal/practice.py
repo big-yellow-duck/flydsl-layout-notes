@@ -36,13 +36,12 @@ def exercise_kernel(
     m: fx.Constexpr,
     n: fx.Constexpr,
     k: fx.Constexpr,
-    schedule: fx.Constexpr = "prefetch",
     mapping_only: fx.Constexpr = False,
 ):
     # Change only which logical output tile a physical block selects.
     tiles_m = m // BLOCK_M
     tiles_n = n // BLOCK_N
-    flat_block_id = fx.block_idx.x + fx.block_idx.y * tiles_n
+    flat_block_id = fx.block_idx.x
     group_width = min(GROUP_M, tiles_m)
     # Scalar block ID expands row-in-group first, then column, then row group.
     # (2,16,8):(16,1,32) for the full output tile grid.
@@ -82,7 +81,7 @@ def exercise_kernel(
         out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
         out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
 
-        # 3. Keep one LDS tile per operand; only the load/compute schedule changes.
+        # 3. Keep one LDS tile per operand for the register-prefetch schedule.
         lds = fx.SharedAllocator().allocate(SharedStorage).peek()
         left_lds_view = lds.left.view(
             fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
@@ -175,42 +174,33 @@ def exercise_kernel(
             fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
             fx.barrier()
 
-        def compulte_lds():
+        def compute_lds():
             for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
                 left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
                 right_mma_view = fx.slice(
                     right_lds_transposed_tiled, (None, None, 0, inner_k)
                 )
-                left_r_source = lds2reg_thread_copies[0].partition_S(left_mma_view)
-                right_r_source = lds2reg_thread_copies[1].partition_S(right_mma_view)
+                left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
+                right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
                 fx.copy(copy_16b, left_r_source, left_r_destination)
                 fx.copy(copy_16b, right_r_source, right_r_destination)
                 fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
 
-        # Tuple access avoids carrying ThrCopy wrappers through the runtime loop.
-        lds2reg_thread_copies = (lds2reg_left_thread_copy, lds2reg_right_thread_copy)
 
-        if schedule == "serial":
-            for tile_k in range(k // BLOCK_K):
-                gmem2reg_load_tile(tile_k)
-                reg2lds_copy_tile()
-                compulte_lds()
-                fx.barrier()
-        else:
-            # get the first block ready
-            initial_tile_k = 0
-            gmem2reg_load_tile(initial_tile_k)
-            reg2lds_copy_tile()
+        # get the first block ready
+        initial_tile_k = 0
+        gmem2reg_load_tile(initial_tile_k)
+        reg2lds_copy_tile()
 
-            for tile_k in range(k // BLOCK_K - 1):
-                next_tile_k = tile_k + 1
-                gmem2reg_load_tile(next_tile_k)
-                compulte_lds()
-                fx.barrier()
-                reg2lds_copy_tile()
-            # Drain the final LDS tile once, even when the steady-state loop is empty.
-            compulte_lds()
+        for tile_k in range(k // BLOCK_K - 1):
+            next_tile_k = tile_k + 1
+            gmem2reg_load_tile(next_tile_k)
+            compute_lds()
             fx.barrier()
+            reg2lds_copy_tile()
+        # Drain the final LDS tile once, even when the steady-state loop is empty.
+        compute_lds()
+        fx.barrier()
         # 7. Convert to BF16, then store through the instruction's C ownership.
         out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
         for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
@@ -232,17 +222,16 @@ def run(
     m: fx.Constexpr,
     n: fx.Constexpr,
     k: fx.Constexpr,
-    schedule: fx.Constexpr = "prefetch",
 ):
-    exercise_kernel(left, right, out, m, n, k, schedule).launch(
-        grid=(n // BLOCK_N, m // BLOCK_M, 1), block=(THREADS_PER_BLOCK, 1, 1)
+    exercise_kernel(left, right, out, m, n, k).launch(
+        grid=((m // BLOCK_M) * (n // BLOCK_N), 1, 1), block=(THREADS_PER_BLOCK, 1, 1)
     )
 
 
 @flyc.jit
 def run_mapping(out: fx.Tensor, m: fx.Constexpr, n: fx.Constexpr):
-    exercise_kernel(out, out, out, m, n, BLOCK_K, "prefetch", True).launch(
-        grid=(n // BLOCK_N, m // BLOCK_M, 1), block=(THREADS_PER_BLOCK, 1, 1)
+    exercise_kernel(out, out, out, m, n, BLOCK_K, True).launch(
+        grid=((m // BLOCK_M) * (n // BLOCK_N), 1, 1), block=(THREADS_PER_BLOCK, 1, 1)
     )
 
 
@@ -273,7 +262,7 @@ def check_mapping():
     }
 
 
-def check_boundaries(schedule):
+def check_boundaries():
     """Exact stage tags catch an omitted/duplicated prologue, handoff, or drain."""
     checked = []
     for tiles in (1, 2, 3):
@@ -286,7 +275,7 @@ def check_boundaries(schedule):
         storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
         out = storage[: m * n].view(m, n)
         out.fill_(float("nan"))
-        run(left, right, out, m, n, k, schedule)
+        run(left, right, out, m, n, k)
         torch.cuda.synchronize()
         expected = BLOCK_K * (2**tiles - 1)
         torch.testing.assert_close(
@@ -300,16 +289,14 @@ def check_boundaries(schedule):
     return checked
 
 
-def solve(schedule="prefetch"):
-    if schedule not in ("serial", "prefetch"):
-        raise ValueError(f"Unknown schedule: {schedule}")
+def solve():
     architecture = torch.cuda.get_device_properties(0).gcnArchName.split(":")[0]
     if architecture not in ("gfx1151", "gfx1152"):
         raise RuntimeError(
             f"This lesson supports gfx1151/gfx1152; detected {architecture}"
         )
     mapping = check_mapping()
-    boundaries = check_boundaries(schedule)
+    boundaries = check_boundaries()
     # Fixed comparison workload: 16 x 16 output tiles, each with 16 K tiles.
     shapes = [(1024, 1024, 1024)]
     generator = torch.Generator().manual_seed(13)
@@ -328,7 +315,7 @@ def solve(schedule="prefetch"):
             )
             out = storage[: m * n].view(m, n)
             out.fill_(float("nan"))
-            run(left, right, out, m, n, k, schedule)
+            run(left, right, out, m, n, k)
             torch.cuda.synchronize()
             # CPU FP32 arithmetic on the actual quantized BF16 inputs is independent
             # of the GPU kernel. Round the reference to the same output dtype.

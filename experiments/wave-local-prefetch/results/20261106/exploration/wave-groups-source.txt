@@ -1,0 +1,41 @@
+import json
+import runpy
+import tempfile
+from pathlib import Path
+import torch
+
+torch.set_num_threads(1)
+base=(Path(__file__).resolve().parents[4] / '09-split-k')
+u=runpy.run_path(str(base/'tune.py'));shape=(16,4096,8192);u['inputs'].__globals__['SHAPE']=shape
+data=u['inputs'](13);rows=[]
+source=(base/'solution.py').read_text()
+source=source.replace('from flydsl._mlir.dialects import scf', 'from flydsl._mlir.dialects import scf, gpu')
+source=source.replace('split_k: int = 4', 'split_k: int = 4\n    wave_groups: int = 2')
+source=source.replace('SPLIT_K = config.split_k', 'SPLIT_K = config.split_k\n    WAVE_GROUPS = config.wave_groups')
+source=source.replace('BLOCK_M * (BLOCK_K + 8), 16]', 'WAVE_GROUPS * BLOCK_M * (BLOCK_K + 8), 16]')
+source=source.replace('BLOCK_K * BLOCK_N, 16]', 'WAVE_GROUPS * BLOCK_K * BLOCK_N, 16]')
+start=source.index('        # 1. Buffer resources');end=source.index('    @flyc.jit',start)
+body=source[start:end].replace('fx.thread_idx.x','compute_thread_id')
+body=body.replace('fx.block_idx.x, split_block_layout', 'fx.block_idx.x * WAVE_GROUPS + wave_group, split_block_layout')
+body=body.replace('        # 4. Derive', '''        left_lds_view = fx.make_view(fx.get_iter(left_lds_view) + wave_group * BLOCK_M * (BLOCK_K + 8), left_lds_view.layout)
+        right_lds_view = fx.make_view(fx.get_iter(right_lds_view) + wave_group * BLOCK_K * BLOCK_N, right_lds_view.layout)
+        # 4. Derive''')
+body=body.replace('fx.barrier()', 'fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]), scope=gpu.BarrierScope.Subgroup)')
+source=source[:start]+'        wave_group = fx.thread_idx.x // THREADS_PER_BLOCK\n        compute_thread_id = fx.thread_idx.x % THREADS_PER_BLOCK\n'+body+source[end:]
+source=source.replace('grid=((m // BLOCK_M) * (n // BLOCK_N) * SPLIT_K, 1, 1)', 'grid=((m // BLOCK_M) * (n // BLOCK_N) * SPLIT_K // WAVE_GROUPS, 1, 1)')
+source=source.replace('block=(THREADS_PER_BLOCK, 1, 1)', 'block=(THREADS_PER_BLOCK * WAVE_GROUPS, 1, 1)')
+for cache in (0,2):
+ variant=source.replace('gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)', f'gmem_left_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)\n        gmem_right_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b({cache}), fx.BFloat16)')
+ variant=variant.replace('fx.copy(gmem_load_128b, left_lds_source','fx.copy(gmem_left_load, left_lds_source').replace('fx.copy(gmem_load_128b, right_lds_source','fx.copy(gmem_right_load, right_lds_source')
+ with tempfile.NamedTemporaryFile(mode='w',suffix='.py',prefix='_wave_tiles_',dir=base) as f:
+  f.write(variant);f.flush();m=runpy.run_path(f.name)
+  for bn in (16,32,64):
+   for groups in (1,2,4,8):
+    try:
+     c=m['Config'](16,bn,16,1,1,split_k=1,wave_groups=groups)
+     launch=m['launch_for'](c,shape);u['validate'](launch,data)
+     r=u['paired_measure'](launch,u['torch_launch'],data,3,5,0,'graph-host')
+     rows.append({'cache':cache,'bn':bn,'wave_groups':groups,**r})
+     print(cache,bn,groups,round(r['kernel_ms']*1000,3),round(r['torch_ms']*1000,3),round(r['paired_ratio'],4),flush=True)
+    except (ValueError,RuntimeError,AssertionError) as e:print('FAILED',cache,bn,groups,str(e)[:1000],flush=True)
+Path('/tmp/skinny-wave-tiles-probe.json').write_text(json.dumps(rows,indent=2)+'\n')

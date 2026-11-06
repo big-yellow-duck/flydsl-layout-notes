@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="850" viewBox="0 0 960 850" role="img" aria-labelledby="title desc">
+<title id="title">10 - Two independent waves select two output tiles</title>
+<desc id="desc">Physical block 2 has two independent wave32 groups. Wave 0 selects logical tile 4 and columns 256 through 319; wave 1 selects tile 5 and columns 320 through 383. Each wave has disjoint single-stage LDS storage.</desc>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">10 - Two independent waves select two output tiles</text>
+<text x="32" y="66" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">M=16, N=4096, K=8192; per-wave tile 16 x 64 x 16; split_k=1.</text>
+<rect x="32" y="112" width="893" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="124" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">32 physical blocks x 2 waves = 64 logical output tiles</text>
+<text x="44" y="161" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Follow physical block 2: logical_block_id = 2 * 2 + wave_group.</text>
+<rect x="32" y="242" width="433" height="145" fill="#ccefe6" stroke="#8294aa"/>
+<text x="46" y="259" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Wave 0: physical threads 0..31</text>
+<text x="46" y="301" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">Logical tile 4: output rows 0..15</text>
+<text x="46" y="342" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Output columns 256..319</text>
+<polyline points="247,402 247,437 240,429 247,437 254,429" fill="none" stroke="#14253d" stroke-width="2"/>
+<rect x="32" y="453" width="433" height="116" fill="#ccefe6" stroke="#8294aa"/>
+<text x="46" y="466" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">A LDS: BF16 offsets 0..383</text>
+<text x="46" y="507" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">B LDS: BF16 offsets 0..1023</text>
+<text x="46" y="542" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">768 bytes A + 2048 bytes B</text>
+<rect x="492" y="242" width="433" height="145" fill="#ffedbe" stroke="#8294aa"/>
+<text x="506" y="259" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Wave 1: physical threads 32..63</text>
+<text x="506" y="301" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">Logical tile 5: output rows 0..15</text>
+<text x="506" y="342" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Output columns 320..383</text>
+<polyline points="707,402 707,437 700,429 707,437 714,429" fill="none" stroke="#14253d" stroke-width="2"/>
+<rect x="492" y="453" width="433" height="116" fill="#ffedbe" stroke="#8294aa"/>
+<text x="506" y="466" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">A LDS: BF16 offsets 384..767</text>
+<text x="506" y="507" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">B LDS: BF16 offsets 1024..2047</text>
+<text x="506" y="542" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">768 bytes A + 2048 bytes B</text>
+<text x="32" y="609" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">A and B offsets are relative to their separate LDS allocations, in BF16 elements.</text>
+<rect x="32" y="653" width="893" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="665" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">One current LDS tile per wave; the next tile stays in private registers</text>
+<text x="44" y="702" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Subgroup rendezvous + LDS-only memory fence protects each wave&#x27;s handoffs.</text>
+<text x="32" y="777" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Boundary trace: K=48, A tile tags [1,2,4], B=1 -&gt; every output = 16*7 = 112.</text>
+<text x="32" y="815" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">The two waves own different output columns; they do not reduce each other&#x27;s values.</text>
+</svg>

@@ -1,0 +1,1033 @@
+{
+  "profiler_version": "             version: 1.3.5\n        git_revision: 6b0e43f341195e203754e08f850e437ff2fc09f9\n        library_arch: x86_64-unknown-linux-gnu\n         system_name: Linux\n    system_processor: x86_64\n      system_version: 6.12.73-95.123.amzn2023.x86_64\n         compiler_id: Clang\n    compiler_version: 23.0.0\n        rocm_version: 10.0.0\n",
+  "commands": {
+    "trace": [
+      "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/lib/python3.12/site-packages/_rocm_sdk_devel/bin/rocprofv3",
+      "--selected-regions",
+      "-d",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/results/20261106/lds-only-ablation/trace",
+      "-o",
+      "trace",
+      "--output-format",
+      "csv",
+      "--kernel-trace",
+      "--",
+      "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/bin/python",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py",
+      "--worker",
+      "--module",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py",
+      "--shape",
+      "16",
+      "4096",
+      "8192",
+      "--pairs",
+      "8",
+      "--output",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/results/20261106/lds-only-ablation/trace-worker.json",
+      "--config",
+      "16,32,16,1,1,1"
+    ],
+    "instructions-memory": [
+      "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/lib/python3.12/site-packages/_rocm_sdk_devel/bin/rocprofv3",
+      "--selected-regions",
+      "-d",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/results/20261106/lds-only-ablation/instructions-memory",
+      "-o",
+      "instructions-memory",
+      "--output-format",
+      "csv",
+      "--pmc",
+      "SQ_WAVES_sum",
+      "SQ_INSTS_LDS_sum",
+      "SQ_INSTS_TEX_LOAD_sum",
+      "SQ_INSTS_TEX_STORE_sum",
+      "--",
+      "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/bin/python",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py",
+      "--worker",
+      "--module",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py",
+      "--shape",
+      "16",
+      "4096",
+      "8192",
+      "--pairs",
+      "8",
+      "--output",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/results/20261106/lds-only-ablation/instructions-memory-worker.json",
+      "--config",
+      "16,32,16,1,1,1"
+    ],
+    "l1-read-sizes": [
+      "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/lib/python3.12/site-packages/_rocm_sdk_devel/bin/rocprofv3",
+      "--selected-regions",
+      "-d",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/results/20261106/lds-only-ablation/l1-read-sizes",
+      "-o",
+      "l1-read-sizes",
+      "--output-format",
+      "csv",
+      "--pmc",
+      "GL1C_GL2_REQ_READ_128B_sum",
+      "GL1C_GL2_REQ_READ_64B_sum",
+      "GL1C_GL2_REQ_READ_32B_sum",
+      "MemUnitBusy",
+      "--",
+      "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/bin/python",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py",
+      "--worker",
+      "--module",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py",
+      "--shape",
+      "16",
+      "4096",
+      "8192",
+      "--pairs",
+      "8",
+      "--output",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/results/20261106/lds-only-ablation/l1-read-sizes-worker.json",
+      "--config",
+      "16,32,16,1,1,1"
+    ]
+  },
+  "profiles": {
+    "trace": {
+      "worker": {
+        "environment": {
+          "hostname": "fedora",
+          "timestamp_utc": "2026-11-06T07:53:35.604862+00:00",
+          "gpu": "AMD Radeon 8060S Graphics",
+          "architecture": "gfx1151",
+          "flydsl": "0.4.1",
+          "torch": "2.13.0+rocm10.0.0",
+          "hip": "7.15.26333",
+          "kernel": "7.2.13-200.fc44.x86_64",
+          "shape_MNK": [
+            16,
+            4096,
+            8192
+          ],
+          "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+          "output": "same preallocated GPU output and trailing sentinels for both implementations",
+          "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+          "cpu_reference_threads": 1,
+          "kernel_build_sha256": "cf53f704e9250a051af983d029c86639d242366b4c901c2404cf2ba7b06492d9",
+          "source_sha256": {
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py": "2ecf7cfa677763079ea1e686c670ebcc570a1b8a8ed64ab9af521e6adef80a68",
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/tune.py": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755",
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py": "bdcf84b8be89c366121de2090e797419bc4de4f0de67172f5d567dc4c5e51f0b"
+          }
+        },
+        "shape_MNK": [
+          16,
+          4096,
+          8192
+        ],
+        "module": "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py",
+        "module_sha256": "2ecf7cfa677763079ea1e686c670ebcc570a1b8a8ed64ab9af521e6adef80a68",
+        "config": {
+          "block_m": 16,
+          "block_n": 32,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 1,
+          "right_cache_modifier": 0
+        },
+        "name": "m16n32k16_w1x1_prefetch_lds1_gm1_sk1_wg1_u1_bc0",
+        "dispatch_sequence": [
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native"
+        ],
+        "pairs": 8,
+        "warmups_per_implementation": 20,
+        "correctness": "full CPU reference, output sentinels, workspace reset before/after collection passed",
+        "scope": "ROCTx-selected synchronized matmuls; instrumented profiles are separate from performance verification"
+      },
+      "samples": {
+        "native": [
+          {
+            "dispatch_id": 1,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 284912
+          },
+          {
+            "dispatch_id": 4,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 298471
+          },
+          {
+            "dispatch_id": 5,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 293311
+          },
+          {
+            "dispatch_id": 8,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 267632
+          },
+          {
+            "dispatch_id": 9,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 286871
+          },
+          {
+            "dispatch_id": 12,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 279591
+          },
+          {
+            "dispatch_id": 13,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 284351
+          },
+          {
+            "dispatch_id": 16,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 274192
+          }
+        ],
+        "torch": [
+          {
+            "dispatch_id": 2,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 291911
+          },
+          {
+            "dispatch_id": 3,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 281031
+          },
+          {
+            "dispatch_id": 6,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 292111
+          },
+          {
+            "dispatch_id": 7,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 285032
+          },
+          {
+            "dispatch_id": 10,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 291511
+          },
+          {
+            "dispatch_id": 11,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 285152
+          },
+          {
+            "dispatch_id": 14,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 290351
+          },
+          {
+            "dispatch_id": 15,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 286991
+          }
+        ]
+      }
+    },
+    "instructions-memory": {
+      "worker": {
+        "environment": {
+          "hostname": "fedora",
+          "timestamp_utc": "2026-11-06T07:53:38.454006+00:00",
+          "gpu": "AMD Radeon 8060S Graphics",
+          "architecture": "gfx1151",
+          "flydsl": "0.4.1",
+          "torch": "2.13.0+rocm10.0.0",
+          "hip": "7.15.26333",
+          "kernel": "7.2.13-200.fc44.x86_64",
+          "shape_MNK": [
+            16,
+            4096,
+            8192
+          ],
+          "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+          "output": "same preallocated GPU output and trailing sentinels for both implementations",
+          "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+          "cpu_reference_threads": 1,
+          "kernel_build_sha256": "cf53f704e9250a051af983d029c86639d242366b4c901c2404cf2ba7b06492d9",
+          "source_sha256": {
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py": "2ecf7cfa677763079ea1e686c670ebcc570a1b8a8ed64ab9af521e6adef80a68",
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/tune.py": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755",
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py": "bdcf84b8be89c366121de2090e797419bc4de4f0de67172f5d567dc4c5e51f0b"
+          }
+        },
+        "shape_MNK": [
+          16,
+          4096,
+          8192
+        ],
+        "module": "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py",
+        "module_sha256": "2ecf7cfa677763079ea1e686c670ebcc570a1b8a8ed64ab9af521e6adef80a68",
+        "config": {
+          "block_m": 16,
+          "block_n": 32,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 1,
+          "right_cache_modifier": 0
+        },
+        "name": "m16n32k16_w1x1_prefetch_lds1_gm1_sk1_wg1_u1_bc0",
+        "dispatch_sequence": [
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native"
+        ],
+        "pairs": 8,
+        "warmups_per_implementation": 20,
+        "correctness": "full CPU reference, output sentinels, workspace reset before/after collection passed",
+        "scope": "ROCTx-selected synchronized matmuls; instrumented profiles are separate from performance verification"
+      },
+      "samples": {
+        "native": [
+          {
+            "dispatch_id": 1,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 278071,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 4,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 283991,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 5,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 293351,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 8,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 284431,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 9,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 281591,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 12,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 272232,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 13,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 287391,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 16,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 272271,
+            "counters": {
+              "SQ_WAVES_sum": 128.0,
+              "SQ_INSTS_LDS_sum": 2424832.0,
+              "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          }
+        ],
+        "torch": [
+          {
+            "dispatch_id": 2,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 294551,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 3,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 286151,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 6,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 295111,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 7,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 290631,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 10,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 295710,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 11,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 290271,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 14,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 292311,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          },
+          {
+            "dispatch_id": 15,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 283911,
+            "counters": {
+              "SQ_WAVES_sum": 256.0,
+              "SQ_INSTS_LDS_sum": 4850688.0,
+              "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+              "SQ_INSTS_TEX_STORE_sum": 2048.0
+            }
+          }
+        ]
+      },
+      "median_counters": {
+        "native": {
+          "SQ_WAVES_sum": 128.0,
+          "SQ_INSTS_LDS_sum": 2424832.0,
+          "SQ_INSTS_TEX_LOAD_sum": 196608.0,
+          "SQ_INSTS_TEX_STORE_sum": 2048.0
+        },
+        "torch": {
+          "SQ_WAVES_sum": 256.0,
+          "SQ_INSTS_LDS_sum": 4850688.0,
+          "SQ_INSTS_TEX_LOAD_sum": 262656.0,
+          "SQ_INSTS_TEX_STORE_sum": 2048.0
+        }
+      }
+    },
+    "l1-read-sizes": {
+      "worker": {
+        "environment": {
+          "hostname": "fedora",
+          "timestamp_utc": "2026-11-06T07:53:41.249509+00:00",
+          "gpu": "AMD Radeon 8060S Graphics",
+          "architecture": "gfx1151",
+          "flydsl": "0.4.1",
+          "torch": "2.13.0+rocm10.0.0",
+          "hip": "7.15.26333",
+          "kernel": "7.2.13-200.fc44.x86_64",
+          "shape_MNK": [
+            16,
+            4096,
+            8192
+          ],
+          "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+          "output": "same preallocated GPU output and trailing sentinels for both implementations",
+          "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+          "cpu_reference_threads": 1,
+          "kernel_build_sha256": "cf53f704e9250a051af983d029c86639d242366b4c901c2404cf2ba7b06492d9",
+          "source_sha256": {
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py": "2ecf7cfa677763079ea1e686c670ebcc570a1b8a8ed64ab9af521e6adef80a68",
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/tune.py": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755",
+            "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py": "bdcf84b8be89c366121de2090e797419bc4de4f0de67172f5d567dc4c5e51f0b"
+          }
+        },
+        "shape_MNK": [
+          16,
+          4096,
+          8192
+        ],
+        "module": "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/solution.py",
+        "module_sha256": "2ecf7cfa677763079ea1e686c670ebcc570a1b8a8ed64ab9af521e6adef80a68",
+        "config": {
+          "block_m": 16,
+          "block_n": 32,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 1,
+          "right_cache_modifier": 0
+        },
+        "name": "m16n32k16_w1x1_prefetch_lds1_gm1_sk1_wg1_u1_bc0",
+        "dispatch_sequence": [
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native",
+          "native",
+          "torch",
+          "torch",
+          "native"
+        ],
+        "pairs": 8,
+        "warmups_per_implementation": 20,
+        "correctness": "full CPU reference, output sentinels, workspace reset before/after collection passed",
+        "scope": "ROCTx-selected synchronized matmuls; instrumented profiles are separate from performance verification"
+      },
+      "samples": {
+        "native": [
+          {
+            "dispatch_id": 1,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 270272,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1073231.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 97.508375
+            }
+          },
+          {
+            "dispatch_id": 4,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 278592,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1072734.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 97.206081
+            }
+          },
+          {
+            "dispatch_id": 5,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 282871,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1057590.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 96.394593
+            }
+          },
+          {
+            "dispatch_id": 8,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 277311,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1073071.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 97.298045
+            }
+          },
+          {
+            "dispatch_id": 9,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 287952,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1068567.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 100.270036
+            }
+          },
+          {
+            "dispatch_id": 12,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 272431,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1071655.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 91.167916
+            }
+          },
+          {
+            "dispatch_id": 13,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 287352,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1058900.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 99.711349
+            }
+          },
+          {
+            "dispatch_id": 16,
+            "kernel": "exercise_kernel_0",
+            "lds_bytes": 2048,
+            "vgprs": 64,
+            "scratch_bytes": 0,
+            "workgroup_threads": 32,
+            "grid_threads": 4096,
+            "duration_ns": 276952,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1073430.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 95.497681
+            }
+          }
+        ],
+        "torch": [
+          {
+            "dispatch_id": 2,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 295151,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1231994.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 96.905741
+            }
+          },
+          {
+            "dispatch_id": 3,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 290591,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1228964.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 95.641362
+            }
+          },
+          {
+            "dispatch_id": 6,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 297071,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1242904.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 96.47991
+            }
+          },
+          {
+            "dispatch_id": 7,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 287031,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1212972.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 92.700154
+            }
+          },
+          {
+            "dispatch_id": 10,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 293631,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1229595.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 101.000053
+            }
+          },
+          {
+            "dispatch_id": 11,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 285031,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1227357.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 98.870134
+            }
+          },
+          {
+            "dispatch_id": 14,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 290791,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1218387.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 101.402352
+            }
+          },
+          {
+            "dispatch_id": 15,
+            "kernel": "Cijk_Ailk_Bljk_BBS_BH_Bias_HA_S_SAV_UserArgs_MT32x16x16_MI16x16x1_SN_LDSB0_AFC1_AG0_AGGSUA0_AGNTAB0_AFEM1_AFEM1_ASEM1_BL1_BS1_CD1_1_CLR0_CLS0_CADS0_DTLA0_DTLB0_DTLM0_DTVA0_DTVB0_DTVMXSA0_DTVMXSB0_DTVSM0_DPLB0_EPS0_ELFLR0_EMLLn1_FDSI0_GRPM1_GRVWA8_GRVWB4_GSUAMB_GLS0_HPLR0_ISA1151_ICIW0_IU1_K1_LDSTI0_LBSPPA1024_LBSPPB512_LBSPPMXSA0_LBSPPMXSB0_LBSPPM0_LPA8_LPB8_LPMXSA0_LPMXSB0_LPM0_LRVW16_LWPMn1_MIAV1_MIWT1_1_MXLIBL_MXSFNS_MO40_MGRIPM1_NTn1_NTA0_NTB0_NTC0_NTD0_NTE0_NTMXSA0_NTMXSB0_NTM0_NTWS0_NVn1_NVA0_NVB0_NVC0_NVD0_NVE0_NVMXSA0_NVMXSB0_NVM0_NVWS0_NEPBS0_NLCA1_NLCB1_ONLL1_PAP0_PGL0_PGR2_PLR1_PKA0_SGROB0_SIA3_SS1_SPO0_SRVW0_SSO0_SVW1_SK0_SKFTR0_SKFDPO0_SKWS0_SKXCCM0_SNLL0_SIP1_SGRO0_TDMI0_TDMIM0_TDMS0_TIN0_THn1_THA0_THB0_THC0_THD0_THE0_THMXSA0_THMXSB0_THM0_THWS0_TLDS0_TLDSMn1_ULSGRO0_USL1_USLMX0_UDFMAC0_UIOFGRO0_UPLRP0_USFGROn1_USI0_VSn1_VWA1_VWB1_WSGRA0_WSGRB0_WS32_WG32_2_1_WGMXCC1",
+            "lds_bytes": 4096,
+            "vgprs": 80,
+            "scratch_bytes": 0,
+            "workgroup_threads": 64,
+            "grid_threads": 8192,
+            "duration_ns": 285591,
+            "counters": {
+              "GL1C_GL2_REQ_READ_128B_sum": 1224214.0,
+              "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+              "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+              "MemUnitBusy": 99.614724
+            }
+          }
+        ]
+      },
+      "median_counters": {
+        "native": {
+          "GL1C_GL2_REQ_READ_128B_sum": 1072194.5,
+          "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+          "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+          "MemUnitBusy": 97.25206299999999
+        },
+        "torch": {
+          "GL1C_GL2_REQ_READ_128B_sum": 1228160.5,
+          "GL1C_GL2_REQ_READ_64B_sum": 0.0,
+          "GL1C_GL2_REQ_READ_32B_sum": 0.0,
+          "MemUnitBusy": 97.88793749999999
+        }
+      }
+    }
+  },
+  "trace_timestamps_valid": true,
+  "trace_median_us": {
+    "native": 284.6315,
+    "torch": 288.671
+  },
+  "note": "Raw counters collected in separate processes; trace durations and counter-pass durations are not uninstrumented throughput."
+}

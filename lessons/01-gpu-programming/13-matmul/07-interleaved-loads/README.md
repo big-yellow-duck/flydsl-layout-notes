@@ -24,7 +24,7 @@ selected global block view → per-thread staging registers → LDS
 | Private MMA operand registers | `left_r_tile`, `right_r_tile` | One K=16 slice of the current tile |
 | Private FP32 accumulator | `accumulator` | 32 owned output sums across all processed K tiles |
 
-Each thread stages 32 BF16 values per operand, using the same `(16,8)` thread layout and `(1,8)` value layout as stage 06. Operand fragments are allocated for K=16, and the inner loop in `compulte_lds()` refills them for four slices of the staged K=64 tile. A global staging fragment cannot replace an MMA operand fragment: their ownership and register layouts differ.
+Each thread stages 32 BF16 values per operand, using the same `(16,8)` thread layout and `(1,8)` value layout as stage 06. Operand fragments are allocated for K=16, and the inner loop in `compute_lds()` refills them for four slices of the staged K=64 tile. A global staging fragment cannot replace an MMA operand fragment: their ownership and register layouts differ.
 
 There is one shared tile per operand. Future data waits in private registers until every wave has finished reading the current LDS contents. This first pipeline step does not allocate a second LDS tile or require a new asynchronous-copy API.
 
@@ -70,23 +70,23 @@ right_lds_transposed_tiled = fx.flat_divide(
 
 The initial slices at `(None, None, 0, 0)` define `left_lds_initial_view` and `right_lds_transposed_initial_view`. `make_fragment_A/B` allocates their K=16 operand registers. The copy plan's `retile` supplies compatible aliases of those same registers; it allocates no additional operand buffer and moves no data.
 
-The practice and solution name the compute helper `compulte_lds`:
+The practice and solution name the compute helper `compute_lds`:
 
 ```python
-def compulte_lds():
+def compute_lds():
     for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
         left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
         right_mma_view = fx.slice(
             right_lds_transposed_tiled, (None, None, 0, inner_k)
         )
-        left_r_source = lds2reg_thread_copies[0].partition_S(left_mma_view)
-        right_r_source = lds2reg_thread_copies[1].partition_S(right_mma_view)
+        left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
+        right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
         fx.copy(copy_16b, left_r_source, left_r_destination)
         fx.copy(copy_16b, right_r_source, right_r_destination)
         fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
 ```
 
-The tuple of thread copy wrappers is defined before the runtime loops, as in stage 06. The helper slices the existing views, preserving A's padding and B's `(N,K)` convention, then refills the same operand fragments for four K slices. Each schedule calls this helper instead of repeating the compute block.
+The helper uses `lds2reg_left_thread_copy` and `lds2reg_right_thread_copy` directly. It slices the existing views, preserving A's padding and B's `(N,K)` convention, then refills the same operand fragments for four K slices. Each schedule calls this helper instead of repeating the compute block.
 
 ## 3. Compare serial order with one-tile lookahead
 
@@ -98,7 +98,7 @@ The serial schedule is:
 for tile_k in range(k // BLOCK_K):
     gmem2reg_load_tile(tile_k)
     reg2lds_copy_tile()
-    compulte_lds()
+    compute_lds()
     fx.barrier()
 ```
 
@@ -114,12 +114,12 @@ reg2lds_copy_tile()
 for tile_k in range(k // BLOCK_K - 1):
     next_tile_k = tile_k + 1
     gmem2reg_load_tile(next_tile_k)
-    compulte_lds()
+    compute_lds()
     fx.barrier()  # All readers must finish before LDS is reused.
     reg2lds_copy_tile()  # Store t+1, then wait until it is ready.
 
 # Drain: the last tile is already in LDS; no future global read is needed.
-compulte_lds()
+compute_lds()
 fx.barrier()
 ```
 

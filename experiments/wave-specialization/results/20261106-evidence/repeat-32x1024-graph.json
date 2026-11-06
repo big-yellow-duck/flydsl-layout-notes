@@ -1,0 +1,1578 @@
+{
+  "kind": "locked_heldout_verification",
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-06T10:11:31.714033+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.0.0",
+    "hip": "7.15.26333",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      32,
+      1024,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "97353a7926ca7d56fa28d42aa5939d4d86954ad81d0fbd1a87f3e0d9dc5e8536",
+    "source_sha256": {
+      "solution.py": "940a601a67ede0f8ed9f582d2e8f98b647eb90a14c5a6eca91cb27b81841fccc",
+      "tune.py": "bba720acf76567b659f30202d2f67fe300da41e7a4e35b7552ee0ae639e20f6e"
+    },
+    "prefetch_config": {
+      "block_m": 32,
+      "block_n": 64,
+      "block_k": 64,
+      "waves_m": 1,
+      "waves_n": 2,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups": 1,
+      "k_unroll": 1,
+      "right_cache_modifier": 0
+    },
+    "prefetch_source_sha256": "2ecf7cfa677763079ea1e686c670ebcc570a1b8a8ed64ab9af521e6adef80a68",
+    "prefetch_factory_sha256": "cf53f704e9250a051af983d029c86639d242366b4c901c2404cf2ba7b06492d9",
+    "benchmark_helpers_sha256": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755",
+    "module_path": "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/11-wave-specialization/solution.py",
+    "module_sha256": "940a601a67ede0f8ed9f582d2e8f98b647eb90a14c5a6eca91cb27b81841fccc",
+    "tuned_prefetch_config": {
+      "block_m": 32,
+      "block_n": 64,
+      "block_k": 64,
+      "waves_m": 1,
+      "waves_n": 2,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups": 1,
+      "k_unroll": 2,
+      "right_cache_modifier": 2
+    }
+  },
+  "config": {
+    "block_m": 32,
+    "block_n": 64,
+    "block_k": 64,
+    "waves_m": 1,
+    "waves_n": 2,
+    "group_m": 1,
+    "split_k": 4,
+    "loader_waves": 1,
+    "lds_stages": 2,
+    "right_cache_modifier": 2,
+    "poll_sleep": 0,
+    "signal_mode": "auto",
+    "protocol": "barrier"
+  },
+  "correctness": {
+    "shape_MNK": [
+      32,
+      1024,
+      8192
+    ],
+    "config": "m32n64k64_cw1x2_lw1_lds2_sk4_bc2_sleep0_auto_barrier",
+    "first_four": [
+      7.0,
+      4.0,
+      1.0,
+      -2.0
+    ],
+    "patterns": 2,
+    "workspace_reuses_per_pattern": 3,
+    "split_boundaries": [
+      {
+        "tiles_per_split": 1,
+        "partial_values": [
+          64,
+          128,
+          192,
+          256
+        ],
+        "sum_before_bf16": 640
+      },
+      {
+        "tiles_per_split": 2,
+        "partial_values": [
+          192,
+          384,
+          576,
+          768
+        ],
+        "sum_before_bf16": 1920
+      },
+      {
+        "tiles_per_split": 3,
+        "partial_values": [
+          448,
+          896,
+          1344,
+          1792
+        ],
+        "sum_before_bf16": 4480
+      },
+      {
+        "tiles_per_split": 5,
+        "partial_values": [
+          1984,
+          3968,
+          5952,
+          7936
+        ],
+        "sum_before_bf16": 19840
+      }
+    ]
+  },
+  "seeds": [
+    2026112101,
+    2026112102,
+    2026112103
+  ],
+  "rounds": [
+    {
+      "seed": 2026112101,
+      "round": 0,
+      "median_ms": {
+        "specialized": 0.026049589064314205,
+        "prefetch": 0.02930614531351239,
+        "torch": 0.05903254218821985,
+        "tuned_prefetch": 0.028179523437188436
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.8888780419819777,
+          0.8858681901739133,
+          0.8741328960441055,
+          0.8708030766402486,
+          0.9015124504529222,
+          0.880499746844658,
+          0.8898751000088699
+        ],
+        "torch": [
+          0.43748702045597115,
+          0.4352088355736292,
+          0.4400015338103661,
+          0.43564803380899336,
+          0.44292663526008913,
+          0.4345436751496461,
+          0.4322357833114381
+        ],
+        "tuned_prefetch": [
+          0.9170160535915622,
+          0.9160582569636553,
+          0.9310713747374951,
+          0.9202732895310384,
+          0.9264032865748772,
+          0.9235647691638963,
+          0.9323901604569557
+        ]
+      },
+      "ratio_to_prefetch": 0.8858681901739133,
+      "ratio_to_torch": 0.43564803380899336,
+      "ratio_to_tuned_prefetch": 0.9235647691638963,
+      "samples_ms": {
+        "specialized": [
+          0.026049589064314205,
+          0.02607399375165187,
+          0.02637457812681987,
+          0.025717410935044427,
+          0.02610560312632515,
+          0.02560755625040656,
+          0.025487950000524506
+        ],
+        "prefetch": [
+          0.02930614531351239,
+          0.02943326562672155,
+          0.03017227500095032,
+          0.029532981250213197,
+          0.02895756249756687,
+          0.02908297968531315,
+          0.02864216562556976
+        ],
+        "torch": [
+          0.05954368437528501,
+          0.05991145312407298,
+          0.059942014061675764,
+          0.05903254218821985,
+          0.05893888749994858,
+          0.058929764060167145,
+          0.05896770000219931
+        ],
+        "tuned_prefetch": [
+          0.02840690625021125,
+          0.0284632484380154,
+          0.028327128126193202,
+          0.027945406247908977,
+          0.028179523437188436,
+          0.027726865624799757,
+          0.02733614218755065
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "prefetch",
+          "specialized",
+          "tuned_prefetch"
+        ],
+        [
+          "torch",
+          "specialized",
+          "tuned_prefetch",
+          "prefetch"
+        ],
+        [
+          "prefetch",
+          "tuned_prefetch",
+          "torch",
+          "specialized"
+        ],
+        [
+          "prefetch",
+          "tuned_prefetch",
+          "torch",
+          "specialized"
+        ],
+        [
+          "specialized",
+          "tuned_prefetch",
+          "torch",
+          "prefetch"
+        ],
+        [
+          "prefetch",
+          "tuned_prefetch",
+          "specialized",
+          "torch"
+        ],
+        [
+          "prefetch",
+          "tuned_prefetch",
+          "specialized",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112101,
+      "round": 1,
+      "median_ms": {
+        "specialized": 0.02533093906151862,
+        "prefetch": 0.02865157031237686,
+        "torch": 0.05909330625115672,
+        "tuned_prefetch": 0.027045729686392406
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.880740436602242,
+          0.8914485972239963,
+          0.8841029927974384,
+          0.8872033801875562,
+          0.8884322526891171,
+          0.8770914518912787,
+          0.8879029530806011
+        ],
+        "torch": [
+          0.4358515807279294,
+          0.435013404205327,
+          0.42666416924405215,
+          0.42846644352125546,
+          0.4275919234482604,
+          0.4236589053297926,
+          0.4294413418406964
+        ],
+        "tuned_prefetch": [
+          0.9384619554080242,
+          0.9323420826301437,
+          0.9365966219156382,
+          0.9332185574045854,
+          0.9255953276566031,
+          0.9306190634086176,
+          0.9400003210760473
+        ]
+      },
+      "ratio_to_prefetch": 0.8872033801875562,
+      "ratio_to_torch": 0.42846644352125546,
+      "ratio_to_tuned_prefetch": 0.9332185574045854,
+      "samples_ms": {
+        "specialized": [
+          0.025755910940006288,
+          0.025730801561962835,
+          0.02533093906151862,
+          0.025233379687961133,
+          0.02523573906216825,
+          0.025161115627270192,
+          0.025338970311850062
+        ],
+        "prefetch": [
+          0.02924347500083968,
+          0.028864032813658014,
+          0.02865157031237686,
+          0.02844148281155867,
+          0.0284047984365543,
+          0.02868699218652182,
+          0.028537995311239683
+        ],
+        "torch": [
+          0.05909330625115672,
+          0.05914944531184574,
+          0.059369735936343204,
+          0.05889231250080229,
+          0.05901827812522242,
+          0.05939003125092768,
+          0.059004496873171774
+        ],
+        "tuned_prefetch": [
+          0.02744481093941431,
+          0.02759802656271404,
+          0.027045729686392406,
+          0.027039089061986488,
+          0.027264332811682834,
+          0.027036965624915865,
+          0.02695634218810028
+        ]
+      },
+      "orders": [
+        [
+          "tuned_prefetch",
+          "specialized",
+          "prefetch",
+          "torch"
+        ],
+        [
+          "specialized",
+          "tuned_prefetch",
+          "prefetch",
+          "torch"
+        ],
+        [
+          "prefetch",
+          "specialized",
+          "torch",
+          "tuned_prefetch"
+        ],
+        [
+          "prefetch",
+          "specialized",
+          "torch",
+          "tuned_prefetch"
+        ],
+        [
+          "torch",
+          "specialized",
+          "tuned_prefetch",
+          "prefetch"
+        ],
+        [
+          "tuned_prefetch",
+          "torch",
+          "specialized",
+          "prefetch"
+        ],
+        [
+          "specialized",
+          "prefetch",
+          "tuned_prefetch",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112101,
+      "round": 2,
+      "median_ms": {
+        "specialized": 0.02606251093766332,
+        "prefetch": 0.029282129685270775,
+        "torch": 0.0592714718749221,
+        "tuned_prefetch": 0.0275509328133694
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.8805318977289348,
+          0.8766131521287613,
+          0.8819050775578892,
+          0.8925669027889233,
+          0.8900483406701474,
+          0.8805510134477957,
+          0.8726773485122684
+        ],
+        "torch": [
+          0.4444955307946919,
+          0.44031893019312757,
+          0.4379373627007549,
+          0.4420166029106408,
+          0.4395148506359545,
+          0.43026974186309047,
+          0.4251804106054726
+        ],
+        "tuned_prefetch": [
+          0.9353820851059516,
+          0.9187906827713187,
+          0.9167225193988137,
+          0.9483887143424893,
+          0.9580911684914764,
+          0.9342271453105238,
+          0.9173788830369732
+        ]
+      },
+      "ratio_to_prefetch": 0.8805510134477957,
+      "ratio_to_torch": 0.4395148506359545,
+      "ratio_to_tuned_prefetch": 0.9342271453105238,
+      "samples_ms": {
+        "specialized": [
+          0.026404687497461055,
+          0.026102024997953777,
+          0.025833704688693615,
+          0.026128993749807705,
+          0.02606251093766332,
+          0.02547802812671307,
+          0.0252010687489701
+        ],
+        "prefetch": [
+          0.029987201560288668,
+          0.029775990623193138,
+          0.02929306718613134,
+          0.029273989062517103,
+          0.029282129685270775,
+          0.02893418750034016,
+          0.02887787656220553
+        ],
+        "torch": [
+          0.0594037187511276,
+          0.0592798156247909,
+          0.05898949687548338,
+          0.05911314999877959,
+          0.059298362501181145,
+          0.059214082813241475,
+          0.0592714718749221
+        ],
+        "tuned_prefetch": [
+          0.02822877187611539,
+          0.028409109373228603,
+          0.028180506251374027,
+          0.0275509328133694,
+          0.027202537498283164,
+          0.027271770312609078,
+          0.027470731248513403
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "prefetch",
+          "tuned_prefetch",
+          "specialized"
+        ],
+        [
+          "torch",
+          "prefetch",
+          "specialized",
+          "tuned_prefetch"
+        ],
+        [
+          "prefetch",
+          "torch",
+          "specialized",
+          "tuned_prefetch"
+        ],
+        [
+          "specialized",
+          "torch",
+          "tuned_prefetch",
+          "prefetch"
+        ],
+        [
+          "prefetch",
+          "specialized",
+          "torch",
+          "tuned_prefetch"
+        ],
+        [
+          "torch",
+          "tuned_prefetch",
+          "prefetch",
+          "specialized"
+        ],
+        [
+          "prefetch",
+          "torch",
+          "specialized",
+          "tuned_prefetch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112102,
+      "round": 0,
+      "median_ms": {
+        "specialized": 0.02536589062742678,
+        "prefetch": 0.028590464063427135,
+        "torch": 0.059003043750749384,
+        "tuned_prefetch": 0.027192320311542062
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.8742802582483372,
+          0.8826900484879567,
+          0.8875254989957186,
+          0.8849022171814912,
+          0.890262790400931,
+          0.8858860118487887,
+          0.8771449134419463
+        ],
+        "torch": [
+          0.43621385841633414,
+          0.4320223620071175,
+          0.42812484418925834,
+          0.4304677288927401,
+          0.4294916117401862,
+          0.42919597930407166,
+          0.42497002535127654
+        ],
+        "tuned_prefetch": [
+          0.9392251420306754,
+          0.9190931311853792,
+          0.9328328857857696,
+          0.9401496635102575,
+          0.9257769536241375,
+          0.9370691305970861,
+          0.9286979884981488
+        ]
+      },
+      "ratio_to_prefetch": 0.8849022171814912,
+      "ratio_to_torch": 0.4294916117401862,
+      "ratio_to_tuned_prefetch": 0.9328328857857696,
+      "samples_ms": {
+        "specialized": [
+          0.025699975000748054,
+          0.02542567031298404,
+          0.02536589062742678,
+          0.02541578124919397,
+          0.025331689062113583,
+          0.02532789218605558,
+          0.025074524998558445
+        ],
+        "prefetch": [
+          0.029395579687729878,
+          0.028804754688849243,
+          0.028580464061178645,
+          0.02872157031106326,
+          0.02845417031380748,
+          0.028590464063427135,
+          0.028586525002083363
+        ],
+        "torch": [
+          0.05891599843721451,
+          0.0588526718729554,
+          0.05924881718897268,
+          0.059042245314344655,
+          0.05898063750180427,
+          0.05901241718788697,
+          0.059003043750749384
+        ],
+        "tuned_prefetch": [
+          0.027362954685372642,
+          0.027663867186333846,
+          0.027192320311542062,
+          0.02703376093791121,
+          0.02736262656242161,
+          0.027028840625575867,
+          0.02699965468764276
+        ]
+      },
+      "orders": [
+        [
+          "tuned_prefetch",
+          "specialized",
+          "prefetch",
+          "torch"
+        ],
+        [
+          "specialized",
+          "tuned_prefetch",
+          "prefetch",
+          "torch"
+        ],
+        [
+          "prefetch",
+          "specialized",
+          "torch",
+          "tuned_prefetch"
+        ],
+        [
+          "prefetch",
+          "specialized",
+          "torch",
+          "tuned_prefetch"
+        ],
+        [
+          "torch",
+          "specialized",
+          "tuned_prefetch",
+          "prefetch"
+        ],
+        [
+          "tuned_prefetch",
+          "torch",
+          "specialized",
+          "prefetch"
+        ],
+        [
+          "specialized",
+          "prefetch",
+          "tuned_prefetch",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112102,
+      "round": 1,
+      "median_ms": {
+        "specialized": 0.026030573437196836,
+        "prefetch": 0.029248787501501283,
+        "torch": 0.059226848438242996,
+        "tuned_prefetch": 0.027867548436688594
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.910101636797672,
+          0.8982185368346635,
+          0.8899710265206973,
+          0.8893182837769938,
+          0.8859119199817793,
+          0.8822468226835533,
+          0.8764090973323638
+        ],
+        "torch": [
+          0.44546419540826476,
+          0.445844086763166,
+          0.437837945241526,
+          0.4415802048767766,
+          0.43879719563801906,
+          0.43367154662592255,
+          0.4296541946515503
+        ],
+        "tuned_prefetch": [
+          0.9332742228744644,
+          0.9329074306241986,
+          0.9184187549140342,
+          0.937726290149062,
+          0.944611439567112,
+          0.9404453139199095,
+          0.9135863548400074
+        ]
+      },
+      "ratio_to_prefetch": 0.8893182837769938,
+      "ratio_to_torch": 0.43879719563801906,
+      "ratio_to_tuned_prefetch": 0.9332742228744644,
+      "samples_ms": {
+        "specialized": [
+          0.026528246874590877,
+          0.026589915626118454,
+          0.026030573437196836,
+          0.026132132811085285,
+          0.025988575001179015,
+          0.02559316562553704,
+          0.02534421874997861
+        ],
+        "prefetch": [
+          0.029148664063427532,
+          0.02960294687284204,
+          0.029248787501501283,
+          0.02938445468601003,
+          0.029335393750784533,
+          0.029009076561692382,
+          0.02891825156439154
+        ],
+        "torch": [
+          0.05955191718669539,
+          0.059639493750296424,
+          0.059452529686154776,
+          0.05917867812570421,
+          0.059226848438242996,
+          0.05901509062482546,
+          0.05898748124764097
+        ],
+        "tuned_prefetch": [
+          0.028424921876535336,
+          0.028502201561764196,
+          0.02834281562513752,
+          0.027867548436688594,
+          0.027512450000699573,
+          0.027213879687337794,
+          0.027741459376784405
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "prefetch",
+          "tuned_prefetch",
+          "specialized"
+        ],
+        [
+          "torch",
+          "prefetch",
+          "specialized",
+          "tuned_prefetch"
+        ],
+        [
+          "prefetch",
+          "torch",
+          "specialized",
+          "tuned_prefetch"
+        ],
+        [
+          "specialized",
+          "torch",
+          "tuned_prefetch",
+          "prefetch"
+        ],
+        [
+          "prefetch",
+          "specialized",
+          "torch",
+          "tuned_prefetch"
+        ],
+        [
+          "torch",
+          "tuned_prefetch",
+          "prefetch",
+          "specialized"
+        ],
+        [
+          "prefetch",
+          "torch",
+          "specialized",
+          "tuned_prefetch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112102,
+      "round": 2,
+      "median_ms": {
+        "specialized": 0.025763784373111775,
+        "prefetch": 0.029092901564808926,
+        "torch": 0.05913738281435599,
+        "tuned_prefetch": 0.02754415312438141
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.8834535493951404,
+          0.8733366207138069,
+          0.8816116777267874,
+          0.8936607549552658,
+          0.8719594622086515,
+          0.8789551331485586,
+          0.8872547216487768
+        ],
+        "torch": [
+          0.44070780629591116,
+          0.43592710893304043,
+          0.43508556926588077,
+          0.4398550812103769,
+          0.43030293137850506,
+          0.4297106212545538,
+          0.42713122214360194
+        ],
+        "tuned_prefetch": [
+          0.9243486494339062,
+          0.9309843562704345,
+          0.9353630970888811,
+          0.936384361474508,
+          0.9289003727965593,
+          0.9252874787400599,
+          0.9224119069545759
+        ]
+      },
+      "ratio_to_prefetch": 0.8816116777267874,
+      "ratio_to_torch": 0.43508556926588077,
+      "ratio_to_tuned_prefetch": 0.9289003727965593,
+      "samples_ms": {
+        "specialized": [
+          0.026062306250196343,
+          0.02579759687648675,
+          0.025763784373111775,
+          0.025999184376246376,
+          0.025337735937114303,
+          0.02532948593909623,
+          0.02528101875043376
+        ],
+        "prefetch": [
+          0.029500482813205053,
+          0.029539121874222474,
+          0.029223506248854392,
+          0.029092901564808926,
+          0.02905838749995837,
+          0.02881772343528155,
+          0.028493529686102192
+        ],
+        "torch": [
+          0.05913738281435599,
+          0.05917869374911788,
+          0.05921544218665531,
+          0.059108523436179894,
+          0.058883484376792694,
+          0.058945449998759614,
+          0.05918794375077141
+        ],
+        "tuned_prefetch": [
+          0.028195320311397154,
+          0.027710021873872392,
+          0.02754415312438141,
+          0.027765504685817177,
+          0.027277129689196045,
+          0.02737472031242305,
+          0.027407515622712708
+        ]
+      },
+      "orders": [
+        [
+          "prefetch",
+          "tuned_prefetch",
+          "specialized",
+          "torch"
+        ],
+        [
+          "tuned_prefetch",
+          "torch",
+          "specialized",
+          "prefetch"
+        ],
+        [
+          "torch",
+          "tuned_prefetch",
+          "prefetch",
+          "specialized"
+        ],
+        [
+          "specialized",
+          "tuned_prefetch",
+          "prefetch",
+          "torch"
+        ],
+        [
+          "torch",
+          "specialized",
+          "prefetch",
+          "tuned_prefetch"
+        ],
+        [
+          "tuned_prefetch",
+          "torch",
+          "specialized",
+          "prefetch"
+        ],
+        [
+          "specialized",
+          "tuned_prefetch",
+          "prefetch",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112103,
+      "round": 0,
+      "median_ms": {
+        "specialized": 0.025468373439707648,
+        "prefetch": 0.028874407811940728,
+        "torch": 0.05906813593696825,
+        "tuned_prefetch": 0.027571493751565868
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.8941547053915453,
+          0.8893783049152997,
+          0.8757159151830319,
+          0.8859282199160261,
+          0.8891855989755263,
+          0.8698669381923972,
+          0.8758756171016638
+        ],
+        "torch": [
+          0.4376098556049923,
+          0.4337646318522748,
+          0.4316191436237146,
+          0.4312612805540463,
+          0.4299340715806413,
+          0.43491745373562946,
+          0.4283288271959198
+        ],
+        "tuned_prefetch": [
+          0.9321020757745823,
+          0.926734129119643,
+          0.9237212052851225,
+          0.9376092499485653,
+          0.9319659412979437,
+          0.9260669852981334,
+          0.9241178244625095
+        ]
+      },
+      "ratio_to_prefetch": 0.8859282199160261,
+      "ratio_to_torch": 0.4316191436237146,
+      "ratio_to_tuned_prefetch": 0.926734129119643,
+      "samples_ms": {
+        "specialized": [
+          0.025848798438232734,
+          0.02568027187521693,
+          0.025468373439707648,
+          0.02546088906001387,
+          0.025418310937652677,
+          0.025818501563890095,
+          0.025257846874637835
+        ],
+        "prefetch": [
+          0.02890864218727529,
+          0.028874407811940728,
+          0.02908291718597411,
+          0.028739223435536587,
+          0.028586057811708088,
+          0.02968097812470205,
+          0.028837253123015216
+        ],
+        "torch": [
+          0.05906813593696825,
+          0.05920324062742566,
+          0.05900658906341505,
+          0.05903819843808833,
+          0.05912141562589568,
+          0.05936414218865593,
+          0.05896835625094354
+        ],
+        "tuned_prefetch": [
+          0.027731725000990082,
+          0.02771050624801319,
+          0.027571493751565868,
+          0.02715511718918151,
+          0.027273862500010182,
+          0.027879734375346743,
+          0.027331846877132193
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "prefetch",
+          "tuned_prefetch",
+          "specialized"
+        ],
+        [
+          "torch",
+          "prefetch",
+          "specialized",
+          "tuned_prefetch"
+        ],
+        [
+          "prefetch",
+          "torch",
+          "specialized",
+          "tuned_prefetch"
+        ],
+        [
+          "specialized",
+          "torch",
+          "tuned_prefetch",
+          "prefetch"
+        ],
+        [
+          "prefetch",
+          "specialized",
+          "torch",
+          "tuned_prefetch"
+        ],
+        [
+          "torch",
+          "tuned_prefetch",
+          "prefetch",
+          "specialized"
+        ],
+        [
+          "prefetch",
+          "torch",
+          "specialized",
+          "tuned_prefetch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112103,
+      "round": 1,
+      "median_ms": {
+        "specialized": 0.026084274998083856,
+        "prefetch": 0.0295691218752836,
+        "torch": 0.05920161406152147,
+        "tuned_prefetch": 0.028042012499440716
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.8860632497188832,
+          0.8758552987126075,
+          0.881373265448194,
+          0.891764836128652,
+          0.8648195700449294,
+          0.8735198369076523,
+          0.8900560839050635
+        ],
+        "torch": [
+          0.4408691109092591,
+          0.44077837099668127,
+          0.43594597356077475,
+          0.4437882278212834,
+          0.4327342245538041,
+          0.43061826778336576,
+          0.4326918293418701
+        ],
+        "tuned_prefetch": [
+          0.9270289944056265,
+          0.9301855563542059,
+          0.930617592930606,
+          0.9293844957961586,
+          0.9190604031255033,
+          0.9188093671838687,
+          0.9249522764399687
+        ]
+      },
+      "ratio_to_prefetch": 0.881373265448194,
+      "ratio_to_torch": 0.43594597356077475,
+      "ratio_to_tuned_prefetch": 0.9270289944056265,
+      "samples_ms": {
+        "specialized": [
+          0.02641234375175827,
+          0.026084274998083856,
+          0.02626075468867839,
+          0.026368703123580417,
+          0.02552091875145379,
+          0.02539828124952237,
+          0.025616054688271106
+        ],
+        "prefetch": [
+          0.0298086437510392,
+          0.029781489061520006,
+          0.029795270310728483,
+          0.0295691218752836,
+          0.029510107813734976,
+          0.029075792187427396,
+          0.028780270312722678
+        ],
+        "torch": [
+          0.05990971718858873,
+          0.05917775624766364,
+          0.06023855312662363,
+          0.059417310939124945,
+          0.058975965623631055,
+          0.0589809656247553,
+          0.05920161406152147
+        ],
+        "tuned_prefetch": [
+          0.028491389062423877,
+          0.028042012499440716,
+          0.02821863124893298,
+          0.028372221876793446,
+          0.02776848906194118,
+          0.02764260156311593,
+          0.02769446093680017
+        ]
+      },
+      "orders": [
+        [
+          "prefetch",
+          "tuned_prefetch",
+          "specialized",
+          "torch"
+        ],
+        [
+          "tuned_prefetch",
+          "torch",
+          "specialized",
+          "prefetch"
+        ],
+        [
+          "torch",
+          "tuned_prefetch",
+          "prefetch",
+          "specialized"
+        ],
+        [
+          "specialized",
+          "tuned_prefetch",
+          "prefetch",
+          "torch"
+        ],
+        [
+          "torch",
+          "specialized",
+          "prefetch",
+          "tuned_prefetch"
+        ],
+        [
+          "tuned_prefetch",
+          "torch",
+          "specialized",
+          "prefetch"
+        ],
+        [
+          "specialized",
+          "tuned_prefetch",
+          "prefetch",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 2026112103,
+      "round": 2,
+      "median_ms": {
+        "specialized": 0.02576416093802436,
+        "prefetch": 0.029179320313232893,
+        "torch": 0.059060885936901286,
+        "tuned_prefetch": 0.027841642187809157
+      },
+      "paired_ratios": {
+        "prefetch": [
+          0.8768158953359794,
+          0.9059613862746885,
+          0.8766495970809989,
+          0.8797628272175694,
+          0.8747144609470417,
+          0.8848667928411513,
+          0.8935727774423113
+        ],
+        "torch": [
+          0.4333343651126801,
+          0.4461188223593934,
+          0.44183737468835527,
+          0.4362305192229921,
+          0.4324649654402525,
+          0.4259793313074006,
+          0.43195464817514484
+        ],
+        "tuned_prefetch": [
+          0.9236116899247285,
+          0.938274894400187,
+          0.934113415337432,
+          0.9253822301223866,
+          0.9295396217467354,
+          0.9357638611343195,
+          0.9374867921153637
+        ]
+      },
+      "ratio_to_prefetch": 0.8797628272175694,
+      "ratio_to_torch": 0.4333343651126801,
+      "ratio_to_tuned_prefetch": 0.934113415337432,
+      "samples_ms": {
+        "specialized": [
+          0.025899468749912558,
+          0.026410906249907384,
+          0.026046526562595318,
+          0.02576416093802436,
+          0.025523573438590574,
+          0.025462184373736818,
+          0.025487387500788827
+        ],
+        "prefetch": [
+          0.02953809218979586,
+          0.029152353124572983,
+          0.02971144531329628,
+          0.029285348438179426,
+          0.029179320313232893,
+          0.028775160939176203,
+          0.028523012500158984
+        ],
+        "torch": [
+          0.059767862498461,
+          0.059201506249451086,
+          0.058950482812747396,
+          0.059060885936901286,
+          0.05901882343835041,
+          0.05977328593758102,
+          0.059004776562687766
+        ],
+        "tuned_prefetch": [
+          0.028041512501886245,
+          0.028148367186986434,
+          0.02788368749975234,
+          0.027841642187809157,
+          0.027458295312499104,
+          0.02721005312480429,
+          0.027186929688127748
+        ]
+      },
+      "orders": [
+        [
+          "tuned_prefetch",
+          "prefetch",
+          "torch",
+          "specialized"
+        ],
+        [
+          "specialized",
+          "torch",
+          "prefetch",
+          "tuned_prefetch"
+        ],
+        [
+          "specialized",
+          "prefetch",
+          "tuned_prefetch",
+          "torch"
+        ],
+        [
+          "tuned_prefetch",
+          "prefetch",
+          "specialized",
+          "torch"
+        ],
+        [
+          "tuned_prefetch",
+          "specialized",
+          "prefetch",
+          "torch"
+        ],
+        [
+          "torch",
+          "tuned_prefetch",
+          "prefetch",
+          "specialized"
+        ],
+        [
+          "specialized",
+          "torch",
+          "tuned_prefetch",
+          "prefetch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "tuned_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    }
+  ],
+  "worst_round_ratio": {
+    "prefetch": 0.8893182837769938,
+    "torch": 0.4395148506359545,
+    "tuned_prefetch": 0.9342271453105238
+  },
+  "performance_status": {
+    "prefetch": "win",
+    "torch": "win",
+    "tuned_prefetch": "win"
+  },
+  "median_ms": {
+    "specialized": 0.02576416093802436,
+    "prefetch": 0.029179320313232893,
+    "torch": 0.05909330625115672,
+    "tuned_prefetch": 0.027571493751565868
+  },
+  "thresholds": {
+    "win": "every round median paired ratio < 0.95",
+    "match": "every round median paired ratio <= 1.05"
+  }
+}

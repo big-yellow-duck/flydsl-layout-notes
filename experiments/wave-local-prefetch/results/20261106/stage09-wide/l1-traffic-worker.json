@@ -1,0 +1,65 @@
+{
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-06T07:14:15.060099+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.0.0",
+    "hip": "7.15.26333",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      4096,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "7e0b933d7110ec331e713e202e328c3f7c4d6dbdefea0dbbb905da85931a0490",
+    "source_sha256": {
+      "solution.py": "3610a4eae71843522735f7ccf1f8e8bbb328550b129e3cb75fe57d64bfaa37cc",
+      "tune.py": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755"
+    }
+  },
+  "shape_MNK": [
+    16,
+    4096,
+    8192
+  ],
+  "module": "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/solution.py",
+  "module_sha256": "3610a4eae71843522735f7ccf1f8e8bbb328550b129e3cb75fe57d64bfaa37cc",
+  "config": {
+    "block_m": 16,
+    "block_n": 32,
+    "block_k": 16,
+    "waves_m": 1,
+    "waves_n": 1,
+    "group_m": 1,
+    "split_k": 1
+  },
+  "name": "m16n32k16_w1x1_prefetch_lds1_gm1_sk1",
+  "dispatch_sequence": [
+    "native",
+    "torch",
+    "torch",
+    "native",
+    "native",
+    "torch",
+    "torch",
+    "native",
+    "native",
+    "torch",
+    "torch",
+    "native",
+    "native",
+    "torch",
+    "torch",
+    "native"
+  ],
+  "pairs": 8,
+  "warmups_per_implementation": 20,
+  "correctness": "full CPU reference, output sentinels, workspace reset before/after collection passed",
+  "scope": "ROCTx-selected synchronized matmuls; instrumented profiles are separate from performance verification"
+}

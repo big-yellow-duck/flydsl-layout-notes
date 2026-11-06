@@ -27,6 +27,9 @@ python3 tools/draw_thread_value_layouts.py
 python3 tools/draw_lesson_visuals.py
 python3 tools/draw_matmul_lessons.py
 python3 tools/draw_grouped_traversal.py
+python3 tools/draw_split_k.py
+python3 tools/draw_skinny_lessons.py
+python3 tools/draw_operand_paths.py
 python3 tools/animate_matmul_tuning.py
 ```
 
@@ -39,3 +42,5 @@ Store diagrams under `assets/<section>/<lesson>/`, mirroring the `lessons/` hier
 The lessons embed SVGs; PNG copies are included for convenient previews. The numerical walkthrough requires the pinned FlyDSL/ROCm GPU environment. Keep practice TODOs unfinished and solutions runnable.
 
 For new kernels, present data views before ownership and access: create or reuse views, select the work, assign ownership, then load/compute/store. Name intermediate views rather than nesting view creation inside partition calls. Reuse an incoming layout when it already fits. Keep layout-only exercises focused on mappings and keep broad equivalence checks separate from the first access example. Explain coordinate tensors explicitly as index-only views. Keep practice TODO names and README instructions aligned.
+
+Archived research figures can be regenerated separately with `python3 experiments/wave-local-prefetch/draw_figures.py` and `python3 experiments/wave-specialization/draw_figures.py`. Their native sources and raw result snapshots retain the original experiments.

@@ -1,8 +1,8 @@
 # 13 · Optimize BF16 matrix multiplication
 
-Build one GPU matrix product in twelve steps: a naive dot product, a column-major B storage experiment, native four-row thread windows, LDS staging, vectorized copies, a matrix instruction, measured LDS bank-conflict reduction, interleaved loads with compute, buffer global access, separate operand staging plans, grouped block traversal, and measured parameter tuning. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has an illustrated walkthrough, two expression-sized practice TODOs, a worked solution, and a checker.
+Build one GPU matrix product in eighteen steps: a naive dot product, a column-major B storage experiment, native four-row thread windows, LDS staging, vectorized copies, a matrix instruction, measured LDS bank-conflict reduction, interleaved loads with compute, buffer global access, separate operand staging plans, grouped block traversal, measured parameter tuning, single-kernel split-K for skinny outputs, independent wave tiles, synchronization scope, B cache policy, K-loop unrolling, and operand-specific memory paths. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has an illustrated walkthrough, two expression-sized practice TODOs, a worked solution, and a checker.
 
-All runnable exercises and comparisons use **M = N = K = 1024**. A is row-major BF16. Stage 01 supplies a column-major BF16 B to make each thread's K walk contiguous; other stages supply row-major BF16 B. All tensors are on the GPU. Kernels accumulate in FP32 and write a BF16 matrix C implementing `C = A @ B`. There is no bias, activation, or alpha/beta scaling. Stage-01 B packing and all allocations are outside timing. Diagrams zoom into block tiles and thread fragments within this same workload; each stage states its tile dimensions.
+Stages 00–08 retain the **M = N = K = 1024** comparison; stages 09–12 target declared skinny workloads with K=8192. A is row-major BF16. Stage 01 supplies a column-major BF16 B to make each thread's K walk contiguous; other stages supply row-major BF16 B. All tensors are on the GPU. Kernels accumulate in FP32 and write a BF16 matrix C implementing `C = A @ B`. There is no bias, activation, or alpha/beta scaling. Stage-01 B packing and all allocations are outside timing. Diagrams zoom into block tiles and thread fragments within this same workload; each stage states its tile dimensions.
 
 | Stage | What it teaches | Block tile / threads |
 | --- | --- | --- |
@@ -17,9 +17,17 @@ All runnable exercises and comparisons use **M = N = K = 1024**. A is row-major 
 | [07a · Buffer access](07a-buffer-access/README.md) | Buffer global loads/stores with the existing shared staging plan | 64×64 / 128 |
 | [07b · Operand staging](07b-operand-staging/README.md) | Derive A/B copy ownership independently from contiguous K/N extents | 64×64 / 128 |
 | [07c · Grouped traversal](07c-grouped-traversal/README.md) | Group block IDs along M to encourage B reuse through cache | 64×64 / 128 |
-| [08 · Parameter tuning](08-parameter-tuning/README.md) | Tile/wave/buffer search, register reuse, and held-out paired PyTorch verification | 128×128 / 128 |
+| [08 · Parameter tuning](08-parameter-tuning/README.md) | Single-stage tile/wave search, register reuse, and held-out paired PyTorch verification | 128×128 / 128 |
+| [09 · Skinny split-K](09-split-k/README.md) | Split K across blocks; publish FP32 partials and finalize BF16 output in the same kernel | Shape-specific |
+| [10 · Independent wave tiles](10-wave-local-tiles/README.md) | Map two physical waves to disjoint output tiles and LDS regions | Wide: 16×64 per wave / 64 threads |
+| [10a · Synchronization scope](10a-synchronization-scope/README.md) | Narrow memory ordering and execution participants independently | Same geometry as 10 |
+| [10b · B cache policy](10b-cache-policy/README.md) | Change a buffer-load hint while keeping addresses and ownership fixed | Same geometry as 10a |
+| [10c · K-loop unrolling](10c-k-unrolling/README.md) | Unroll steady steps, cover the tail, and inspect register use | Same geometry as 10b |
+| [12 · Operand paths](12-operand-paths/README.md) | Profile hipBLASLt; load A into WMMA registers when useful while retaining coalesced B staging | Shape-specific; default 32×64 / 64 threads |
 
 Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labels carefully: input values, storage offsets, thread IDs, and accumulator slots describe different things. Keep the same arithmetic and shape while changing one part of the implementation at a time. All stages use named `*_global_view`, `*_tiled_view`, `*_block_view`, and thread/fragment views instead of handwritten global storage offsets. Stages 00–02 select full-K input windows; stage 03 selects 16-wide K windows (64 in its 4×4 variant), stage 04 selects 64-wide windows, stages 05–07c select 64-wide windows. Changes in block size and instruction ownership are stated explicitly; they also affect resource usage.
+
+Stage 09 tests all three split counts on `(16,1024,8192)`, `(32,1024,8192)`, and `(16,4096,8192)`. It has a dedicated skinny-shape benchmark, with one captured kernel per GEMM and no reduction/clear pass. The full-series benchmark retains the twelve 1024³ implementations.
 
 Stage 08 additionally supports a separately tuned **(M,N,K)=(1024,4096,2048)** workload through its shape selector. The standard course benchmark keeps the original 1024³ comparison. See [stage 08](08-parameter-tuning/README.md) for per-shape configurations and verification.
 
@@ -33,7 +41,7 @@ pixi run python lessons/01-gpu-programming/13-matmul/00-naive/solution.py
 pixi run gpu-check
 ```
 
-The starter is intentionally unfinished and reports `Practice not finished: ...`. Complete its two TODOs and compare with its solution before continuing to the next stage. All twelve check the entire 1024×1024 output with trace and seeded random inputs, against an untimed CPU FP32 reference computed from the quantized BF16 inputs and rounded to BF16. Sixteen trailing sentinels check for stray writes. The common trace checkpoint is `[3, -6, -1, -3]` for the first four outputs in row 0. Each walkthrough specifies the numerical tolerances.
+The starter is intentionally unfinished and reports `Practice not finished: ...`. Complete its two TODOs and compare with its solution before continuing to the next stage. Stages 00–08 check the entire 1024×1024 output with trace and seeded random inputs, against an untimed CPU FP32 reference computed from the quantized BF16 inputs and rounded to BF16. Sixteen trailing sentinels check for stray writes. The 1024³ trace checkpoint is `[3, -6, -1, -3]` for the first four outputs in row 0. Each walkthrough specifies the numerical tolerances.
 
 Stages 00–03 use a 64×64 grid of 16×16 output tiles. Stage 04 follows the shared-memory 4×4 variant: a 16×16 grid of 64×64 output tiles with 16 K stages of width 64. Stages 05–07c use a 16×16 grid of 64×64 output tiles, four waves per block, and 16 K stages of width 64, consumed through four explicit K=16 inner steps. The standard LDS kernel uses 64 K stages of width 16. These kernels assume complete tiles and contiguous storage. General strides and partial tiles belong to the later shape-tuning work.
 
@@ -57,7 +65,7 @@ Explicit `--timing gpu-event` uses GPU events on the current/default stream with
 
 Explicit `host` timing uses a monotonic CPU clock around GPU launches, with GPU synchronization before and after each batch. **Computation still runs on the GPU.** This measurement includes Python dispatch, launch gaps, and batch synchronization, so it measures host-observed execution cost rather than isolated device time. Compare rows only under the same timing method and rerun to assess variation. The output records the GPU, architecture, versions, method, and scope; it prints no automatic winner.
 
-`torch.matmul` is a practical baseline, but this harness has not identified its underlying BLAS backend. A later library challenge must identify whether the comparison is hipBLAS, hipBLASLt, or another path and match dtype, accumulation, layout, output, and timing policies. No current lesson claims to beat hipBLAS.
+The fixed 1024³ harness has not identified Torch's selected library solution. The separate [skinny-shape investigation](../../../experiments/torch-strategy/README.md) identifies hipBLASLt for the three skinny calls; those results do not identify the 1024³ backend. Match dtype, accumulation, layout, output, and timing policy before making a library comparison.
 
 ## Measure LDS layout changes
 
@@ -65,7 +73,7 @@ Explicit `host` timing uses a monotonic CPU clock around GPU launches, with GPU 
 
 ## Interleave loads with compute
 
-[Stage 07](07-interleaved-loads/README.md) retains the measured padded A layout and compares serial staging with a one-tile global prefetch. Private staging registers hold the future tile while WMMA consumes current LDS. Prologue, reader/ready barriers, and drain protect a single shared tile per operand. Its dedicated profiler verifies final instruction/wait order, checks one-/two-/three-tile boundaries, and times both schedules with the same layout; the full-series benchmark uses the prefetch default.
+[Stage 07](07-interleaved-loads/README.md) retains the measured padded A layout and compares serial staging with a one-tile global prefetch. Private staging registers hold the future tile while WMMA consumes current LDS. Prologue, reader/ready barriers, and drain protect a single shared tile per operand. Its dedicated profiler verifies final instruction/wait order, checks one-/two-/three-tile boundaries, and times both schedules with the same layout; the full-series benchmark uses prefetch. Subsequent lessons keep only the prefetch schedule.
 
 ## Group blocks for cache reuse
 
@@ -73,12 +81,24 @@ Explicit `host` timing uses a monotonic CPU clock around GPU launches, with GPU 
 
 ## Tune and verify register reuse
 
-[Stage 08](08-parameter-tuning/README.md) stages full K tiles in LDS but consumes 16-wide operand fragments, uses native buffer-addressed global copies, and groups output blocks to reuse B in cache. Its 132-candidate tile/wave/buffer search selected 128×128×32 with 1×4 waves and one LDS buffer. All candidates passed full-output correctness. Two locked direct-launch verifications passed the strict win criterion in all 18 rounds across six fresh seeds; graph verification met parity. Three ordinary lesson CLI runs also beat GPU PyTorch using available GPU-event timing. The [measured comparison](08-parameter-tuning/README.md#the-measured-winner) includes commands for reproducing the benchmark and profiler measurements. These results apply to the fixed 1024³ workload on gfx1151.
+[Stage 08](08-parameter-tuning/README.md) stages full K tiles in LDS but consumes 16-wide operand fragments, uses native buffer-addressed global copies, and groups output blocks to reuse B in cache. Its historical 132-candidate tile/wave/buffer search selected 128×128×32 with 1×4 waves and one LDS buffer. All candidates passed full-output correctness. The current tuner retains only the 76 single-stage tile/wave candidates. Two locked direct-launch verifications passed the strict win criterion in all 18 rounds across six fresh seeds; graph verification met parity. Three ordinary lesson CLI runs also beat GPU PyTorch using available GPU-event timing. The [measured comparison](08-parameter-tuning/README.md#the-measured-winner) includes commands for reproducing the benchmark and profiler measurements. These results apply to the fixed 1024³ workload on gfx1151.
+
+## Split skinny GEMMs along K
+
+[Stage 09](09-split-k/README.md) gives each output tile one, two, or four blocks with disjoint K intervals. Each split retains stage 08's prefetch pipeline and single LDS tile per operand. Threads publish FP32 partials to reusable workspace; an agent-scope acquire/release counter elects the final arriving peer to reduce its own WMMA C slots and write BF16 output. Counter reset occurs in the same kernel. The benchmark validates graph node counts and changed-input replay, then compares the same skinny inputs against GPU PyTorch.
+
+## Separate the skinny optimizations
+
+After 09, follow **10 → 10a → 10b → 10c → 12**. [10](10-wave-local-tiles/README.md) assigns independent wave tiles and disjoint LDS with conservative barriers. [10a](10a-synchronization-scope/README.md) narrows the tile handoffs. [10b](10b-cache-policy/README.md) compares B cache policies. [10c](10c-k-unrolling/README.md) expands the prefetched K loop and checks its full-group/tail boundary. Each step has a separate native practice/solution pair, one exact diagram, a controlled benchmark, and an ISA inspector. [Validation and current controlled measurements](10c-k-unrolling/results/README.md) distinguish isolated effects from the earlier combined result.
+
+[12](12-operand-paths/README.md) then derives direct global-to-register A copies from WMMA ownership, preserving B's coalesced staging path. It compares against tuned 10c and same-geometry prefetch on all three skinny workloads. Every wave loads and computes, and each GEMM remains one kernel.
+
+The [original combined experiment](../../../experiments/wave-local-prefetch/README.md) preserves the profiling/search evidence that motivated these steps. Its native builder is retained in 10c. [Dedicated loader waves and semaphore handoffs](../../../experiments/wave-specialization/README.md) remain research; [12 explains why prefetch was retained](12-operand-paths/README.md#why-the-course-keeps-prefetch). Neither is a main-path prerequisite. Stage numbering is preserved, so the path skips 11.
 
 ## Scope and next experiments
 
-These twelve stages were executed on Radeon 8060S (`gfx1151`) with FlyDSL 0.4.1 and the shared Pixi environment. WMMA uses the gfx11 wave32 convention intended for gfx1151/gfx1152; the new lessons still need hardware validation on gfx1152. The final kernel is a teaching baseline with 128-bit staging copies and one staging buffer per operand.
+These eighteen stages execute on Radeon 8060S (`gfx1151`) with FlyDSL 0.4.1 and the shared Pixi environment. WMMA uses the gfx11 wave32 convention intended for gfx1151/gfx1152; hardware validation on gfx1152 remains pending. Main-path skinny kernels keep one LDS stage per operand per independent group, with A bypassing LDS where selected in 12. Agent-scope split-K arrival counters still finalize partials in the same kernel.
 
-The [roadmap](../../../ROADMAP.md#matmul-continuation-planned) continues with deeper software pipelines, shape/resource tuning, and a named-library challenge. Those stages are planned, not completed. Preserve this fixed 1024³ comparison while testing each new optimization; do not infer a general GPU result from one shape.
+The [roadmap](../../../ROADMAP.md#matmul-continuation-planned) continues with deeper prefetch pipelines, shape/resource tuning, and a named-library challenge. Those stages are planned. Preserve the fixed 1024³ comparison while testing new optimizations; do not infer a general GPU result from one shape.
 
 [Previous: inspect and measure](../12-inspect-and-tune/README.md) · [GPU programming](../README.md) · [Course overview](../../../README.md)

@@ -1,0 +1,431 @@
+"""Search dedicated wave roles, then compare locked choices with prefetch and Torch."""
+
+import argparse
+import gc
+import hashlib
+import inspect
+import json
+import random
+import runpy
+import statistics
+import time
+from dataclasses import asdict, replace
+from itertools import product
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+HELPER_PATH = HERE.parent / "09-split-k" / "tune.py"
+BASELINE_PATH = HERE.parent / "10-wave-local-tiles" / "solution.py"
+MODULE_PATH = HERE / "solution.py"
+MODULE = runpy.run_path(str(MODULE_PATH))
+PREFETCH = runpy.run_path(str(BASELINE_PATH))
+TUNED_PREFETCH = None
+COMMON = runpy.run_path(str(HELPER_PATH))
+CONTEXT = COMMON["inputs"].__globals__
+
+
+def check_workspace(launch):
+    module = MODULE if hasattr(launch, "sync_trace") else PREFETCH
+    module["check_workspace"](launch)
+
+
+CONTEXT.update(
+    HERE=HERE,
+    MODULE={**MODULE, "check_workspace": check_workspace},
+    Config=MODULE["Config"],
+    BUILD=MODULE["build"],
+    SHAPE=(16, 4096, 8192),
+)
+
+
+def environment(shape):
+    CONTEXT["SHAPE"] = tuple(shape)
+    return {
+        **COMMON["environment"](),
+        "prefetch_config": asdict(PREFETCH["CONFIGS_BY_SHAPE"][tuple(shape)]),
+        "prefetch_source_sha256": hashlib.sha256(
+            BASELINE_PATH.read_bytes()
+        ).hexdigest(),
+        "prefetch_factory_sha256": hashlib.sha256(
+            inspect.getsource(PREFETCH["build"].__wrapped__).encode()
+        ).hexdigest(),
+        "benchmark_helpers_sha256": hashlib.sha256(
+            HELPER_PATH.read_bytes()
+        ).hexdigest(),
+        "module_path": str(MODULE_PATH),
+        "module_sha256": hashlib.sha256(MODULE_PATH.read_bytes()).hexdigest(),
+        "tuned_prefetch_config": asdict(TUNED_PREFETCH)
+        if TUNED_PREFETCH is not None
+        else None,
+    }
+
+
+def capture(launch, data):
+    gc.collect()
+    enabled = gc.isenabled()
+    gc.disable()
+    try:
+        graph, metadata = COMMON["capture"](launch, data)
+    finally:
+        if enabled:
+            gc.enable()
+    if metadata["nodes"] != 32 or metadata["kernel_nodes"] != 32:
+        raise RuntimeError(f"Expected one kernel per GEMM: {metadata}")
+    return graph, metadata
+
+
+def measure(launches, data, batches=3, repeats=3, order_seed=0, timing="graph-host"):
+    """Three implementations share inputs/output and alternate in the same batch."""
+    metadata, graphs = {}, {}
+    if timing == "graph-host":
+        for name, launch in launches.items():
+            graphs[name], metadata[name] = capture(launch, data)
+        callbacks = {name: graph.replay for name, graph in graphs.items()}
+        operations = 32
+    else:
+        a, b, storage, _ = data
+        m, n, _ = CONTEXT["SHAPE"]
+        out = storage[:-16].view(m, n)
+        callbacks = {
+            name: (lambda launch=launch: launch(a, b, out))
+            for name, launch in launches.items()
+        }
+        operations = 1
+    for callback in callbacks.values():
+        for _ in range(3):
+            callback()
+    samples = {name: [] for name in callbacks}
+    orders = []
+    generator = random.Random(order_seed)
+    for _ in range(batches):
+        order = list(callbacks)
+        generator.shuffle(order)
+        orders.append(order)
+        for name in order:
+            elapsed = COMMON["timed_batch"](callbacks[name], repeats) / operations
+            samples[name].append(elapsed)
+    reference_names = [name for name in launches if name != "specialized"]
+    ratios = {
+        name: [
+            a / b for a, b in zip(samples["specialized"], samples[name], strict=True)
+        ]
+        for name in reference_names
+    }
+    for launch in launches.values():
+        if hasattr(launch, "workspace"):
+            check_workspace(launch)
+    return {
+        "median_ms": {
+            name: statistics.median(values) for name, values in samples.items()
+        },
+        "paired_ratios": ratios,
+        "ratio_to_prefetch": statistics.median(ratios["prefetch"]),
+        "ratio_to_torch": statistics.median(ratios["torch"]),
+        **{
+            f"ratio_to_{name}": statistics.median(ratios[name])
+            for name in reference_names
+        },
+        "samples_ms": samples,
+        "orders": orders,
+        "batches": batches,
+        "repeats": repeats,
+        "warmups_per_implementation": 3,
+        "timing": timing,
+        "graph_metadata": metadata,
+    }
+
+
+def launches_for(config, shape, launch_factory=None):
+    launch_factory = MODULE["launch_for"] if launch_factory is None else launch_factory
+    launches = {
+        "specialized": launch_factory(config, shape),
+        "prefetch": PREFETCH["launch_for"](PREFETCH["CONFIGS_BY_SHAPE"][shape], shape),
+        "torch": COMMON["torch_launch"],
+    }
+    if TUNED_PREFETCH is not None:
+        launches["tuned_prefetch"] = PREFETCH["launch_for"](TUNED_PREFETCH, shape)
+    return launches
+
+
+def compare(config, shape, timing="graph-host", launch_factory=None):
+    global TUNED_PREFETCH
+    CONTEXT["SHAPE"] = tuple(shape)
+    selection_path = HERE / "results" / "selection.json"
+    if selection_path.exists():
+        selected = json.loads(selection_path.read_text())
+        key = "x".join(map(str, shape))
+        TUNED_PREFETCH = PREFETCH["Config"](
+            **selected["prefetch_control"][key]["config"]
+        )
+    data = COMMON["inputs"](13)
+    launches = launches_for(config, tuple(shape), launch_factory)
+    for launch in launches.values():
+        COMMON["validate"](launch, data)
+    return measure(launches, data, 7, 10, timing=timing)
+
+
+def coarse_configs(shape):
+    """324 raw tuples: geometry, loader/compute balance, depth, and K parallelism."""
+    cache = 2 if shape[1] == 4096 else 0
+    return [
+        MODULE["Config"](
+            shape[0],
+            bn,
+            bk,
+            1,
+            cw,
+            split_k=split,
+            loader_waves=lw,
+            lds_stages=stages,
+            right_cache_modifier=cache,
+        )
+        for bn, bk, lw, cw, stages, split in product(
+            (32, 64, 128), (16, 32, 64), (1, 2), (1, 2, 4), (1, 2, 4), (1, 4)
+        )
+    ]
+
+
+def refine_configs(shape, rows):
+    """Change one coordinate around leading coarse tuples; preserve the raw bounds."""
+    dimensions = {
+        "block_m": (16, 32) if shape[0] == 32 else (16,),
+        "block_n": (16, 32, 64, 128, 256),
+        "block_k": (16, 32, 64, 128),
+        "loader_waves": (1, 2, 4),
+        "lds_stages": (1, 2, 3, 4),
+        "split_k": (1, 2, 4),
+        "right_cache_modifier": (0, 2),
+        "poll_sleep": (0, 1, 2),
+        "signal_mode": ("auto", "atomic"),
+    }
+    configs = set()
+    # Include leading alternatives for each compute-wave count to avoid one family dominating.
+    ordered = sorted(rows, key=lambda row: row["ratio_to_prefetch"])
+    leaders = ordered[:4]
+    for cw in (1, 2, 4):
+        group = [
+            row
+            for row in ordered
+            if row["config"]["waves_m"] * row["config"]["waves_n"] == cw
+        ]
+        leaders += group[:1]
+    for row in leaders:
+        config = MODULE["Config"](**row["config"])
+        for name, values in dimensions.items():
+            configs.update(replace(config, **{name: value}) for value in values)
+        for wm, wn in ((1, 1), (1, 2), (1, 4), (2, 1), (2, 2)):
+            configs.add(replace(config, waves_m=wm, waves_n=wn))
+    return sorted(configs, key=lambda config: config.name)
+
+
+def sweep(shape, configs, output, batches=3, repeats=3):
+    while (HERE / ".pause-search").exists():
+        time.sleep(0.2)
+    data, trace = COMMON["inputs"](13), COMMON["inputs"](0, True)
+    prefetch_config = PREFETCH["CONFIGS_BY_SHAPE"][shape]
+    references = {
+        "prefetch": PREFETCH["launch_for"](prefetch_config, shape),
+        "torch": COMMON["torch_launch"],
+    }
+    for launch in references.values():
+        COMMON["validate"](launch, data)
+    report = {
+        "kind": "training_search",
+        "training_seed": 13,
+        "environment": environment(shape),
+        "candidate_count": len(configs),
+        "ranking": [],
+        "pruned": [],
+        "rejected": [],
+        "selection": "lowest paired ratio to the locked stage-10 prefetch baseline on seed 13",
+    }
+
+    # Checkpoint every candidate so long native searches retain completed measurements.
+    def save():
+        report["ranking"].sort(key=lambda row: row["ratio_to_prefetch"])
+        output.write_text(json.dumps(report, indent=2) + "\n")
+
+    for index, config in enumerate(configs):
+        while (HERE / ".pause-search").exists():
+            time.sleep(0.2)
+        try:
+            MODULE["validate_config"](config, shape)
+        except ValueError as error:
+            report["pruned"].append({"config": asdict(config), "error": str(error)})
+            save()
+            continue
+        try:
+            launch = MODULE["launch_for"](config, shape)
+            COMMON["validate"](launch, trace, True)
+            COMMON["validate"](launch, data)
+            measured = measure(
+                {"specialized": launch, **references}, data, batches, repeats, index
+            )
+            report["ranking"].append(
+                {"config": asdict(config), "name": config.name, **measured}
+            )
+            print(
+                "TRAIN",
+                index + 1,
+                len(configs),
+                config.name,
+                round(measured["ratio_to_prefetch"], 4),
+                round(measured["ratio_to_torch"], 4),
+                flush=True,
+            )
+        except (RuntimeError, AssertionError) as error:
+            report["rejected"].append({"config": asdict(config), "error": str(error)})
+            print("REJECTED", config.name, str(error)[:300], flush=True)
+        save()
+    return report
+
+
+def verify(config, shape, seeds, timing):
+    correctness = MODULE["solve"](config, shape)
+    launches = launches_for(config, shape)
+    rows = []
+    for seed in seeds:
+        data = COMMON["inputs"](seed)
+        for launch in launches.values():
+            COMMON["validate"](launch, data)
+        for repetition in range(3):
+            row = {
+                "seed": seed,
+                "round": repetition,
+                **measure(
+                    launches,
+                    data,
+                    7,
+                    20 if timing == "graph-host" else 50,
+                    seed + repetition,
+                    timing,
+                ),
+            }
+            rows.append(row)
+            print(
+                "HELDOUT",
+                seed,
+                repetition,
+                round(row["ratio_to_prefetch"], 4),
+                round(row["ratio_to_torch"], 4),
+                flush=True,
+            )
+    reference_names = [name for name in launches if name != "specialized"]
+    worst = {
+        name: max(row["ratio_to_" + name] for row in rows) for name in reference_names
+    }
+    return {
+        "kind": "locked_heldout_verification",
+        "environment": environment(shape),
+        "config": asdict(config),
+        "correctness": correctness,
+        "seeds": seeds,
+        "rounds": rows,
+        "worst_round_ratio": worst,
+        "performance_status": {
+            name: "win" if ratio < 0.95 else "match" if ratio <= 1.05 else "slower"
+            for name, ratio in worst.items()
+        },
+        "median_ms": {
+            name: statistics.median(row["median_ms"][name] for row in rows)
+            for name in launches
+        },
+        "thresholds": {
+            "win": "every round median paired ratio < 0.95",
+            "match": "every round median paired ratio <= 1.05",
+        },
+    }
+
+
+def main():
+    global MODULE, MODULE_PATH, TUNED_PREFETCH
+    parser = argparse.ArgumentParser(description=__doc__)
+    actions = parser.add_mutually_exclusive_group(required=True)
+    actions.add_argument("--sweep", action="store_true")
+    actions.add_argument("--verify", action="store_true")
+    parser.add_argument("--shape", type=int, nargs=3, default=(32, 1024, 8192))
+    parser.add_argument(
+        "--module",
+        type=Path,
+        help="native experimental module with the same launch interface",
+    )
+    parser.add_argument(
+        "--refine", type=Path, help="coarse report to refine, excluding measured tuples"
+    )
+    parser.add_argument(
+        "--configs", type=Path, help="JSON list of explicit configurations"
+    )
+    parser.add_argument(
+        "--config", type=str, help="JSON object for locked verification"
+    )
+    parser.add_argument(
+        "--prefetch-config",
+        type=str,
+        help="JSON object for a locked, retuned stage-10 control",
+    )
+    parser.add_argument(
+        "--seeds", type=int, nargs="+", default=(2026112001, 2026112002, 2026112003)
+    )
+    parser.add_argument(
+        "--timing", choices=("graph-host", "direct-host"), default="graph-host"
+    )
+    parser.add_argument("--batches", type=int, default=3)
+    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if args.module:
+        MODULE_PATH = args.module.resolve()
+        MODULE = runpy.run_path(str(MODULE_PATH))
+        CONTEXT.update(
+            MODULE={**MODULE, "check_workspace": check_workspace},
+            Config=MODULE["Config"],
+            BUILD=MODULE["build"],
+        )
+    shape = tuple(args.shape)
+    if shape not in MODULE["SHAPES"]:
+        parser.error("Choose a supported skinny shape")
+    if args.output.exists():
+        parser.error("Use a fresh output path")
+    CONTEXT["SHAPE"] = shape
+    if args.prefetch_config:
+        TUNED_PREFETCH = PREFETCH["Config"](**json.loads(args.prefetch_config))
+        PREFETCH["validate_config"](TUNED_PREFETCH, shape)
+    elif args.verify and (HERE / "results" / "selection.json").exists():
+        selected = json.loads((HERE / "results" / "selection.json").read_text())
+        key = "x".join(map(str, shape))
+        TUNED_PREFETCH = PREFETCH["Config"](
+            **selected["prefetch_control"][key]["config"]
+        )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    if args.sweep:
+        if args.configs:
+            configs = [
+                MODULE["Config"](**row) for row in json.loads(args.configs.read_text())
+            ]
+        elif args.refine:
+            previous = json.loads(args.refine.read_text())
+            measured = {
+                MODULE["Config"](**row["config"]) for row in previous["ranking"]
+            }
+            configs = [
+                config
+                for config in refine_configs(shape, previous["ranking"])
+                if config not in measured
+            ]
+        else:
+            configs = coarse_configs(shape)
+        report = sweep(shape, configs, args.output, args.batches, args.repeats)
+    else:
+        config = (
+            MODULE["Config"](**json.loads(args.config))
+            if args.config
+            else MODULE["CONFIGS_BY_SHAPE"][shape]
+        )
+        MODULE["validate_config"](config, shape)
+        report = verify(config, shape, args.seeds, args.timing)
+        args.output.write_text(json.dumps(report, indent=2) + "\n")
+    print("SAVED", args.output, "VALID", len(report.get("ranking", [])), flush=True)
+
+
+if __name__ == "__main__":
+    main()

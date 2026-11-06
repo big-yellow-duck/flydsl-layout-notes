@@ -1,0 +1,26 @@
+import json
+import runpy
+import tempfile
+from pathlib import Path
+import torch
+
+torch.set_num_threads(1)
+base=(Path(__file__).resolve().parents[4] / '09-split-k')
+u=runpy.run_path(str(base/'tune.py'));u['inputs'].__globals__['SHAPE']=(16,4096,8192)
+data=u['inputs'](13)
+rows=[]
+for a_cache,b_cache in ((0,0),(0,1),(0,2),(0,3),(1,0),(2,0),(2,2),(3,3)):
+ source=(base/'solution.py').read_text()
+ source=source.replace('gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)',f'gmem_left_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b({a_cache}), fx.BFloat16)\n        gmem_right_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b({b_cache}), fx.BFloat16)')
+ source=source.replace('fx.copy(gmem_load_128b, left_lds_source','fx.copy(gmem_left_load_128b, left_lds_source').replace('fx.copy(gmem_load_128b, right_lds_source','fx.copy(gmem_right_load_128b, right_lds_source')
+ with tempfile.NamedTemporaryFile(mode='w',suffix='.py',prefix=f'_cache_{a_cache}_{b_cache}_',dir=base) as f:
+  f.write(source);f.flush()
+  try:
+   m=runpy.run_path(f.name);config=m['CONFIGS_BY_SHAPE'][(16,4096,8192)];launch=m['launch_for'](config,(16,4096,8192))
+   u['validate'](launch,data)
+   report=u['paired_measure'](launch,u['torch_launch'],data,5,10,0,'graph-host')
+   row={'a_cache':a_cache,'b_cache':b_cache,**report};rows.append(row)
+   print(a_cache,b_cache,round(report['kernel_ms']*1000,3),round(report['torch_ms']*1000,3),round(report['paired_ratio'],4),flush=True)
+  except (RuntimeError,AssertionError,ValueError) as error:
+   print('FAILED',a_cache,b_cache,str(error)[:700],flush=True)
+Path('/tmp/skinny-cache-probe.json').write_text(json.dumps(rows,indent=2)+'\n')

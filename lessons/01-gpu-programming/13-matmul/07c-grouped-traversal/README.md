@@ -6,19 +6,19 @@ Keep **M=N=K=1024**, row-major BF16 inputs/output, FP32 accumulation, **64×64×
 
 ![Side-by-side output tile grids label physical block IDs for row-major and two-row grouped traversal. Grouped IDs 0 and 1 select different rows of column 0 and read the same B band.](../../../../assets/01-gpu-programming/13-matmul/07c-grouped-traversal/grouped-traversal.svg)
 
-The diagram labels the flattened physical ID as `pid`; the code names it `flat_block_id`. Read each cell as a physical block ID assigned to that logical output tile. All sixteen tile rows and the first four tile columns are shown; the other twelve columns are omitted. Follow gold IDs 0 and 1: they move across columns in 07b and down rows in 07c. These are ID mappings, not a measured execution timeline.
+The diagram labels the scalar physical ID as `pid`; the code names it `flat_block_id`. Read each cell as a physical block ID assigned to that logical output tile. All sixteen tile rows and the first four tile columns are shown; the other twelve columns are omitted. Follow gold IDs 0 and 1: they move across columns in 07b and down rows in 07c. These are ID mappings, not a measured execution timeline.
 
-## 1. Flatten the physical launch grid
+## 1. Launch a one-dimensional block grid
 
-The [solution](solution.py) retains the launch grid `(16,16,1)` and forms a scalar physical ID:
+The [solution](solution.py) launches `(tiles_m * tiles_n, 1, 1)`, or `(256,1,1)` for this workload. Each block already has a scalar physical ID:
 
 ```python
 tiles_m = m // BLOCK_M
 tiles_n = n // BLOCK_N
-flat_block_id = fx.block_idx.x + fx.block_idx.y * tiles_n
+flat_block_id = fx.block_idx.x
 ```
 
-For physical block `(x,y)=(2,0)`, `pid=2`. In 07b, this selected output tile `(row,col)=(0,2)`. The grouped mapping assigns it `(0,1)`. Physical grid coordinates, flattened IDs, and logical tile coordinates describe different positions.
+For `block_idx.x=2`, `pid=2`. In 07b, row-major ID 2 selected output tile `(row,col)=(0,2)`. The grouped mapping assigns it `(0,1)`. The physical block ID and logical tile coordinates describe different positions; the layout determines their relationship.
 
 ## 2. Describe traversal with a layout
 

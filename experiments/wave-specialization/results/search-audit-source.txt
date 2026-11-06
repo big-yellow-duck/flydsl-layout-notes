@@ -1,0 +1,99 @@
+"""Reconcile retained search counts without allocating buffers or launching GPU work."""
+
+import hashlib
+import inspect
+import json
+import runpy
+from dataclasses import asdict, replace
+from pathlib import Path
+
+root = Path.cwd()
+lesson = root / "lessons/01-gpu-programming/13-matmul/11-wave-specialization"
+base = lesson / "results"
+prefetch = runpy.run_path(str(lesson.parent / "10-wave-local-tiles/solution.py"))
+native = runpy.run_path(str(lesson / "solution.py"))
+audit = {"scope": "Host-only reconciliation; no timings added or modified", "searches": []}
+
+for directory in ("20261106-search", "20261106-barrier-search"):
+    for path in sorted((base / directory).glob("*.json")):
+        report = json.loads(path.read_text())
+        if "ranking" not in report:
+            continue
+        counts = {
+            "candidate_count": report["candidate_count"],
+            "measured": len(report["ranking"]),
+            "pruned": len(report["pruned"]),
+            "rejected": len(report["rejected"]),
+        }
+        assert counts["candidate_count"] == sum(counts[k] for k in ("measured", "pruned", "rejected"))
+        audit["searches"].append({"report": str(path.relative_to(base)), **counts})
+
+for shape in native["SHAPES"]:
+    key = "x".join(map(str, shape))
+    path = base / "20261106-prefetch-controls" / f"training-{key}.json"
+    report = json.loads(path.read_text())
+    locked = prefetch["CONFIGS_BY_SHAPE"][shape]
+    candidates = {locked}
+    for directory in ("20261106-search", "20261106-barrier-search"):
+        for phase in ("coarse", "refine"):
+            rows = json.loads((base / directory / f"{phase}-{key}.json").read_text())["ranking"][:8]
+            for row in rows:
+                c = row["config"]
+                for unroll in (1, 2, 4, 8):
+                    candidates.add(prefetch["Config"](
+                        c["block_m"], c["block_n"], c["block_k"], c["waves_m"], c["waves_n"],
+                        split_k=c["split_k"], right_cache_modifier=c["right_cache_modifier"], k_unroll=unroll,
+                    ))
+    for cache in (0, 2):
+        for unroll in (1, 2, 4, 8):
+            candidates.add(replace(locked, right_cache_modifier=cache, k_unroll=unroll))
+    for bm in ((16, 32) if shape[0] == 32 else (16,)):
+        for bn in (16, 32, 64, 128):
+            for groups in (1, 2, 4, 8):
+                for cache in (0, 2):
+                    for unroll in (1, 4):
+                        candidates.add(prefetch["Config"](
+                            bm, bn, 16, 1, 1, split_k=locked.split_k, wave_groups=groups,
+                            right_cache_modifier=cache, k_unroll=unroll,
+                        ))
+    recorded = {
+        prefetch["Config"](**row["config"])
+        for group in ("ranking", "pruned", "rejected") for row in report[group]
+    }
+    assert recorded <= candidates
+    assert len(candidates) == report["candidate_count"]
+    trailing_pruned = []
+    for config in sorted(candidates - recorded, key=lambda c: c.name):
+        try:
+            prefetch["validate_config"](config, shape)
+        except ValueError as error:
+            trailing_pruned.append({"config": asdict(config), "error": str(error)})
+        else:
+            raise AssertionError(f"Unmeasured legal candidate: {config}")
+    audit["searches"].append({
+        "report": str(path.relative_to(base)),
+        "candidate_count": len(candidates),
+        "measured": len(report["ranking"]),
+        "pruned": len(report["pruned"]) + len(trailing_pruned),
+        "rejected": len(report["rejected"]),
+        "recorded_pruned": len(report["pruned"]),
+        "unrecorded_trailing_pruned": trailing_pruned,
+        "note": "The historical control writer only saved after legal candidates; this audit retains any trailing invalid tuples omitted from its last snapshot.",
+    })
+
+audit["totals"] = {
+    key: sum(row[key] for row in audit["searches"])
+    for key in ("candidate_count", "measured", "pruned", "rejected")
+}
+factory_hash = hashlib.sha256(inspect.getsource(native["build"].__wrapped__).encode()).hexdigest()
+verification = list((base / "20261106-verification").glob("*.json"))
+verification.append(base / "20261106-evidence/repeat-32x1024-graph.json")
+for path in verification:
+    assert json.loads(path.read_text())["environment"]["kernel_build_sha256"] == factory_hash
+audit["verified_factory_sha256"] = factory_hash
+audit["verification_reports_matching_current_factory"] = [str(path.relative_to(base)) for path in verification]
+audit["provenance_note"] = "Counts include distinct source implementations; this is a bounded search, not an exhaustive global space. Raw reports and timing samples are preserved."
+(base / "search-audit.json").write_text(json.dumps(audit, indent=2) + "\n")
+(base / "search-audit-source.txt").write_text(Path(__file__).read_text())
+print(audit["totals"])
+print("Verified final native factory:", factory_hash)

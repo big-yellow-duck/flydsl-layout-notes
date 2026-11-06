@@ -17,9 +17,9 @@ def owner_kernel(
     waves_n: fx.Constexpr,
 ):
     view = fx.make_view(fx.get_iter(output), fx.make_layout((m, n), (n, 1)))
-    atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
+    mma_atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
     mma = fx.make_tiled_mma(
-        atom, fx.make_layout((waves_m, waves_n, 1), (1, waves_m, 0))
+        mma_atom, fx.make_layout((waves_m, waves_n, 1), (1, waves_m, 0))
     )
     fragment = mma.thr_slice(fx.thread_idx.x).make_fragment_C(view)
     fragment.fill(fx.Float32(fx.thread_idx.x))

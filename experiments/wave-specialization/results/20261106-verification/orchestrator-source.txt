@@ -1,0 +1,15 @@
+import json,subprocess
+from pathlib import Path
+root=Path('/home/akk/jeff/flydsl-layout-notes');lesson=root/'lessons/01-gpu-programming/13-matmul/11-wave-specialization';out=lesson/'results/20261106-verification';out.mkdir(parents=True,exist_ok=False)
+for filename in ('solution.py','tune.py'):(out/(filename.removesuffix('.py')+'-source-snapshot.txt')).write_text((lesson/filename).read_text())
+for shape in ((32,1024,8192),(16,1024,8192),(16,4096,8192)):
+ name='x'.join(map(str,shape))
+ for timing in ('graph-host','direct-host'):
+  label=name+'-'+timing
+  command=['pixi','run','python',str(lesson/'tune.py'),'--verify','--shape',*map(str,shape),'--timing',timing,'--seeds','2026112001','2026112002','2026112003','--output',str(out/(label+'.json'))]
+  print('START',label,flush=True)
+  with (out/(label+'.log')).open('w') as log:r=subprocess.run(command,cwd=root,stdout=log,stderr=subprocess.STDOUT)
+  print('DONE',label,r.returncode,flush=True)
+  if r.returncode:raise SystemExit(r.returncode)
+  report=json.loads((out/(label+'.json')).read_text());print('STATUS',label,report['performance_status'],report['median_ms'],report['worst_round_ratio'],flush=True)
+print('VERIFICATION COMPLETE',flush=True)

@@ -128,26 +128,24 @@ def exercise_kernel(
         fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
         fx.barrier()
 
-    def compulte_lds():
+    def compute_lds():
         for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
             left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
             right_mma_view = fx.slice(
                 right_lds_transposed_tiled, (None, None, 0, inner_k)
             )
-            left_r_source = lds2reg_thread_copies[0].partition_S(left_mma_view)
-            right_r_source = lds2reg_thread_copies[1].partition_S(right_mma_view)
+            left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
+            right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
             fx.copy(copy_16b, left_r_source, left_r_destination)
             fx.copy(copy_16b, right_r_source, right_r_destination)
             fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
 
-    # Tuple access avoids carrying ThrCopy wrappers through the runtime loop.
-    lds2reg_thread_copies = (lds2reg_left_thread_copy, lds2reg_right_thread_copy)
 
     if schedule == "serial":
         for tile_k in range(k // BLOCK_K):
             gmem2reg_load_tile(tile_k)
             reg2lds_copy_tile()
-            compulte_lds()
+            compute_lds()
             fx.barrier()
     else:
         # get the first block ready
@@ -158,11 +156,11 @@ def exercise_kernel(
         for tile_k in range(k // BLOCK_K - 1):
             next_tile_k = tile_k + 1
             gmem2reg_load_tile(next_tile_k)
-            compulte_lds()
+            compute_lds()
             fx.barrier()
             reg2lds_copy_tile()
         # Drain the final LDS tile once, even when the steady-state loop is empty.
-        compulte_lds()
+        compute_lds()
         fx.barrier()
     # 7. Convert to BF16, then store through the instruction's C ownership.
     out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)

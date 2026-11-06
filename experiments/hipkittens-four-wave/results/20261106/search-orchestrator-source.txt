@@ -1,0 +1,24 @@
+import subprocess
+from pathlib import Path
+
+root = Path.cwd()
+directory = root / "experiments/hipkittens-four-wave"
+out = directory / "results/20261106"
+for name in ("kernel.py", "benchmark.py"):
+    (out / (name.replace(".py", "") + "-source-snapshot.txt")).write_text((directory / name).read_text())
+for shape in ((32, 1024, 8192), (16, 1024, 8192), (16, 4096, 8192)):
+    key = "x".join(map(str, shape))
+    for phase in ("coarse", "refine"):
+        report = out / f"{phase}-{key}.json"
+        if report.exists():
+            raise RuntimeError(f"Existing output: {report}")
+        command = ["pixi", "run", "python", str(directory / "benchmark.py"), "--sweep", "--shape", *map(str, shape), "--output", str(report)]
+        if phase == "refine":
+            command += ["--refine", str(out / f"coarse-{key}.json")]
+        print("START", phase, key, flush=True)
+        with (out / f"{phase}-{key}.log").open("w") as log:
+            result = subprocess.run(command, cwd=root, stdout=log, stderr=subprocess.STDOUT)
+        print("DONE", phase, key, result.returncode, flush=True)
+        if result.returncode:
+            raise SystemExit(result.returncode)
+(out / "search-orchestrator-source.txt").write_text(Path(__file__).read_text())

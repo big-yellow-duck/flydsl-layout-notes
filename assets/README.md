@@ -39,7 +39,13 @@ assets/
         ├── 07a-buffer-access/
         ├── 07b-operand-staging/
         ├── 07c-grouped-traversal/
-        └── 08-parameter-tuning/
+        ├── 08-parameter-tuning/
+        ├── 09-split-k/
+        ├── 10-wave-local-tiles/
+        ├── 10a-synchronization-scope/
+        ├── 10b-cache-policy/
+        ├── 10c-k-unrolling/
+        └── 12-operand-paths/
 ```
 
 Stage 05 includes `tiled-mma-waves.svg` and its PNG preview, showing the four wave32 groups in a 32×32 output block.
@@ -61,3 +67,11 @@ Stage 07a includes `buffer-staging.svg` and its PNG preview, tracing buffer glob
 Stage 07b includes `operand-staging.svg` and its PNG preview, deriving A and B ownership from contiguous K and N at fixed 64×64×64 dimensions. Regenerate with `python3 tools/draw_matmul_lessons.py`.
 
 Stage 07c includes `grouped-traversal.svg` and its PNG preview. It compares row-major and two-row grouped block IDs at the same 64×64×64 tile size. Regenerate with `python3 tools/draw_grouped_traversal.py`.
+
+Stage 09 includes `split-domain` and `last-arrival` SVG/PNG pairs. They trace output-tile/K-partition ownership and the in-kernel FP32 finalizer. Regenerate with `python3 tools/draw_split_k.py`.
+
+Stages 10–10c each include one SVG/PNG pair: `wave-tiles`, `synchronization-scope`, `cache-policy`, and `k-unrolling`. They trace independent output ownership, memory versus execution scope, eight-value copy vectors versus 32-value staging fragments, and full-group/tail/drain steps. Regenerate all four with `python3 tools/draw_skinny_lessons.py`.
+
+The original combined-wave and specialized-wave figures live with their [research archives](../experiments/README.md), outside the main course assets. Their generators are in the corresponding experiment directories.
+
+Stage 12 includes `operand-paths` and `operand-trace` SVG/PNG pairs. They show the private A register path, coalesced B staging through LDS, and exact global/LDS element offsets for native compute thread 3. Regenerate with `python3 tools/draw_operand_paths.py`; `ownership.py` checks every illustrated ownership mapping.

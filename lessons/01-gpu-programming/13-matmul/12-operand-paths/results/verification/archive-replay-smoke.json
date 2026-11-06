@@ -1,0 +1,169 @@
+{
+  "kind": "training_probe",
+  "training_seed": 13,
+  "shape_MNK": [
+    32,
+    1024,
+    8192
+  ],
+  "candidate_count": 1,
+  "module": "/home/akk/jeff/flydsl-layout-notes/experiments/torch-strategy/results/native-sources/transpose_b-source.txt",
+  "native_factory_sha256": "199c4cda62fc5333b68df79e1b62536bf8e848732e95ea3556c7f19352549771",
+  "native_source_sha256": "f93521de6fb93f4c25a793d4c0374b6d6b14cda216a33103e6381b4d10005935",
+  "prefetch_config": {
+    "block_m": 32,
+    "block_n": 64,
+    "block_k": 64,
+    "waves_m": 1,
+    "waves_n": 2,
+    "group_m": 1,
+    "split_k": 4,
+    "wave_groups": 1,
+    "k_unroll": 2,
+    "right_cache_modifier": 2
+  },
+  "wave_specialized_config": {
+    "block_m": 32,
+    "block_n": 64,
+    "block_k": 64,
+    "waves_m": 1,
+    "waves_n": 2,
+    "group_m": 1,
+    "split_k": 4,
+    "loader_waves": 1,
+    "lds_stages": 2,
+    "right_cache_modifier": 2,
+    "poll_sleep": 0,
+    "signal_mode": "auto",
+    "protocol": "barrier"
+  },
+  "ranking": [
+    {
+      "config": {
+        "block_m": 32,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "right_lds_layout": "transposed",
+        "right_lds_padding": 2
+      },
+      "name": "m32n64k64_w1x2_prefetch_lds1_gm1_sk4_wg1_u2_bc2_transposed_pad2",
+      "median_ms": {
+        "specialized": 0.028778187470379635,
+        "prefetch": 0.028540687480926863,
+        "wave_specialized": 0.026072624905282282,
+        "torch": 0.06508206240596337,
+        "matched_prefetch": 0.02814787501392857,
+        "packed": 0.02883471870518406
+      },
+      "paired_ratios": {
+        "prefetch": [
+          1.008321452999739
+        ],
+        "wave_specialized": [
+          1.1037702408148866
+        ],
+        "torch": [
+          0.44218309018650176
+        ],
+        "matched_prefetch": [
+          1.0223928966623295
+        ],
+        "packed": [
+          0.9980394733382899
+        ]
+      },
+      "ratio_to_prefetch": 1.008321452999739,
+      "ratio_to_torch": 0.44218309018650176,
+      "ratio_to_wave_specialized": 1.1037702408148866,
+      "ratio_to_matched_prefetch": 1.0223928966623295,
+      "ratio_to_packed": 0.9980394733382899,
+      "samples_ms": {
+        "specialized": [
+          0.028778187470379635
+        ],
+        "prefetch": [
+          0.028540687480926863
+        ],
+        "wave_specialized": [
+          0.026072624905282282
+        ],
+        "torch": [
+          0.06508206240596337
+        ],
+        "matched_prefetch": [
+          0.02814787501392857
+        ],
+        "packed": [
+          0.02883471870518406
+        ]
+      },
+      "orders": [
+        [
+          "matched_prefetch",
+          "wave_specialized",
+          "prefetch",
+          "specialized",
+          "packed",
+          "torch"
+        ]
+      ],
+      "batches": 1,
+      "repeats": 1,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "wave_specialized": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "matched_prefetch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "packed": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    }
+  ],
+  "pruned": [],
+  "rejected": []
+}

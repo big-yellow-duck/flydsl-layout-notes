@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="790" viewBox="0 0 960 790" role="img" aria-labelledby="title desc">
+<title id="title">10c - Group steady K steps without adding tile buffers</title>
+<desc id="desc">For six tiles and unroll four, the prologue prepares tile zero, four expanded steps consume tiles zero through three, one tail step consumes tile four, and the drain consumes tile five. B staging remains thirty-two BF16 values per thread; physical VGPR use is measured independently.</desc>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">10c - Group steady K steps without adding tile buffers</text>
+<text x="32" y="72" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Small trace: K=96; BLOCK_K=16; one split; six tiles; k_unroll=4.</text>
+<rect x="32" y="124" width="893" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="136" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Prologue prepares tile 0</text>
+<text x="44" y="173" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Five steady steps remain: one full group of four + one tail step.</text>
+<rect x="32" y="247" width="137" height="156" fill="#ccefe6" stroke="#8294aa"/>
+<text x="43" y="261" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Step 0</text>
+<text x="43" y="305" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Use tile 0</text>
+<text x="43" y="351" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Fetch 1</text>
+<rect x="183" y="247" width="137" height="156" fill="#ccefe6" stroke="#8294aa"/>
+<text x="194" y="261" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Step 1</text>
+<text x="194" y="305" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Use tile 1</text>
+<text x="194" y="351" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Fetch 2</text>
+<rect x="334" y="247" width="137" height="156" fill="#ccefe6" stroke="#8294aa"/>
+<text x="345" y="261" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Step 2</text>
+<text x="345" y="305" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Use tile 2</text>
+<text x="345" y="351" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Fetch 3</text>
+<rect x="485" y="247" width="137" height="156" fill="#ccefe6" stroke="#8294aa"/>
+<text x="496" y="261" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Step 3</text>
+<text x="496" y="305" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Use tile 3</text>
+<text x="496" y="351" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Fetch 4</text>
+<rect x="636" y="247" width="137" height="156" fill="#ffedbe" stroke="#8294aa"/>
+<text x="647" y="261" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Step 4</text>
+<text x="647" y="305" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Use tile 4</text>
+<text x="647" y="351" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Fetch 5</text>
+<rect x="787" y="247" width="137" height="156" fill="#ffedbe" stroke="#8294aa"/>
+<text x="798" y="261" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Drain</text>
+<text x="798" y="305" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Use tile 5</text>
+<text x="798" y="351" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">No fetch</text>
+<text x="32" y="425" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Full unrolled group: steps 0..3</text>
+<text x="637" y="425" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Tail: 4</text>
+<text x="787" y="425" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="22" fill="#14253d">Drain: 5</text>
+<text x="32" y="478" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">A tile tags [1,2,4,8,16,32], B=1: output = 16*63 = 1008.</text>
+<rect x="32" y="531" width="428" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="543" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Current tile: one LDS stage</text>
+<text x="44" y="580" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Next tile: one staging fragment</text>
+<rect x="494" y="531" width="431" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="506" y="543" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">32 BF16 B values per thread</text>
+<text x="506" y="580" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Same logical fragment for U=1,2,4,8</text>
+<rect x="32" y="651" width="893" height="87" fill="#ffedbe" stroke="#8294aa"/>
+<text x="44" y="663" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Unrolling exposes a longer instruction region to the compiler</text>
+<text x="44" y="700" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Measure physical VGPR use; it is not eight BF16 values times the unroll factor.</text>
+</svg>

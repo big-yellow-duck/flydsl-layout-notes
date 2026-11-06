@@ -72,7 +72,7 @@ fx.barrier()
 
 `create_gmem2lds_sources` uses `left_thread_copy.partition_S(left_block_view)` and `right_thread_copy.partition_S(right_block_view)`. LDS destinations come from the matching plans. Keep both global sources buffer-backed: replacing the copy atom alone on an ordinary pointer view is insufficient for this API path.
 
-Operand reads retain `UniversalCopy16b` and instruction-derived A/B plans. The `compulte_lds()` helper still slices four K=16 regions, refills the operand registers, and calls WMMA. Neither A padding nor the `(N,K)` B operand convention changes.
+Operand reads retain `UniversalCopy16b` and instruction-derived A/B plans. The `compute_lds()` helper still slices four K=16 regions, refills the operand registers, and calls WMMA. Neither A padding nor the `(N,K)` B operand convention changes.
 
 C uses a buffer store atom through the same MMA output ownership:
 
@@ -87,7 +87,7 @@ The 16-bit store width matches one BF16 output value. Copying the results still 
 
 ## 4. Retain the prefetch schedule
 
-The prologue loads and publishes tile 0. Each steady-state iteration issues global loads for tile `t+1`, computes tile `t` from LDS, protects current readers with a barrier, then publishes the staged future tile. The drain computes the final tile outside the loop. Both serial and prefetch specializations are supplied, with prefetch selected by default.
+The prologue loads and publishes tile 0. Each steady-state iteration issues global loads for tile `t+1`, computes tile `t` from LDS, protects current readers with a barrier, then publishes the staged future tile. The drain computes the final tile outside the loop. This register-prefetch schedule carries forward through the later lessons.
 
 Buffer access does not itself make a pipeline asynchronous. Independent operands and the placement of loads, compute, waits, and LDS publication enable overlap. This lesson changes the global access representation and expresses two staging plans while retaining stage 07's dataflow. It makes no speedup claim.
 

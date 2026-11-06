@@ -1,0 +1,51 @@
+import json,runpy,subprocess,time
+from dataclasses import asdict,replace
+from pathlib import Path
+root=Path('/home/akk/jeff/flydsl-layout-notes');lesson=root/'lessons/01-gpu-programming/13-matmul/11-wave-specialization'
+while subprocess.run(['pgrep','-f','^python3 /tmp/run_wave_barrier_search.py$'],capture_output=True).returncode==0:
+ time.sleep(2)
+out=lesson/'results/20261106-prefetch-controls';out.mkdir(parents=True,exist_ok=False)
+t=runpy.run_path(str(lesson/'tune.py'));g=t['environment'].__globals__;common=g['COMMON'];pf=g['PREFETCH']
+for shape in ((16,4096,8192),(16,1024,8192),(32,1024,8192)):
+ g['CONTEXT']['SHAPE']=shape
+ data,trace=common['inputs'](13),common['inputs'](0,True)
+ candidates={pf['CONFIGS_BY_SHAPE'][shape]}
+ shape_name='x'.join(map(str,shape));ws_rows=[]
+ for directory in ('20261106-search','20261106-barrier-search'):
+  for phase in ('coarse','refine'):
+   p=lesson/'results'/directory/(phase+'-'+shape_name+'.json')
+   if p.exists():ws_rows+=json.loads(p.read_text())['ranking'][:8]
+ for row in ws_rows:
+  c=row['config']
+  for unroll in (1,2,4,8):
+   candidates.add(pf['Config'](c['block_m'],c['block_n'],c['block_k'],c['waves_m'],c['waves_n'],split_k=c['split_k'],right_cache_modifier=c['right_cache_modifier'],k_unroll=unroll))
+ # Revisit each existing prefetch choice with both B cache policies and unrolling.
+ locked=pf['CONFIGS_BY_SHAPE'][shape]
+ for cache in (0,2):
+  for unroll in (1,2,4,8):
+   candidates.add(replace(locked,right_cache_modifier=cache,k_unroll=unroll))
+ # Existing independent-wave family: matched M, small K, full range of N/grouping.
+ for bm in ((16,32) if shape[0]==32 else (16,)):
+  for bn in (16,32,64,128):
+   for groups in (1,2,4,8):
+    for cache in (0,2):
+     for unroll in (1,4):
+      candidates.add(pf['Config'](bm,bn,16,1,1,split_k=locked.split_k,wave_groups=groups,right_cache_modifier=cache,k_unroll=unroll))
+ references={'prefetch':pf['launch_for'](locked,shape),'torch':common['torch_launch']}
+ rows=[];pruned=[];rejected=[]
+ report={'kind':'prefetch_control_training_search','training_seed':13,'environment':t['environment'](shape),'candidate_count':len(candidates),'ranking':rows,'pruned':pruned,'rejected':rejected,'definition':'Matched leading WS tile/wave/cache/split tuples with unroll=1/2/4/8, plus the stage-10 independent-wave family at BK=16 and the locked shape split count'}
+ for index,c in enumerate(sorted(candidates,key=lambda c:c.name)):
+  try:pf['validate_config'](c,shape)
+  except ValueError as error:
+   pruned.append({'config':asdict(c),'error':str(error)});continue
+  try:
+   launch=pf['launch_for'](c,shape)
+   common['validate'](launch,trace,True);common['validate'](launch,data)
+   result=t['measure']({'specialized':launch,**references},data,3,3,index)
+   rows.append({'config':asdict(c),'name':c.name,'implementation':'prefetch_control',**result})
+   rows.sort(key=lambda row:row['ratio_to_prefetch'])
+   print('CONTROL',shape_name,index+1,len(candidates),c.name,round(result['ratio_to_prefetch'],4),flush=True)
+  except (RuntimeError,AssertionError) as error:
+   rejected.append({'config':asdict(c),'error':str(error)})
+  (out/('training-'+shape_name+'.json')).write_text(json.dumps(report,indent=2)+'\n')
+ print('CONTROL DONE',shape_name,'valid',len(rows),'pruned',len(pruned),flush=True)

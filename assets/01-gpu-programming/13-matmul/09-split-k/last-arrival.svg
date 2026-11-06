@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="810" viewBox="0 0 960 810" role="img" aria-labelledby="title desc">
+<title id="title">09 - The final arriving thread finishes its output slots</title>
+<desc id="desc">Four peers publish FP32 partials 448, 896, 1344, and 1792. The final arriving thread sums to 4480, writes BF16 output, and resets its counter.</desc>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">09 - The final arriving thread finishes its output slots</text>
+<text x="32" y="65" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">One counter per (output tile, thread ID); peers differ only in split_id.</text>
+<text x="32" y="105" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">Numeric boundary check: K=768, BLOCK_K=64, three K tiles per split.</text>
+<rect x="32" y="151" width="213" height="103" fill="#dcecff" stroke="#8294aa"/>
+<text x="45" y="166" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">split 0: A tags</text>
+<text x="45" y="202" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">[1, 2, 4]</text>
+<rect x="262" y="151" width="213" height="103" fill="#ccefe6" stroke="#8294aa"/>
+<text x="275" y="166" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">split 1: A tags</text>
+<text x="275" y="202" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">[2, 4, 8]</text>
+<rect x="492" y="151" width="213" height="103" fill="#ffedbe" stroke="#8294aa"/>
+<text x="505" y="166" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">split 2: A tags</text>
+<text x="505" y="202" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">[3, 6, 12]</text>
+<rect x="722" y="151" width="213" height="103" fill="#e5dcff" stroke="#8294aa"/>
+<text x="735" y="166" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">split 3: A tags</text>
+<text x="735" y="202" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">[4, 8, 16]</text>
+<text x="32" y="287" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">B contains 1. Each FP32 output partial = 64 * sum(the split&#x27;s three tags).</text>
+<text x="32" y="333" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">FP32 partial slots:</text>
+<rect x="250" y="326" width="150" height="51" fill="#dcecff" stroke="#8294aa"/>
+<text x="273" y="340" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="23" fill="#14253d">448</text>
+<rect x="420" y="326" width="150" height="51" fill="#ccefe6" stroke="#8294aa"/>
+<text x="443" y="340" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="23" fill="#14253d">896</text>
+<rect x="590" y="326" width="150" height="51" fill="#ffedbe" stroke="#8294aa"/>
+<text x="613" y="340" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="23" fill="#14253d">1344</text>
+<rect x="760" y="326" width="150" height="51" fill="#e5dcff" stroke="#8294aa"/>
+<text x="783" y="340" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="23" fill="#14253d">1792</text>
+<rect x="32" y="412" width="893" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="44" y="424" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Publish each thread&#x27;s partials, then atomic_add(counter, 1)</text>
+<text x="44" y="461" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Agent-scope acquire/release orders the FP32 stores before a peer reads them.</text>
+<text x="32" y="524" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Only the peer receiving old counter value 3 reduces: 448+896+1344+1792=4480.</text>
+<rect x="32" y="572" width="893" height="87" fill="#ffedbe" stroke="#8294aa"/>
+<text x="44" y="584" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">One final BF16 conversion -&gt; output; reset this counter to 0</text>
+<text x="44" y="621" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Earlier arrivals leave. No polling, global barrier, clear pass, or reduction launch.</text>
+<text x="32" y="691" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Each thread finalizes only its own WMMA C slots; winners may come from different blocks.</text>
+<text x="32" y="737" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">Reuse workspace on the same stream. Overlapping calls need independent workspaces.</text>
+</svg>

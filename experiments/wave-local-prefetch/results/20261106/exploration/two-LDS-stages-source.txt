@@ -1,0 +1,57 @@
+import json
+import runpy
+import tempfile
+from pathlib import Path
+import torch
+
+torch.set_num_threads(1)
+base=(Path(__file__).resolve().parents[4] / '09-split-k')
+u=runpy.run_path(str(base/'tune.py'));shape=(16,4096,8192);u['inputs'].__globals__['SHAPE']=shape
+data=u['inputs'](13);rows=[]
+source=(base/'solution.py').read_text()
+source=source.replace('BLOCK_M * (BLOCK_K + 8), 16]', '2 * BLOCK_M * (BLOCK_K + 8), 16]')
+source=source.replace('BLOCK_K * BLOCK_N, 16]', '2 * BLOCK_K * BLOCK_N, 16]')
+source=source.replace('        def reg2lds_copy_tile():', '''        def reg2lds_copy_tile(stage):
+            left_destination = fx.make_view(fx.get_iter(left_lds_view) + stage * BLOCK_M * (BLOCK_K + 8), left_lds_view.layout)
+            right_destination = fx.make_view(fx.get_iter(right_lds_view) + stage * BLOCK_K * BLOCK_N, right_lds_view.layout)
+            gmem2lds_left_destination = left_thread_copy.partition_D(left_destination)
+            gmem2lds_right_destination = right_thread_copy.partition_D(right_destination)''')
+source=source.replace('            fx.barrier()\n\n        def compute_lds():', '\n        def compute_lds(stage):')
+source=source.replace('left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))', 'left_mma_view = fx.make_view(fx.get_iter(left_lds_view) + stage * BLOCK_M * (BLOCK_K + 8) + inner_k * MMA_K, fx.make_layout((BLOCK_M, MMA_K), (BLOCK_K + 8, 1)))')
+source=source.replace('right_mma_view = fx.slice(\n                    right_lds_transposed_tiled, (None, None, 0, inner_k)\n                )', 'right_mma_view = fx.make_view(fx.get_iter(right_lds_view) + stage * BLOCK_K * BLOCK_N + inner_k * MMA_K * BLOCK_N, fx.make_layout((BLOCK_N, MMA_K), (1, BLOCK_N)))')
+start=source.index('        # 6. Prefetch next globals');end=source.index('        def store_output():',start)
+pipeline='''        tiles_per_split = k // (BLOCK_K * SPLIT_K)
+        initial_tile_k = split_id * tiles_per_split
+        gmem2reg_load_tile(initial_tile_k)
+        reg2lds_copy_tile(0)
+        gmem2reg_load_tile(initial_tile_k + 1)
+        reg2lds_copy_tile(1)
+        fx.barrier()
+        for group in range((tiles_per_split - 2) // 2):
+            for stage in fx.range_constexpr(2):
+                gmem2reg_load_tile(initial_tile_k + group * 2 + stage + 2)
+                compute_lds(stage)
+                fx.barrier()
+                reg2lds_copy_tile(stage)
+        compute_lds(0)
+        fx.barrier()
+        compute_lds(1)
+        fx.barrier()
+
+'''
+source=source[:start]+pipeline+source[end:]
+for local in (False,True):
+ for cache in (0,2):
+  variant=source.replace('gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)', f'gmem_left_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)\n        gmem_right_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b({cache}), fx.BFloat16)')
+  variant=variant.replace('fx.copy(gmem_load_128b, left_lds_source','fx.copy(gmem_left_load, left_lds_source').replace('fx.copy(gmem_load_128b, right_lds_source','fx.copy(gmem_right_load, right_lds_source')
+  if local:variant=variant.replace('fx.barrier()', 'fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]))')
+  with tempfile.NamedTemporaryFile(mode='w',suffix='.py',prefix='_pingpong_',dir=base) as f:
+   f.write(variant);f.flush();m=runpy.run_path(f.name)
+   for bn,bk,wn in ((32,16,1),(64,16,1),(32,32,2),(64,32,2)):
+    try:
+     c=m['Config'](16,bn,bk,1,wn,split_k=1);launch=m['launch_for'](c,shape);u['validate'](launch,data)
+     r=u['paired_measure'](launch,u['torch_launch'],data,3,5,0,'graph-host')
+     rows.append({'local':local,'cache':cache,'bn':bn,'bk':bk,'wn':wn,**r})
+     print(local,cache,bn,bk,wn,round(r['kernel_ms']*1000,3),round(r['torch_ms']*1000,3),round(r['paired_ratio'],4),flush=True)
+    except (ValueError,RuntimeError,AssertionError) as e:print('FAILED',local,cache,bn,bk,wn,str(e)[:1000],flush=True)
+Path('/tmp/skinny-pingpong-probe.json').write_text(json.dumps(rows,indent=2)+'\n')

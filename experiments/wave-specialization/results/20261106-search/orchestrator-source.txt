@@ -1,0 +1,45 @@
+import json
+import subprocess
+import time
+from datetime import datetime,timezone
+from pathlib import Path
+
+root=Path('/home/akk/jeff/flydsl-layout-notes')
+lesson=root/'lessons/01-gpu-programming/13-matmul/11-wave-specialization'
+out=lesson/'results/20261106-search';out.mkdir(parents=True,exist_ok=False)
+for filename in ('solution.py','tune.py'):
+ (out/(filename.removesuffix('.py')+'-source-snapshot.txt')).write_text((lesson/filename).read_text())
+telemetry=[]
+hwmon=[]
+for sensor in Path('/sys/class/hwmon').glob('hwmon*'):
+ try:
+  name=(sensor/'name').read_text().strip()
+ except OSError:continue
+ if name in ('amdgpu','k10temp'):
+  hwmon.append((name,sensor))
+
+def record(phase):
+ row={'timestamp_utc':datetime.now(timezone.utc).isoformat(),'phase':phase}
+ for name,sensor in hwmon:
+  for attribute in ('temp1_input','freq1_input','freq2_input','power1_average'):
+   try:row[name+'_'+attribute]=int((sensor/attribute).read_text().strip())
+   except OSError:pass
+ telemetry.append(row)
+
+def run(label,flags):
+ print('START',label,flush=True);start=time.monotonic()
+ with (out/(label+'.log')).open('w') as log:
+  child=subprocess.Popen(['pixi','run','python',str(lesson/'tune.py'),*flags,'--output',str(out/(label+'.json'))],cwd=root,stdout=log,stderr=subprocess.STDOUT)
+  while child.poll() is None:
+   record(label);time.sleep(2)
+  code=child.returncode
+ (out/'telemetry.json').write_text(json.dumps(telemetry,indent=2)+'\n')
+ print('DONE',label,'exit',code,'seconds',round(time.monotonic()-start,1),flush=True)
+ if code:raise SystemExit(code)
+
+for shape in ((16,4096,8192),(16,1024,8192),(32,1024,8192)):
+ name='x'.join(map(str,shape))
+ flags=['--sweep','--shape',*map(str,shape)]
+ run('coarse-'+name,flags)
+ run('refine-'+name,flags+['--refine',str(out/('coarse-'+name+'.json'))])
+print('SEARCH COMPLETE',out,flush=True)

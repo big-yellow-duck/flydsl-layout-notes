@@ -1,0 +1,20 @@
+import json,subprocess
+from pathlib import Path
+root=Path('/home/akk/jeff/flydsl-layout-notes');base=root/'lessons/01-gpu-programming/13-matmul';lesson=base/'11-wave-specialization';out=lesson/'results/20261106-evidence';out.mkdir(parents=True,exist_ok=False)
+selection=json.loads((lesson/'results/selection.json').read_text())
+shape=(32,1024,8192);name='x'.join(map(str,shape));ws=selection['wave_specialized'][name]['config'];pf=selection['prefetch_control'][name]['config']
+wide=(16,4096,8192);wname='x'.join(map(str,wide))
+tasks=[
+ ('repeat-32x1024-graph',['python',str(lesson/'tune.py'),'--verify','--shape',*map(str,shape),'--seeds','2026112101','2026112102','2026112103','--output',str(out/'repeat-32x1024-graph.json')]),
+ ('inspect-32x1024',['python',str(lesson/'inspect_kernel.py'),'--shape',*map(str,shape),'--output',str(out/'inspection-32x1024')]),
+ ('inspect-wide',['python',str(lesson/'inspect_kernel.py'),'--shape',*map(str,wide),'--output',str(out/'inspection-wide')]),
+ ('profile-specialized-32x1024',['python',str(base/'09-split-k/profile.py'),'--collect','--module',str(lesson/'solution.py'),'--shape',*map(str,shape),'--output',str(out/'profile-specialized-32x1024')]),
+ ('profile-retuned-prefetch-32x1024',['python',str(base/'09-split-k/profile.py'),'--collect','--module',str(base/'10-wave-local-tiles/solution.py'),'--shape',*map(str,shape),'--config-json',json.dumps(pf),'--output',str(out/'profile-retuned-prefetch-32x1024')]),
+ ('course-check',['gpu-check']),
+]
+for label,command in tasks:
+ print('START',label,flush=True)
+ with (out/(label+'.log')).open('w') as log:r=subprocess.run(['pixi','run',*command],cwd=root,stdout=log,stderr=subprocess.STDOUT)
+ print('DONE',label,r.returncode,flush=True)
+ if r.returncode:raise SystemExit(r.returncode)
+print('EVIDENCE COMPLETE',flush=True)

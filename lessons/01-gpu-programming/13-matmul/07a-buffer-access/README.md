@@ -65,7 +65,7 @@ reg2gmem_copy_plan = fx.make_tiled_copy_C(gmem_store_16b, mma)
 fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
 ```
 
-All 32 BF16 output slots per thread are stored. The prologue, four K=16 steps in `compulte_lds()`, reader/ready barriers, and final drain retain stage 07's order. Buffer wrapping itself does not introduce overlap or a general tail-handling policy.
+All 32 BF16 output slots per thread are stored. The prologue, four K=16 steps in `compute_lds()`, reader/ready barriers, and final drain retain stage 07's order. Buffer wrapping itself does not introduce overlap or a general tail-handling policy.
 
 ## Practice and verification
 

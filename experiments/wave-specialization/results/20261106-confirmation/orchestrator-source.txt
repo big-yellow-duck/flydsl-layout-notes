@@ -1,0 +1,60 @@
+import json,random,runpy,statistics
+from dataclasses import asdict
+from pathlib import Path
+root=Path('/home/akk/jeff/flydsl-layout-notes');lesson=root/'lessons/01-gpu-programming/13-matmul/11-wave-specialization';results=lesson/'results'
+out=results/'20261106-confirmation';out.mkdir(parents=True,exist_ok=False)
+t=runpy.run_path(str(lesson/'tune.py'));g=t['environment'].__globals__;common=g['COMMON'];m=g['MODULE'];pf=g['PREFETCH']
+for filename in ('solution.py','tune.py'):(out/(filename.removesuffix('.py')+'-source-snapshot.txt')).write_text((lesson/filename).read_text())
+selection={'training_seed':13,'criterion':'lowest worst training-round paired ratio; median ratio breaks ties; held-out seeds unused','wave_specialized':{},'prefetch_control':{}}
+for shape in ((16,4096,8192),(16,1024,8192),(32,1024,8192)):
+ name='x'.join(map(str,shape));g['CONTEXT']['SHAPE']=shape;g['TUNED_PREFETCH']=None
+ data,trace=common['inputs'](13),common['inputs'](0,True)
+ raw=json.loads((results/'20261106-prefetch-controls'/('training-'+name+'.json')).read_text())['ranking']
+ controls=[]
+ for row in raw[:3]:
+  c=pf['Config'](**row['config'])
+  if c not in controls:controls.append(c)
+ locked=pf['CONFIGS_BY_SHAPE'][shape]
+ if locked not in controls:controls.append(locked)
+ refs={'prefetch':pf['launch_for'](locked,shape),'torch':common['torch_launch']}
+ control_launches={c.name:pf['launch_for'](c,shape) for c in controls}
+ for launch in control_launches.values():common['validate'](launch,trace,True);common['validate'](launch,data)
+ control_rows=[]
+ for repetition in range(3):
+  order=list(controls);random.Random(13+repetition).shuffle(order)
+  for c in order:
+   row={'config':asdict(c),'round':repetition,**t['measure']({'specialized':control_launches[c.name],**refs},data,7,10,repetition)}
+   control_rows.append(row);print('CONTROL CONFIRM',name,c.name,repetition,round(row['ratio_to_prefetch'],4),flush=True)
+ def score(c,rows,reference):
+  part=[row for row in rows if row['config']==asdict(c)]
+  return max(row['ratio_to_'+reference] for row in part),statistics.median(row['ratio_to_'+reference] for row in part)
+ chosen_control=min(controls,key=lambda c:score(c,control_rows,'prefetch'))
+ selection['prefetch_control'][name]={'config':asdict(chosen_control),'worst_training_ratio_to_prefetch':score(chosen_control,control_rows,'prefetch')[0]}
+ (out/('prefetch-confirmation-'+name+'.json')).write_text(json.dumps({'shape':shape,'environment':t['environment'](shape),'rounds':control_rows,'selected':asdict(chosen_control)},indent=2)+'\n')
+ g['TUNED_PREFETCH']=chosen_control
+ candidates=[]
+ for directory,protocol in (('20261106-search','semaphore'),('20261106-barrier-search','barrier')):
+  rows=[]
+  for phase in ('coarse','refine'):rows+=json.loads((results/directory/(phase+'-'+name+'.json')).read_text())['ranking']
+  rows.sort(key=lambda row:row['ratio_to_prefetch'])
+  count=0
+  for row in rows:
+   c=m['Config'](**{**row['config'],'protocol':protocol})
+   if c not in candidates:candidates.append(c);count+=1
+   if count==3:break
+ ws_launches={c.name:m['launch_for'](c,shape) for c in candidates}
+ references={**refs,'tuned_prefetch':pf['launch_for'](chosen_control,shape)}
+ for c in candidates:
+  common['validate'](ws_launches[c.name],trace,True);common['validate'](ws_launches[c.name],data)
+ ws_rows=[]
+ for repetition in range(3):
+  order=list(candidates);random.Random(23+repetition).shuffle(order)
+  for c in order:
+   row={'config':asdict(c),'round':repetition,**t['measure']({'specialized':ws_launches[c.name],**references},data,7,10,10+repetition)}
+   ws_rows.append(row);print('WS CONFIRM',name,c.name,repetition,round(row['ratio_to_tuned_prefetch'],4),round(row['ratio_to_prefetch'],4),flush=True)
+ chosen=min(candidates,key=lambda c:score(c,ws_rows,'tuned_prefetch'))
+ selection['wave_specialized'][name]={'config':asdict(chosen),'worst_training_ratio_to_tuned_prefetch':score(chosen,ws_rows,'tuned_prefetch')[0],'factory_module':'solution.py'}
+ (out/('ws-confirmation-'+name+'.json')).write_text(json.dumps({'shape':shape,'environment':t['environment'](shape),'rounds':ws_rows,'selected':asdict(chosen)},indent=2)+'\n')
+ (results/'selection.json').write_text(json.dumps(selection,indent=2)+'\n')
+ print('SELECTED',name,chosen.name,'CONTROL',chosen_control.name,flush=True)
+print('CONFIRMATION COMPLETE',flush=True)

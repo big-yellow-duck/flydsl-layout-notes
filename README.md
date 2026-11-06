@@ -9,7 +9,7 @@ The course begins with small mappings that can be traced by hand, then builds to
 | Section | Lessons | What you learn |
 | --- | --- | --- |
 | [00 · Layout algebra](lessons/00-layout-algebra/README.md) | 00–07 | Shapes, coordinates, composition, coalescing, tiling, block windows, thread/value ownership |
-| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through LDS layout tuning, load/compute interleaving, and verified parameter tuning |
+| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through LDS layout tuning, load/compute interleaving, verified parameter tuning, skinny split-K, independent wave tiles, synchronization scope, cache policy, K-loop unrolling, and operand paths |
 
 Start with layout algebra; lessons 06 and 07 still develop the coordinate and ownership fundamentals. Actual copy plans begin in lesson 08.
 
@@ -58,7 +58,7 @@ A memory view combines a storage iterator (a typed pointer) with a layout. Use `
 
 The early algebra lessons intentionally stop at mapping coordinates to offsets. Copy lessons begin with their data views. Tail lessons use a separate coordinate-only view to decide whether a memory access is valid. The combined divide exercise is an explicit cross-check, while the four focused tutorials show one direct access path each.
 
-The 28 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
+The 35 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
 
 ## What executes where
 
@@ -78,7 +78,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all 29 native programs: thirteen foundational lessons, four focused divide tutorials, and twelve matmul stages:
+Run all 35 native programs: thirteen foundational lessons, four focused divide tutorials, and eighteen matmul stages:
 
 ```bash
 pixi run lessons-check
@@ -100,7 +100,7 @@ On the gfx1151 setup, GPU event durations reported zero, including for a standal
 
 ## Practice BF16 matmul optimization
 
-After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions → LDS bank-conflict measurement → interleaved loads and compute → buffer access → separate A/B staging plans → grouped block traversal → parameter tuning. Every stage uses **M=N=K=1024**, BF16 inputs/output, and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
+After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions → LDS bank-conflict measurement → interleaved loads and compute → buffer access → separate A/B staging plans → grouped block traversal → parameter tuning → skinny split-K → independent wave tiles → synchronization scope → B cache policy → K-loop unrolling → operand-specific memory paths. Stages 00–08 use **M=N=K=1024**; stages 09–12 target three skinny K=8192 workloads. All retain BF16 inputs/output and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py
@@ -112,3 +112,12 @@ pixi run matmul-bench --timing host
 Each matmul solution and completed practice prints its own timing and TFLOP/s comparison against GPU `torch.matmul`. The separate benchmark compares all twelve GPU kernels against GPU `torch.matmul` grouped by matching physical B layout, with identical logical inputs and preallocated output. Input packing stays outside timing. CPU arithmetic is only the untimed correctness reference. Default automatic timing falls back to synchronized host batches for every compared implementation when any event duration is unavailable. The fallback is labeled and includes dispatch and synchronization. Use `--timing gpu-event` to disable fallback or `--check-only` to skip timing. See the [roadmap](ROADMAP.md#matmul-continuation-planned) for planned deeper software pipelines, broader shape tuning, and a measured hipBLAS/hipBLASLt challenge.
 
 Stage 08 also provides a separate configuration for aligned rectangular matmul `(M,N,K)=(1024,4096,2048)`. Use its `--shape 1024 4096 2048` selector; the standard course-wide benchmark remains 1024³. See [parameter tuning](lessons/01-gpu-programming/13-matmul/08-parameter-tuning/README.md).
+
+
+[Stage 09 · Skinny split-K](lessons/01-gpu-programming/13-matmul/09-split-k/README.md) uses its own matched graph-replay benchmark on three declared skinny shapes. It supports `split_k=1,2,4` and combines partials and resets workspace counters in the same kernel launch. Its `--timing direct-host` option also exposes ordinary Python dispatch cost.
+
+The skinny path is [09 · Split-K](lessons/01-gpu-programming/13-matmul/09-split-k/README.md) → [10 · Independent wave tiles](lessons/01-gpu-programming/13-matmul/10-wave-local-tiles/README.md) → [10a · Synchronization scope](lessons/01-gpu-programming/13-matmul/10a-synchronization-scope/README.md) → [10b · B cache policy](lessons/01-gpu-programming/13-matmul/10b-cache-policy/README.md) → [10c · K-loop unrolling](lessons/01-gpu-programming/13-matmul/10c-k-unrolling/README.md) → [12 · Operand paths](lessons/01-gpu-programming/13-matmul/12-operand-paths/README.md). Each bridge isolates one choice, with its own practice, diagram, controlled benchmark, and instruction capture.
+
+Wave specialization and ready/free semaphore protocols remain in the [research archive](experiments/README.md). They gave limited gains across the declared workloads. [Lesson 12 explains why the main path keeps prefetch](lessons/01-gpu-programming/13-matmul/12-operand-paths/README.md#why-the-course-keeps-prefetch).
+
+[Stage 12 · Operand paths](lessons/01-gpu-programming/13-matmul/12-operand-paths/README.md) profiles the actual hipBLASLt Torch kernels, then selects direct WMMA-register reads for A on the two narrow workloads while preserving coalesced B staging. Its active benchmark compares directly with tuned and same-geometry prefetch, using waves that all load and compute. Fresh graph verification finds about 15% lower time for M=32 versus tuned prefetch in all nine rounds, a smaller M=16 gain, and wide-shape parity. Ordinary Python calls meet prefetch parity. The lesson includes exact native offset traces and two illustrated operand paths.

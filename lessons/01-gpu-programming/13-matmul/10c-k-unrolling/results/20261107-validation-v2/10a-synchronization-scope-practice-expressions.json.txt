@@ -1,0 +1,10 @@
+[
+  {
+    "unfinished": "        # TODO 1: Select the LDS memory address space.\n        lds_address_spaces = None\n        if lds_address_spaces is None:\n            raise NotImplementedError(\"Fill in lds_address_spaces.\")",
+    "completed": "        lds_address_spaces = ir.ArrayAttr.get(\n            [ir.Attribute.parse(\"#gpu.address_space<workgroup>\")]\n        )"
+  },
+  {
+    "unfinished": "        # TODO 2: Use subgroup execution only for an independent single-wave group.\n        barrier_scope = None\n        if barrier_scope is None:\n            raise NotImplementedError(\"Fill in barrier_scope.\")",
+    "completed": "        barrier_scope = (\n            gpu.BarrierScope.Subgroup\n            if WAVE_GROUPS > 1 and SYNC_MODE == \"lds-subgroup\"\n            else gpu.BarrierScope.Workgroup\n        )"
+  }
+]

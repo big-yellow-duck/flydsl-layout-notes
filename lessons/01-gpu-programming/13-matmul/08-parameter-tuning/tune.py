@@ -244,32 +244,28 @@ def launch_for(config):
     return launch
 
 
-def candidates(buffer_counts=(1, 2), group_m=8, extended=False):
+def candidates(group_m=8, extended=False):
     if extended:
         configs = []
-        for (bm, bn), bk, (wm, wn), buffers in product(
+        for (bm, bn), bk, (wm, wn) in product(
             ((64, 256), (128, 256), (256, 64), (256, 128), (128, 128)),
             (32, 64),
             ((2, 4), (4, 2)),
-            buffer_counts,
         ):
-            config = Config(bm, bn, bk, wm, wn, buffers=buffers, group_m=group_m)
+            config = Config(bm, bn, bk, wm, wn, group_m=group_m)
             try:
                 MODULE["validate_config"](config, SHAPE)
             except ValueError:
                 continue
             configs.append(config)
         return configs
-    configs = [
-        Config(32, 32, 32, 2, 2, buffers=b, group_m=group_m) for b in buffer_counts
-    ]
-    for (bm, bn), bk, (wm, wn), buffers in product(
+    configs = [Config(32, 32, 32, 2, 2, group_m=group_m)]
+    for (bm, bn), bk, (wm, wn) in product(
         ((64, 64), (64, 128), (128, 64), (128, 128)),
         (16, 32, 64, 128),
         ((2, 2), (4, 1), (1, 4), (1, 2), (2, 1)),
-        buffer_counts,
     ):
-        config = Config(bm, bn, bk, wm, wn, buffers=buffers, group_m=group_m)
+        config = Config(bm, bn, bk, wm, wn, group_m=group_m)
         try:
             MODULE["validate_config"](config, SHAPE)
         except ValueError:
@@ -278,13 +274,13 @@ def candidates(buffer_counts=(1, 2), group_m=8, extended=False):
     return configs
 
 
-def prepare(buffer_counts, group_m=8, extended=False):
+def prepare(group_m=8, extended=False):
     trace_data, training_data = inputs(0, True), inputs(13)
     validate(torch_launch, trace_data, True)
     validate(torch_launch, training_data)
     accepted, failures = [], []
     # Compile and check every candidate before recording any search timings.
-    for config in candidates(buffer_counts, group_m, extended):
+    for config in candidates(group_m, extended):
         try:
             launch = launch_for(config)
             validate(launch, trace_data, True)
@@ -303,8 +299,8 @@ def prepare(buffer_counts, group_m=8, extended=False):
     return accepted, failures, training_data
 
 
-def sweep(timing, buffer_counts, group_m=8, extended=False):
-    accepted, failures, training_data = prepare(buffer_counts, group_m, extended)
+def sweep(timing, group_m=8, extended=False):
+    accepted, failures, training_data = prepare(group_m, extended)
     random.Random(41).shuffle(accepted)
     rows = []
     for index, (config, launch) in enumerate(accepted):
@@ -329,8 +325,7 @@ def sweep(timing, buffer_counts, group_m=8, extended=False):
         "environment": environment(),
         "training_seed": 13,
         "trace_check": True,
-        "candidate_count": len(candidates(buffer_counts, group_m, extended)),
-        "buffer_counts": buffer_counts,
+        "candidate_count": len(candidates(group_m, extended)),
         "extended": extended,
         "group_m": group_m,
         "selection": "minimum median paired kernel/torch ratio on training inputs",
@@ -442,7 +437,6 @@ def main():
         default=None,
         help="output tile rows per group; defaults to Config.group_m",
     )
-    parser.add_argument("--buffers", type=int, nargs="+", choices=(1, 2), default=None)
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Use a fresh output file to retain prior measurements")
@@ -458,24 +452,19 @@ def main():
         config = replace(config, group_m=args.group_m)
     group_m = config.group_m
     extended = args.extended
-    buffer_counts = args.buffers or (1, 2)
-    if args.verify and args.buffers:
-        if len(args.buffers) != 1:
-            parser.error("Verification requires one locked buffer count")
-        config = replace(config, buffers=args.buffers[0])
     MODULE["validate_config"](config, SHAPE)
     if args.check_candidates:
-        accepted, rejected, _ = prepare(buffer_counts, group_m, extended)
+        accepted, rejected, _ = prepare(group_m, extended)
         report = {
             "kind": "candidate_correctness_only",
             "environment": environment(),
             "checked": [asdict(config) for config, _ in accepted],
             "rejected": rejected,
-            "candidate_count": len(candidates(buffer_counts, group_m, extended)),
+            "candidate_count": len(candidates(group_m, extended)),
             "note": "No performance measurements or parity claim",
         }
     elif args.sweep:
-        report = sweep(args.timing, buffer_counts, group_m, extended)
+        report = sweep(args.timing, group_m, extended)
     else:
         report = verify(config, args.seeds, args.timing)
     args.output.parent.mkdir(parents=True, exist_ok=True)

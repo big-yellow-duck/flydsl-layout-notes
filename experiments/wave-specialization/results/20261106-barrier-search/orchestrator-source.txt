@@ -1,0 +1,53 @@
+import json
+import subprocess
+import time
+from datetime import datetime,timezone
+from pathlib import Path
+
+root=Path('/home/akk/jeff/flydsl-layout-notes')
+lesson=root/'lessons/01-gpu-programming/13-matmul/11-wave-specialization'
+out=lesson/'results/20261106-barrier-search';out.mkdir(parents=True,exist_ok=False)
+for filename in ('barrier_experiment.py','tune.py'):
+ (out/(filename.removesuffix('.py')+'-source-snapshot.txt')).write_text((lesson/filename).read_text())
+telemetry=[]
+hwmon=[]
+for sensor in Path('/sys/class/hwmon').glob('hwmon*'):
+ try:
+  name=(sensor/'name').read_text().strip()
+ except OSError:continue
+ if name in ('amdgpu','k10temp'):
+  hwmon.append((name,sensor))
+
+def record(phase):
+ row={'timestamp_utc':datetime.now(timezone.utc).isoformat(),'phase':phase}
+ for name,sensor in hwmon:
+  for attribute in ('temp1_input','freq1_input','freq2_input','power1_average'):
+   try:row[name+'_'+attribute]=int((sensor/attribute).read_text().strip())
+   except OSError:pass
+ telemetry.append(row)
+
+def run(label,flags):
+ print('START',label,flush=True);start=time.monotonic()
+ with (out/(label+'.log')).open('w') as log:
+  child=subprocess.Popen(['pixi','run','python',str(lesson/'tune.py'),'--module',str(lesson/'barrier_experiment.py'),*flags,'--output',str(out/(label+'.json'))],cwd=root,stdout=log,stderr=subprocess.STDOUT)
+  while child.poll() is None:
+   record(label);time.sleep(2)
+  code=child.returncode
+ (out/'telemetry.json').write_text(json.dumps(telemetry,indent=2)+'\n')
+ print('DONE',label,'exit',code,'seconds',round(time.monotonic()-start,1),flush=True)
+ if code:raise SystemExit(code)
+
+while True:
+    other = subprocess.run(['pgrep','-f','^python3 /tmp/run_wave_search.py$'],capture_output=True,text=True)
+    if other.returncode != 0:break
+    time.sleep(2)
+for shape in ((16,4096,8192),(16,1024,8192),(32,1024,8192)):
+ name='x'.join(map(str,shape))
+ from itertools import product
+ configs=[{'block_m':shape[0],'block_n':bn,'block_k':bk,'waves_m':1,'waves_n':cw,'loader_waves':lw,'lds_stages':stages,'split_k':split,'right_cache_modifier':2 if shape[1]==4096 else 0}
+          for bn,bk,lw,cw,stages,split in product((32,64,128),(16,32,64),(1,2),(1,2,4),(1,2),(1,4))]
+ config_path=out/('configs-'+name+'.json');config_path.write_text(json.dumps(configs,indent=2)+'\n')
+ flags=['--sweep','--shape',*map(str,shape)]
+ run('coarse-'+name,flags+['--configs',str(config_path)])
+ run('refine-'+name,flags+['--refine',str(out/('coarse-'+name+'.json'))])
+print('SEARCH COMPLETE',out,flush=True)

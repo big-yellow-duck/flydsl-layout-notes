@@ -1,0 +1,182 @@
+{
+  "lesson": "10a",
+  "shape_MNK": [
+    16,
+    4096,
+    8192
+  ],
+  "configurations": {
+    "stage": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 16,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 1,
+      "wave_groups": 2,
+      "sync_mode": "lds-subgroup"
+    },
+    "workgroup": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 16,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 1,
+      "wave_groups": 2,
+      "sync_mode": "workgroup"
+    },
+    "lds-workgroup": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 16,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 1,
+      "wave_groups": 2,
+      "sync_mode": "lds-workgroup"
+    }
+  },
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-06T16:21:05.175729+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.0.0",
+    "hip": "7.15.26333",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      4096,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "6ad339bf20ecb80a5bf851ad5c64651c9f4ae056139d6d50310a843173b55880",
+    "source_sha256": {
+      "solution.py": "3610a4eae71843522735f7ccf1f8e8bbb328550b129e3cb75fe57d64bfaa37cc",
+      "tune.py": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755"
+    },
+    "native_factory_sha256": "6ad339bf20ecb80a5bf851ad5c64651c9f4ae056139d6d50310a843173b55880"
+  },
+  "kernel_ms": 0.28809176953359383,
+  "torch_ms": 0.2901295976585061,
+  "paired_ratio": 0.9929238743874302,
+  "median_ms": {
+    "stage": 0.28809176953359383,
+    "workgroup": 0.3522374179851795,
+    "lds-workgroup": 0.353871156249852,
+    "torch": 0.2901295976585061
+  },
+  "paired_ratios": {
+    "workgroup": 0.8159055929487211,
+    "lds-workgroup": 0.8130823749985393,
+    "torch": 0.9929238743874302
+  },
+  "samples_ms": {
+    "stage": [
+      0.2850776445200154,
+      0.2860874960788351,
+      0.2888014335837852,
+      0.2887315195323481,
+      0.28809176953359383
+    ],
+    "workgroup": [
+      0.3518369609309957,
+      0.3511317461004637,
+      0.35396427733758173,
+      0.3522374179851795,
+      0.3523561601355141
+    ],
+    "lds-workgroup": [
+      0.35527868749340996,
+      0.3536851054661838,
+      0.3533540624971465,
+      0.353871156249852,
+      0.3543205195342125
+    ],
+    "torch": [
+      0.2901295976585061,
+      0.2901244804718317,
+      0.290534234380857,
+      0.2901288945338365,
+      0.29014487108725007
+    ]
+  },
+  "orders": [
+    [
+      "torch",
+      "stage",
+      "workgroup",
+      "lds-workgroup"
+    ],
+    [
+      "torch",
+      "stage",
+      "lds-workgroup",
+      "workgroup"
+    ],
+    [
+      "torch",
+      "stage",
+      "lds-workgroup",
+      "workgroup"
+    ],
+    [
+      "torch",
+      "lds-workgroup",
+      "stage",
+      "workgroup"
+    ],
+    [
+      "torch",
+      "workgroup",
+      "stage",
+      "lds-workgroup"
+    ]
+  ],
+  "timing": "graph-host",
+  "graph_metadata": {
+    "stage": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    },
+    "workgroup": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    },
+    "lds-workgroup": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    },
+    "torch": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    }
+  },
+  "batches": 5,
+  "repeats": 8,
+  "seed": 13,
+  "right_staging_BF16_values_per_thread": 32,
+  "lds_bytes": 5632,
+  "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation.",
+  "source_sha256": "cd83418c8ca6b68fded33c6056f030729feed3b3f275a0d0d859ac0c38ce4cf6"
+}

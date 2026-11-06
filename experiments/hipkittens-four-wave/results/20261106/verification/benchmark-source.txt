@@ -1,0 +1,371 @@
+"""Measure a gfx11 adaptation of HipKittens' four-wave interleave schedule.
+
+Training uses seed 13; verification takes separately declared seeds. Every
+comparison also measures retuned prefetch and the same-geometry bulk schedule.
+"""
+
+import argparse
+import hashlib
+import inspect
+import json
+import runpy
+import statistics
+from dataclasses import asdict, replace
+from itertools import product
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+COURSE = ROOT / "lessons/01-gpu-programming/13-matmul"
+MODULE_PATH = HERE / "kernel.py"
+NATIVE = runpy.run_path(str(MODULE_PATH))
+HARNESS = runpy.run_path(str(COURSE / "11-wave-specialization/tune.py"))
+PREFETCH = HARNESS["PREFETCH"]
+WAVE_SPECIALIZED = HARNESS["MODULE"]
+COMMON = HARNESS["COMMON"]
+CONTEXT = COMMON["inputs"].__globals__
+Config = NATIVE["Config"]
+TUNED_BULK = None
+SELECTION = json.loads(
+    (COURSE / "11-wave-specialization/results/selection.json").read_text()
+)
+
+
+def check_workspace(launch):
+    module = WAVE_SPECIALIZED if hasattr(launch, "sync_trace") else NATIVE
+    module["check_workspace"](launch)
+
+
+HARNESS["measure"].__globals__["check_workspace"] = check_workspace
+CONTEXT["MODULE"] = {"check_workspace": check_workspace}
+
+
+def configure(shape):
+    CONTEXT["SHAPE"] = tuple(shape)
+
+
+def controls(shape, include_wave_specialized=False):
+    key = "x".join(map(str, shape))
+    config = PREFETCH["Config"](**SELECTION["prefetch_control"][key]["config"])
+    result = {
+        "prefetch": PREFETCH["launch_for"](config, shape),
+        "torch": COMMON["torch_launch"],
+    }
+    if include_wave_specialized:
+        config = WAVE_SPECIALIZED["CONFIGS_BY_SHAPE"][shape]
+        result["wave_specialized"] = WAVE_SPECIALIZED["launch_for"](config, shape)
+    if TUNED_BULK is not None:
+        result["tuned_bulk"] = NATIVE["launch_for"](TUNED_BULK, shape)
+    return result
+
+
+def environment(shape):
+    configure(shape)
+    result = COMMON["environment"]()
+    result.update(
+        kernel_build_sha256=hashlib.sha256(
+            inspect.getsource(NATIVE["build"].__wrapped__).encode()
+        ).hexdigest(),
+        source_sha256={
+            name: hashlib.sha256((HERE / name).read_bytes()).hexdigest()
+            for name in ("kernel.py", "benchmark.py")
+        },
+        prefetch_factory_sha256=hashlib.sha256(
+            inspect.getsource(PREFETCH["build"].__wrapped__).encode()
+        ).hexdigest(),
+        wave_specialized_factory_sha256=hashlib.sha256(
+            inspect.getsource(WAVE_SPECIALIZED["build"].__wrapped__).encode()
+        ).hexdigest(),
+        prefetch_config=SELECTION["prefetch_control"]["x".join(map(str, shape))][
+            "config"
+        ],
+        wave_specialized_config=asdict(WAVE_SPECIALIZED["CONFIGS_BY_SHAPE"][shape]),
+        native_module=str(MODULE_PATH),
+        native_module_sha256=hashlib.sha256(MODULE_PATH.read_bytes()).hexdigest(),
+        strategy="all waves load and compute; single-atom WMMA and staggered input vectors",
+        adaptation="gfx11 register staging; no CDNA LDS DMA or AGPR pinning",
+        tuned_bulk_config=asdict(TUNED_BULK) if TUNED_BULK is not None else None,
+    )
+    return result
+
+
+def measure(
+    config,
+    shape,
+    data,
+    references,
+    batches,
+    repeats,
+    order_seed,
+    timing="graph-host",
+    launch_factory=None,
+):
+    configure(shape)
+    factory = NATIVE["launch_for"] if launch_factory is None else launch_factory
+    launches = {
+        "specialized": factory(config, shape),
+        **references,
+        "bulk": NATIVE["launch_for"](
+            replace(config, schedule="bulk", compiler_fence=False, issue_group=1), shape
+        ),
+    }
+    for launch in launches.values():
+        COMMON["validate"](launch, data)
+    result = HARNESS["measure"](launches, data, batches, repeats, order_seed, timing)
+    for field in ("median_ms", "samples_ms", "graph_metadata"):
+        if "specialized" in result[field]:
+            result[field]["candidate"] = result[field].pop("specialized")
+    result["orders"] = [
+        ["candidate" if name == "specialized" else name for name in order]
+        for order in result["orders"]
+    ]
+    return result
+
+
+def compare(config, shape, timing="graph-host", launch_factory=None):
+    """Use the same matched controls for the ordinary kernel CLI."""
+    configure(shape)
+    result = measure(
+        config,
+        shape,
+        COMMON["inputs"](13),
+        controls(shape, include_wave_specialized=True),
+        7,
+        10,
+        13,
+        timing,
+        launch_factory,
+    )
+    return {
+        **result,
+        "kernel_ms": result["median_ms"]["candidate"],
+        "torch_ms": result["median_ms"]["torch"],
+        "paired_ratio": result["ratio_to_torch"],
+    }
+
+
+def coarse_configs(shape):
+    return [
+        Config(shape[0], bn, bk, wm, wn, split_k=split, wave_groups=groups)
+        for bn, bk, split, (wm, wn, groups) in product(
+            (32, 64, 128, 256),
+            (16, 32, 64),
+            (1, 2, 4),
+            ((1, 4, 1), (2, 2, 1), (1, 1, 4)),
+        )
+    ]
+
+
+def refine_configs(shape, rows):
+    ordered = sorted(rows, key=lambda row: row["ratio_to_prefetch"])
+    leaders = ordered[:4]
+    for groups in (1, 4):
+        leaders += [row for row in ordered if row["config"]["wave_groups"] == groups][
+            :1
+        ]
+    measured = {Config(**row["config"]) for row in rows}
+    configs = set()
+    dimensions = {
+        "block_m": (16, 32) if shape[0] == 32 else (16,),
+        "block_n": (16, 32, 64, 128, 256),
+        "block_k": (16, 32, 64, 128),
+        "split_k": (1, 2, 4),
+        "issue_group": (1, 2, 4),
+        "compiler_fence": (False, True),
+        "k_unroll": (1, 2, 4, 8),
+        "right_cache_modifier": (0, 2),
+    }
+    for row in leaders:
+        config = Config(**row["config"])
+        for name, values in dimensions.items():
+            configs.update(replace(config, **{name: value}) for value in values)
+        # Two-wave ablations test whether any gain depends on the four-wave count.
+        for wm, wn, groups in ((1, 2, 1), (2, 1, 1), (1, 1, 2)):
+            configs.add(replace(config, waves_m=wm, waves_n=wn, wave_groups=groups))
+    return sorted(configs - measured, key=lambda config: config.name)
+
+
+def telemetry():
+    return {
+        str(path): int(path.read_text())
+        for path in Path("/sys/class/drm").glob("card*/device/hwmon/hwmon*/temp1_input")
+    }
+
+
+def sweep(shape, configs, output, batches=3, repeats=3):
+    configure(shape)
+    data, trace = COMMON["inputs"](13), COMMON["inputs"](0, True)
+    references = controls(shape)
+    report = {
+        "kind": "training_search",
+        "training_seed": 13,
+        "environment": environment(shape),
+        "candidate_count": len(configs),
+        "ranking": [],
+        "pruned": [],
+        "rejected": [],
+        "selection": "lowest paired candidate/retuned-prefetch ratio on seed 13",
+    }
+    for index, config in enumerate(configs):
+        try:
+            NATIVE["validate_config"](config, shape)
+        except ValueError as error:
+            report["pruned"].append({"config": asdict(config), "error": str(error)})
+        else:
+            try:
+                launch = NATIVE["launch_for"](config, shape)
+                COMMON["validate"](launch, trace, True)
+                COMMON["validate"](launch, data)
+                result = measure(
+                    config, shape, data, references, batches, repeats, index
+                )
+                report["ranking"].append(
+                    {
+                        "config": asdict(config),
+                        "name": config.name,
+                        "telemetry": telemetry(),
+                        **result,
+                    }
+                )
+                print(
+                    "TRAIN",
+                    index + 1,
+                    len(configs),
+                    config.name,
+                    round(result["ratio_to_prefetch"], 4),
+                    round(result["ratio_to_bulk"], 4),
+                    flush=True,
+                )
+            except (RuntimeError, AssertionError) as error:
+                report["rejected"].append(
+                    {"config": asdict(config), "error": str(error)}
+                )
+                print("REJECTED", config.name, str(error)[:240], flush=True)
+        report["ranking"].sort(key=lambda row: row["ratio_to_prefetch"])
+        output.write_text(json.dumps(report, indent=2) + "\n")
+    return report
+
+
+def verify(config, shape, seeds, timing):
+    configure(shape)
+    correctness = NATIVE["solve"](config, shape)
+    references = controls(shape, include_wave_specialized=True)
+    rows = []
+    for seed in seeds:
+        data = COMMON["inputs"](seed)
+        for repetition in range(3):
+            result = measure(
+                config,
+                shape,
+                data,
+                references,
+                7,
+                20 if timing == "graph-host" else 50,
+                seed + repetition,
+                timing,
+            )
+            rows.append({"seed": seed, "round": repetition, **result})
+            print(
+                "HELDOUT",
+                seed,
+                repetition,
+                round(result["ratio_to_prefetch"], 4),
+                round(result["ratio_to_bulk"], 4),
+                flush=True,
+            )
+    names = [name for name in rows[0]["median_ms"] if name != "candidate"]
+    worst = {name: max(row["ratio_to_" + name] for row in rows) for name in names}
+    return {
+        "kind": "locked_heldout_verification",
+        "environment": environment(shape),
+        "config": asdict(config),
+        "correctness": correctness,
+        "seeds": seeds,
+        "rounds": rows,
+        "worst_round_ratio": worst,
+        "median_ms": {
+            name: statistics.median(row["median_ms"][name] for row in rows)
+            for name in rows[0]["median_ms"]
+        },
+        "performance_status": {
+            name: "win" if ratio < 0.95 else "parity" if ratio <= 1.05 else "slower"
+            for name, ratio in worst.items()
+        },
+        "thresholds": {
+            "win": "all round median paired ratios <0.95",
+            "parity": "all <=1.05",
+        },
+    }
+
+
+def main():
+    global TUNED_BULK, MODULE_PATH, NATIVE, Config
+    parser = argparse.ArgumentParser(description=__doc__)
+    actions = parser.add_mutually_exclusive_group(required=True)
+    actions.add_argument("--sweep", action="store_true")
+    actions.add_argument("--verify", action="store_true")
+    parser.add_argument("--shape", type=int, nargs=3, default=(32, 1024, 8192))
+    parser.add_argument("--refine", type=Path)
+    parser.add_argument(
+        "--module", type=Path, help="Replay an archived native source file"
+    )
+    parser.add_argument("--configs", type=Path)
+    parser.add_argument("--config", help="JSON object for locked verification")
+    parser.add_argument(
+        "--bulk-config", help="JSON object for the independent bulk control"
+    )
+    parser.add_argument(
+        "--seeds", type=int, nargs="+", default=(2026112201, 2026112202, 2026112203)
+    )
+    parser.add_argument(
+        "--timing", choices=("graph-host", "direct-host"), default="graph-host"
+    )
+    parser.add_argument("--batches", type=int, default=3)
+    parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    if args.module:
+        MODULE_PATH = args.module.resolve()
+        NATIVE = runpy.run_path(str(MODULE_PATH))
+        Config = NATIVE["Config"]
+    shape = tuple(args.shape)
+    if shape not in NATIVE["SHAPES"]:
+        parser.error("Choose a declared skinny shape")
+    if args.output.exists():
+        parser.error("Choose a fresh output path")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    if args.bulk_config:
+        TUNED_BULK = replace(
+            Config(**json.loads(args.bulk_config)),
+            schedule="bulk",
+            compiler_fence=False,
+            issue_group=1,
+        )
+        NATIVE["validate_config"](TUNED_BULK, shape)
+    elif args.verify and (HERE / "results/selection.json").exists():
+        selected = json.loads((HERE / "results/selection.json").read_text())
+        key = "x".join(map(str, shape))
+        TUNED_BULK = Config(**selected["shapes"][key]["bulk_control"])
+    if args.sweep:
+        if args.configs:
+            configs = [Config(**row) for row in json.loads(args.configs.read_text())]
+        elif args.refine:
+            configs = refine_configs(
+                shape, json.loads(args.refine.read_text())["ranking"]
+            )
+        else:
+            configs = coarse_configs(shape)
+        result = sweep(shape, configs, args.output, args.batches, args.repeats)
+    else:
+        config = (
+            Config(**json.loads(args.config))
+            if args.config
+            else NATIVE["CONFIGS_BY_SHAPE"][shape]
+        )
+        result = verify(config, shape, args.seeds, args.timing)
+        args.output.write_text(json.dumps(result, indent=2) + "\n")
+    print("SAVED", args.output, result.get("performance_status", {}), flush=True)
+
+
+if __name__ == "__main__":
+    main()

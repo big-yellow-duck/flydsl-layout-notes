@@ -1,0 +1,238 @@
+"""Reproduce dedicated-wave ownership and LDS ring handoff diagrams."""
+
+import json
+from pathlib import Path
+
+from draw_lesson_visuals import BLUE, GOLD, TEAL, Diagram
+from draw_wave_tiles import describe
+
+BASE = "01-gpu-programming/13-matmul/11-wave-specialization"
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def selected_example():
+    report = json.loads(
+        (ROOT / "lessons" / BASE / "results" / "selection.json").read_text()
+    )
+    return report["wave_specialized"]["32x1024x8192"]["config"]
+
+
+def ownership(config):
+    loaders = config["loader_waves"]
+    consumers = config["waves_m"] * config["waves_n"]
+    stages = config["lds_stages"]
+    bm, bn, bk = (config[name] for name in ("block_m", "block_n", "block_k"))
+    d = Diagram(830, "11 - Separate global loading from matrix computation")
+    describe(
+        d,
+        f"A block uses {loaders} dedicated loader wave{'s' if loaders != 1 else ''} and {consumers} compute waves. Loaders transfer A and B into {stages} LDS ring slots. Compute waves read ready slots and release them after use.",
+    )
+    d.text(
+        32,
+        67,
+        f"M=32, N=1024, K=8192; block {bm} x {bn} x {bk}; split_k={config['split_k']}.",
+        20,
+    )
+    d.text(
+        32,
+        111,
+        f"One physical block has {loaders + consumers} wave32 groups: {32 * (loaders + consumers)} threads.",
+        21,
+    )
+    d.box(32, 176, 247, 365, BLUE)
+    d.text(47, 194, "LOADER WAVES", 22)
+    d.text(47, 241, "Wave ID 0" if loaders == 1 else f"Wave IDs 0..{loaders - 1}", 20)
+    d.text(47, 278, f"Thread IDs 0..{32 * loaders - 1}", 19)
+    d.text(47, 337, "Global A/B loads", 20)
+    d.text(47, 380, "Private copy fragments", 18)
+    d.text(47, 423, "Write the next slot", 18)
+    d.text(47, 466, "LDS stores -> ready", 19)
+    d.arrow(288, 348, 337, 348)
+    d.box(351, 176, 248, 365, TEAL)
+    d.text(366, 194, "SHARED LDS RING", 21)
+    cell_height = min(82, 260 // stages)
+    for stage in range(stages):
+        y = 243 + stage * cell_height
+        d.box(368, y, 214, cell_height - 10, "white")
+        d.text(380, y + 12, f"slot {stage}: A + B", 19)
+    d.arrow(611, 348, 662, 348)
+    d.box(677, 176, 248, 365, GOLD)
+    d.text(692, 194, "COMPUTE WAVES", 21)
+    d.text(692, 241, f"Wave IDs {loaders}..{loaders + consumers - 1}", 20)
+    d.text(692, 278, f"Threads {32 * loaders}..{32 * (loaders + consumers) - 1}", 19)
+    d.text(692, 337, "Read the current slot", 18)
+    d.text(692, 380, "LDS operand reads", 19)
+    d.text(692, 423, "WMMA -> FP32 sums", 19)
+    d.text(692, 466, "Release the read slot", 18)
+    d.text(32, 581, f"Consumer local ID = physical thread ID - {32 * loaders}.", 21)
+    d.text(
+        32,
+        624,
+        f"Each slot: A uses {2 * bm * (bk + 8)} bytes; B uses {2 * bk * bn} bytes.",
+        20,
+    )
+    d.card(
+        32,
+        673,
+        893,
+        "Global A/B loads run in loader waves; WMMA runs in compute waves",
+        "The barrier schedule joins both roles after the next slot is written and the old one read.",
+        BLUE,
+    )
+    d.text(
+        32,
+        792,
+        "Split-K finalization and BF16 output remain inside this same kernel.",
+        19,
+    )
+    d.save(f"{BASE}/wave-roles")
+
+
+def handoffs(config):
+    loaders = config["loader_waves"]
+    consumers = config["waves_m"] * config["waves_n"]
+    stages, bk, splits = config["lds_stages"], config["block_k"], config["split_k"]
+    tiles = 2 * stages + 1
+    height = 430 + tiles * 42
+    d = Diagram(height, "11 - Check the ring generations and completed readers")
+    describe(
+        d,
+        f"The {stages}-slot example follows {tiles} local K tiles. Slot zero is reused three times. Ready targets count {loaders} loader-wave arrivals per generation; free targets count {consumers} compute-wave arrivals per generation.",
+    )
+    d.text(
+        32,
+        66,
+        f"{loaders} loader wave{'s' if loaders != 1 else ''}; {consumers} compute waves; {stages} slots. Counts measure wave arrivals.",
+        20,
+    )
+    d.text(
+        32, 108, "generation = local_tile // slots + 1; slot = local_tile % slots", 21
+    )
+    headers = (
+        (32, "tile"),
+        (112, "slot"),
+        (200, "generation"),
+        (365, "free before write"),
+        (585, "ready before read"),
+        (805, "free after read"),
+    )
+    for x, label in headers:
+        d.text(x, 163, label, 17)
+    for tile in range(tiles):
+        stage, generation = tile % stages, tile // stages + 1
+        y = 202 + tile * 42
+        d.box(30, y - 3, 896, 38, GOLD if stage == 0 else "white")
+        for x, value in (
+            (48, tile),
+            (130, stage),
+            (239, generation),
+            (422, (generation - 1) * consumers),
+            (664, generation * loaders),
+            (852, generation * consumers),
+        ):
+            d.text(x, y + 5, str(value), 20)
+    y = 221 + tiles * 42
+    d.text(
+        32,
+        y,
+        f"Gold rows trace slot 0: free targets 0, {consumers}, {2 * consumers}; ready targets {loaders}, {2 * loaders}, {3 * loaders}.",
+        19,
+    )
+    d.text(
+        32,
+        y + 47,
+        "Semaphore mode polls these counts; barrier mode records them only for diagnostics.",
+        19,
+    )
+    d.text(
+        32,
+        y + 87,
+        "Production barrier mode uses LDS-only workgroup barriers without counter polling.",
+        19,
+    )
+    partial = bk * (2**tiles - 1)
+    total = partial * splits * (splits + 1) // 2
+    d.text(
+        32,
+        y + 134,
+        f"Boundary trace: B=1; split 0 has A tags [1,2,4,...]; its FP32 partial is {partial}.",
+        18,
+    )
+    d.text(
+        32,
+        y + 173,
+        f"Across {splits} splits, the FP32 sum is {total}; convert the final result to BF16 once.",
+        18,
+    )
+    d.save(f"{BASE}/ring-handoffs")
+
+
+def barrier_schedule(config):
+    stages = config["lds_stages"]
+    if stages != 2:
+        raise ValueError("This schedule traces the selected two-slot barrier example")
+    d = Diagram(650, "11 - Loader and compute waves meet after each phase")
+    describe(
+        d,
+        "Five local K tiles use two LDS slots. Loaders publish tile zero in the prologue. Each subsequent phase loads and stores the next tile while compute waves consume the current tile. A workgroup barrier outside both role branches separates phases. The drain computes tile four without another global load.",
+    )
+    d.text(
+        32,
+        66,
+        "Five local K tiles, two LDS slots; columns show dependency phases, not measured time.",
+        19,
+    )
+    width = 146
+    phases = ("prologue", "step 0", "step 1", "step 2", "step 3", "drain")
+    for column, phase in enumerate(phases):
+        x = 32 + column * width
+        d.text(x + 10, 125, phase, 19)
+        d.box(x, 180, width - 10, 105, BLUE)
+        d.text(x + 10, 194, "LOADER", 17)
+        if column < 5:
+            d.text(x + 10, 226, f"load tile {column}", 17)
+            d.text(x + 10, 257, f"write slot {column % 2}", 16)
+        else:
+            d.text(x + 10, 235, "done", 19)
+        d.box(x, 330, width - 10, 105, GOLD)
+        d.text(x + 10, 344, "COMPUTE", 17)
+        if column:
+            tile = column - 1
+            d.text(x + 10, 377, f"WMMA tile {tile}", 16)
+            d.text(x + 10, 407, f"read slot {tile % 2}", 16)
+        else:
+            d.text(x + 10, 385, "wait for tile 0", 16)
+        if column < 5:
+            d.box(x + width - 9, 170, 3, 277, "#bdaceb")
+    d.text(
+        32,
+        480,
+        "Purple boundaries: LDS-only workgroup barrier, executed outside the role branch.",
+        19,
+    )
+    d.text(
+        32,
+        526,
+        "Tile 2 can overwrite slot 0 because the previous boundary completed all tile-0 reads.",
+        19,
+    )
+    d.text(
+        32,
+        573,
+        "The final phase consumes tile 4; the loader does not fetch a nonexistent tile 5.",
+        19,
+    )
+    d.text(
+        32,
+        615,
+        "Both roles reach the same barrier instance on every steady-state iteration.",
+        19,
+    )
+    d.save(f"{BASE}/barrier-schedule")
+
+
+if __name__ == "__main__":
+    example = selected_example()
+    ownership(example)
+    barrier_schedule(example)
+    handoffs(example)

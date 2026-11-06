@@ -1,0 +1,75 @@
+import json
+import runpy
+import tempfile
+from pathlib import Path
+import torch
+
+torch.set_num_threads(1)
+base = (Path(__file__).resolve().parents[4] / '09-split-k')
+u = runpy.run_path(str(base / 'tune.py'))
+shape = (16, 4096, 8192)
+u['inputs'].__globals__['SHAPE'] = shape
+data = u['inputs'](13)
+rows = []
+source = (base / 'solution.py').read_text()
+source = source.replace('split_k: int = 4', 'split_k: int = 4\n    prefetch_distance: int = 1')
+source = source.replace('SPLIT_K = config.split_k', 'SPLIT_K = config.split_k\n    PREFETCH_DISTANCE = config.prefetch_distance')
+source = source.replace('def gmem2reg_load_tile(tile_k):', 'def gmem2reg_load_tile(tile_k, left_staging, right_staging):')
+source = source.replace('fx.copy(gmem_load_128b, left_lds_source, left_fragment)', 'fx.copy(gmem_left_load, left_lds_source, left_staging)')
+source = source.replace('fx.copy(gmem_load_128b, right_lds_source, right_fragment)', 'fx.copy(gmem_right_load, right_lds_source, right_staging)')
+source = source.replace('def reg2lds_copy_tile():', 'def reg2lds_copy_tile(left_staging, right_staging):')
+source = source.replace('fx.copy(copy_128b, left_fragment,', 'fx.copy(copy_128b, left_staging,')
+source = source.replace('fx.copy(copy_128b, right_fragment,', 'fx.copy(copy_128b, right_staging,')
+source = source.replace('fx.barrier()', 'fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]))')
+start = source.index('        # 6. Prefetch next globals')
+end = source.index('        def store_output():', start)
+pipeline = '''        # Prefetch a queue of future global tiles; retain one LDS tile.
+        tiles_per_split = k // (BLOCK_K * SPLIT_K)
+        initial_tile_k = split_id * tiles_per_split
+        lookahead = min(PREFETCH_DISTANCE, tiles_per_split - 1)
+        left_prefetch = [fx.make_fragment_like(gmem2lds_left_destination) for _ in range(lookahead)]
+        right_prefetch = [fx.make_fragment_like(gmem2lds_right_destination) for _ in range(lookahead)]
+        gmem2reg_load_tile(initial_tile_k, left_fragment, right_fragment)
+        reg2lds_copy_tile(left_fragment, right_fragment)
+        if lookahead > 0:
+            for slot in fx.range_constexpr(lookahead):
+                gmem2reg_load_tile(initial_tile_k + slot + 1, left_prefetch[slot], right_prefetch[slot])
+            steady_groups = (tiles_per_split - lookahead - 1) // lookahead
+            for group in range(steady_groups):
+                for slot in fx.range_constexpr(lookahead):
+                    compute_lds()
+                    fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]))
+                    reg2lds_copy_tile(left_prefetch[slot], right_prefetch[slot])
+                    future_tile_k = initial_tile_k + group * lookahead + slot + lookahead + 1
+                    gmem2reg_load_tile(future_tile_k, left_prefetch[slot], right_prefetch[slot])
+            for tail in fx.range_constexpr(tiles_per_split - 1 - steady_groups * lookahead):
+                slot = tail % lookahead
+                compute_lds()
+                fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]))
+                reg2lds_copy_tile(left_prefetch[slot], right_prefetch[slot])
+                future = steady_groups * lookahead + tail + lookahead + 1
+                if future < tiles_per_split:
+                    gmem2reg_load_tile(initial_tile_k + future, left_prefetch[slot], right_prefetch[slot])
+        compute_lds()
+        fx.barrier(address_spaces=ir.ArrayAttr.get([ir.Attribute.parse("#gpu.address_space<workgroup>")]))
+
+'''
+source = source[:start] + pipeline + source[end:]
+Path('/tmp/skinny-lookahead-source.py').write_text(source)
+for bn,bk,wn in ((32,16,1),(64,16,1),(64,32,2),(32,32,1)):
+ for cache in (0,2):
+  variant = source.replace('gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)', f'gmem_left_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)\n        gmem_right_load = fx.make_copy_atom(fx.rocdl.BufferCopy128b({cache}), fx.BFloat16)')
+  with tempfile.NamedTemporaryFile(mode='w', suffix='.py', prefix='_lookahead_', dir=base) as f:
+   f.write(variant); f.flush()
+   m = runpy.run_path(f.name)
+   for depth in (1,2,4,8):
+    try:
+     config = m['Config'](16,bn,bk,1,wn,split_k=1,prefetch_distance=depth)
+     launch = m['launch_for'](config,shape)
+     u['validate'](launch,data)
+     report = u['paired_measure'](launch,u['torch_launch'],data,5,5,0,'graph-host')
+     rows.append({'bn':bn,'bk':bk,'wn':wn,'cache':cache,'depth':depth,**report})
+     print(bn,bk,wn,cache,depth,round(report['kernel_ms']*1000,3),round(report['torch_ms']*1000,3),round(report['paired_ratio'],4),flush=True)
+    except (ValueError,RuntimeError,AssertionError) as error:
+     print('FAILED',bn,bk,wn,cache,depth,str(error)[:2000],flush=True)
+Path('/tmp/skinny-lookahead-probe.json').write_text(json.dumps(rows,indent=2)+'\n')

@@ -1,0 +1,72 @@
+{
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-06T10:12:04.632627+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.0.0",
+    "hip": "7.15.26333",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      32,
+      1024,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "97353a7926ca7d56fa28d42aa5939d4d86954ad81d0fbd1a87f3e0d9dc5e8536",
+    "source_sha256": {
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/11-wave-specialization/solution.py": "940a601a67ede0f8ed9f582d2e8f98b647eb90a14c5a6eca91cb27b81841fccc",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/tune.py": "373644f275943629f65456c16d28dd82c29b88cab51667959a166b252d81d755",
+      "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py": "c48b298fc6fb4b5c09ff7eaab30ac5bcc953e5df2672737738a1f581e10c4b02"
+    }
+  },
+  "shape_MNK": [
+    32,
+    1024,
+    8192
+  ],
+  "module": "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/11-wave-specialization/solution.py",
+  "module_sha256": "940a601a67ede0f8ed9f582d2e8f98b647eb90a14c5a6eca91cb27b81841fccc",
+  "config": {
+    "block_m": 32,
+    "block_n": 64,
+    "block_k": 64,
+    "waves_m": 1,
+    "waves_n": 2,
+    "group_m": 1,
+    "split_k": 4,
+    "loader_waves": 1,
+    "lds_stages": 2,
+    "right_cache_modifier": 2,
+    "poll_sleep": 0,
+    "signal_mode": "auto",
+    "protocol": "barrier"
+  },
+  "name": "m32n64k64_cw1x2_lw1_lds2_sk4_bc2_sleep0_auto_barrier",
+  "dispatch_sequence": [
+    "native",
+    "torch",
+    "torch",
+    "native",
+    "native",
+    "torch",
+    "torch",
+    "native",
+    "native",
+    "torch",
+    "torch",
+    "native",
+    "native",
+    "torch",
+    "torch",
+    "native"
+  ],
+  "pairs": 8,
+  "warmups_per_implementation": 20,
+  "correctness": "full CPU reference, output sentinels, workspace reset before/after collection passed",
+  "scope": "ROCTx-selected synchronized matmuls; instrumented profiles are separate from performance verification"
+}
