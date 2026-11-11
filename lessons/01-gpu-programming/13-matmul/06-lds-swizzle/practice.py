@@ -43,12 +43,10 @@ def create_lds_views(layout_mode):
             # Element-offset bits 6..8 XOR into bits 3..5; low 3 stay intact.
             # TODO 1: Construct the native Swizzle<3,3,3> descriptor.
             swizzle = None
-            swizzle = fx.static(fx.SwizzleType.get(3,3,3))
             if swizzle is None:
                 raise NotImplementedError("Fill in swizzle.")
             # TODO 2: Compose swizzle, offset 0, and left_lds_base_layout.
             left_lds_layout = None
-            left_lds_layout = fx.make_composed_layout(swizzle, 0, left_lds_base_layout)
             if left_lds_layout is None:
                 raise NotImplementedError("Fill in left_lds_layout.")
     left_lds_view = lds.left.view(left_lds_layout)

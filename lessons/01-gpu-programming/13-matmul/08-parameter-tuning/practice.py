@@ -153,13 +153,6 @@ def build(config):
         )
         # TODO 2: Derive B's staging thread layout for eight-BF16 chunks.
         right_copy_threads = None
-        right_copy_threads = fx.make_ordered_layout(
-            (
-                THREADS_PER_BLOCK // (BLOCK_K // 8),
-                (BLOCK_K // 8),
-            ),
-            (1, 0),
-        )
         if right_copy_threads is None:
             raise NotImplementedError("Fill in right_copy_threads.")
         copy_values = fx.make_ordered_layout((1, 8), (1, 0))

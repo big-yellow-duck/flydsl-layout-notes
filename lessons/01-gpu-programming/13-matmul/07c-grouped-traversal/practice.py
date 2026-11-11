@@ -45,13 +45,16 @@ def exercise_kernel(
     group_width = min(GROUP_M, tiles_m)
     # Scalar block ID expands row-in-group first, then column, then row group.
     # (2,16,8):(16,1,32) for the full output tile grid.
-    block_tile_order = fx.make_layout(
-        (group_width, tiles_n, tiles_m // group_width),
-        (tiles_n, 1, group_width * tiles_n),
-    )
+    # TODO 1: Build the grouped traversal layout; see README.md.
+    block_tile_order = None
+    if block_tile_order is None:
+        raise NotImplementedError("Fill in block_tile_order.")
     output_tile_offset = fx.crd2idx(flat_block_id, block_tile_order)
     output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
-    output_tile_coords = fx.idx2crd(output_tile_offset, output_tile_layout)
+    # TODO 2: Convert the row-major offset to an (M,N) tile coordinate.
+    output_tile_coords = None
+    if output_tile_coords is None:
+        raise NotImplementedError("Fill in output_tile_coords.")
     block_row = fx.get_scalar(output_tile_coords[0])
     block_col = fx.get_scalar(output_tile_coords[1])
 

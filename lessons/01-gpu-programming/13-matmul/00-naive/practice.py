@@ -46,12 +46,10 @@ def exercise_kernel(
     for inner in range(k):
         # TODO 1: Load left_row[inner] and widen to FP32.
         a = None
-        a = fx.Float32(left_row[inner])
         if a is None:
             raise NotImplementedError("Fill in a.")
         # TODO 2: Load right_column[inner] and widen to FP32.
         b = None
-        b = fx.Float32(right_column[inner])
         if b is None:
             raise NotImplementedError("Fill in b.")
         accumulator = accumulator + a * b

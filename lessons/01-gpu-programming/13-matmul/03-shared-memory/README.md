@@ -121,6 +121,14 @@ TODO 1 is `copy_coordinate`, the inverse of the copy ownership layout. TODO 2 is
 
 Complete the two numbered expressions in `practice.py`. Keep the supplied launch, initialization, stores, and checker. The unfinished starter reports `Practice not finished: ...` and exits with status 1.
 
+For an additional 4×4 register-tile variant, use [practice-4x4.py](practice-4x4.py). It changes each thread's output window to four rows and four columns; fill `left_thread_view` so A loads select the four LDS rows owned by the thread. The supplied B view, accumulation, stores, and correctness checker remain in place. Run it from the repository root:
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/03-shared-memory/practice-4x4.py --check-only
+```
+
+The unfilled variant reports `Practice not finished:`. After filling the view expression, it checks both input patterns and prints the same first-four checkpoint as the main exercise.
+
 Every exercise runs **M = N = K = 1024**: row-major BF16 inputs, FP32 accumulation, and BF16 output. The checker evaluates all 1,048,576 outputs for two input patterns. The trace pattern uses `A[r,k] = ((r*1024+k) % 5)-2` and `B[k,c] = ((k*1024+c) % 7)-3`; the first four values of output row 0 are `[3, -6, -1, -3]`. A second pattern uses seeded random values quantized to BF16 before either implementation sees them. An independent CPU FP32 matrix product, rounded to BF16, supplies the untimed reference. Trace checks use `rtol=0, atol=0.001` to accommodate the small WMMA residue near zero; random checks use `rtol=0.016, atol=0.03125` for BF16 rounding and accumulation differences. These are exercise tolerances, not a numerical guarantee for arbitrary inputs.
 
 Sixteen output sentinels must remain unchanged. Output data starts as NaN, so incomplete writes fail the reference comparison. The sentinel checks writes; full-tile dimension constraints make all input reads in these programs valid. No tails are implemented here.

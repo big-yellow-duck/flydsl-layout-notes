@@ -64,7 +64,6 @@ def exercise_kernel(
         for load_slot in fx.range_constexpr(4):
             # TODO 1: Fill in copy_coordinate; see README.md.
             copy_coordinate = None
-            copy_coordinate = fx.idx2crd(fx.thread_idx.x + load_slot * 64, copy_layout)
             if copy_coordinate is None:
                 raise NotImplementedError("Fill in copy_coordinate.")
             left_shared_view[copy_coordinate] = left_block_view[copy_coordinate]
@@ -75,7 +74,6 @@ def exercise_kernel(
             for slot in fx.range_constexpr(4):
                 # TODO 2: Fill in a; see README.md.
                 a = None
-                a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
                 if a is None:
                     raise NotImplementedError("Fill in a.")
                 accumulators[slot] = accumulators[slot] + a * b

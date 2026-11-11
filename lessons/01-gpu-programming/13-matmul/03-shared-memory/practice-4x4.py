@@ -57,9 +57,10 @@ def exercise_kernel(
         out_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
     )
     left_thread_tiled_view = fx.flat_divide(left_lds_view, (4, BLOCK_K))
-    left_thread_view = fx.slice(
-        left_thread_tiled_view, (None, None, thread_coordinate[0], 0)
-    )
+    # TODO: Select this thread's four A rows from the tiled LDS view.
+    left_thread_view = None
+    if left_thread_view is None:
+        raise NotImplementedError("Fill in left_thread_view.")
 
     right_thread_tiled_view = fx.flat_divide(right_lds_view, (BLOCK_K, 4))
     right_thread_view = fx.slice(
