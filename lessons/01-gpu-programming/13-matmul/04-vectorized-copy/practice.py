@@ -1,7 +1,5 @@
 """BF16 matmul: 04-vectorized-copy. See README.md for the exercise."""
 
-from flydsl._mlir.extras.types import none
-from flydsl.expr import UniversalCopy64b
 import runpy
 from pathlib import Path
 
@@ -59,9 +57,10 @@ def exercise_kernel(
     gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
         gmem2lds_thread_layout, gmem2lds_val_layout
     )
-    gmem2lds_copy_plan = fx.make_tiled_copy(
-        copy_128b, gmem2lds_tv_layout, gmem2lds_tilemn
-    )
+    # TODO 1: Build the global-to-LDS plan from its atom and thread/value layout.
+    gmem2lds_copy_plan = None
+    if gmem2lds_copy_plan is None:
+        raise NotImplementedError("Fill in gmem2lds_copy_plan.")
     # get per thread copy plan
     gmem2lds_thread_copy = gmem2lds_copy_plan.get_slice(fx.thread_idx.x)
 
@@ -79,9 +78,10 @@ def exercise_kernel(
     lds2reg_left_tilemn, lds2reg_left_tv_layout = fx.make_layout_tv(
         lds2reg_left_thread_layout, lds2reg_left_val_layout
     )
-    lds2reg_left_copy_plan = fx.make_tiled_copy(
-        copy_16b, lds2reg_left_tv_layout, lds2reg_left_tilemn
-    )
+    # TODO 2: Build A's LDS-to-register copy plan.
+    lds2reg_left_copy_plan = None
+    if lds2reg_left_copy_plan is None:
+        raise NotImplementedError("Fill in lds2reg_left_copy_plan.")
 
     copy_64b = fx.make_copy_atom(fx.UniversalCopy64b(), fx.BFloat16)
     lds2reg_right_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
@@ -89,9 +89,10 @@ def exercise_kernel(
     lds2reg_right_tilemn, lds2reg_right_tv_layout = fx.make_layout_tv(
         lds2reg_right_thread_layout, lds2reg_right_val_layout
     )
-    lds2reg_right_copy_plan = fx.make_tiled_copy(
-        copy_64b, lds2reg_right_tv_layout, lds2reg_right_tilemn
-    )
+    # TODO 3: Build B's LDS-to-register copy plan.
+    lds2reg_right_copy_plan = None
+    if lds2reg_right_copy_plan is None:
+        raise NotImplementedError("Fill in lds2reg_right_copy_plan.")
 
     compute_thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
     thread_coord = fx.idx2crd(fx.thread_idx.x, compute_thread_layout)
@@ -194,9 +195,10 @@ def exercise_kernel(
     reg2gmem_tilemn, reg2gmem_tv_layout = fx.make_layout_tv(
         reg2gmem_thread_layout, reg2gmem_val_layout
     )
-    reg2gmem_copy_plan = fx.make_tiled_copy(
-        copy_64b, reg2gmem_tv_layout, reg2gmem_tilemn
-    )
+    # TODO 4: Build the register-to-global output copy plan.
+    reg2gmem_copy_plan = None
+    if reg2gmem_copy_plan is None:
+        raise NotImplementedError("Fill in reg2gmem_copy_plan.")
     reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(0)
     reg2gmem_source = reg2gmem_thread_copy.partition_S(out_registers)
     reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_thread_view)

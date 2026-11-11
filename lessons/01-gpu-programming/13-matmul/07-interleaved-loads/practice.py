@@ -149,12 +149,18 @@ def exercise_kernel(
             fx.barrier()
     else:
         # get the first block ready
-        initial_tile_k = 0
+        # TODO 1: Select the first K tile for the prefetch prologue.
+        initial_tile_k = None
+        if initial_tile_k is None:
+            raise NotImplementedError("Fill in initial_tile_k.")
         gmem2reg_load_tile(initial_tile_k)
         reg2lds_copy_tile()
 
         for tile_k in range(k // BLOCK_K - 1):
-            next_tile_k = tile_k + 1
+            # TODO 2: Select the tile staged while this iteration computes tile_k.
+            next_tile_k = None
+            if next_tile_k is None:
+                raise NotImplementedError("Fill in next_tile_k.")
             gmem2reg_load_tile(next_tile_k)
             compute_lds()
             fx.barrier()

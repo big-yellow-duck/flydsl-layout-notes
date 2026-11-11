@@ -167,7 +167,13 @@ fx.copy(copy_16b, rmem2gmem_source, rmem2gmem_dest)
 
 ## Practice, validation, and timing
 
-The completed [practice](practice.py) and [worked solution](solution.py) implement the same larger tile and inline inner loop. Trace the K slices, the `(N,K)` B view, and the instruction-derived A/B/C copy plans.
+In [practice.py](practice.py), fill three copy-plan expressions:
+
+1. `lds2reg_left_copy_plan` with `fx.make_tiled_copy_A(copy_16b, mma)`.
+2. `lds2reg_right_copy_plan` with `fx.make_tiled_copy_B(copy_16b, mma)`.
+3. `rmem2gmem_copy_plan` with `fx.make_tiled_copy_C(copy_16b, mma)`.
+
+These helpers derive A, B, and C ownership from the WMMA instruction. The kernel supplies the views, K slicing, staging, launch, and checker. Compare your plans with the [worked solution](solution.py).
 
 The checker compares every output with an independent CPU FP32 matrix product of the quantized BF16 inputs, rounded to BF16. It uses two patterns: a trace pattern with `A[r,k]=((r*1024+k)%5)-2` and `B[k,c]=((k*1024+c)%7)-3`, and seeded random inputs. The first four trace outputs are **[3, -6, -1, -3]**. Trace tolerances are `rtol=0, atol=0.001`; random tolerances are `rtol=0.016, atol=0.03125`. Output starts as NaN to detect missing writes, and sixteen trailing sentinels detect writes past its end. The fixed dimensions contain only complete tiles; this kernel implements no tails.
 
@@ -178,6 +184,8 @@ pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/prac
 pixi run python lessons/01-gpu-programming/13-matmul/05-matrix-instructions/solution.py --check-only
 pixi run gpu-check
 ```
+
+The unfilled practice reports `Practice not finished:`. After completing all three expressions, it prints `Exercise passed:` with the same checkpoint as the solution.
 
 Without `--check-only`, each file compares its GPU kernel with GPU `torch.matmul` on the same 1024³ problem and preallocated output. The default timing mode tries GPU events and retimes both rows with synchronized host batches if event durations are unavailable. Use `--timing host` to request that mode explicitly. CPU references and allocation remain outside timing. See the [benchmark guide](../README.md#compare-the-stages) for measurement limits.
 

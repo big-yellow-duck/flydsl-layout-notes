@@ -161,7 +161,7 @@ pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/profil
   --collect --output /tmp/flydsl-interleaved-new
 ```
 
-Add `--implementation practice.py` to profile your completed practice instead of the solution; both serial and prefetch schedules are selected explicitly.
+After completing the practice TODOs, add `--implementation practice.py` to profile it instead of the solution; both serial and prefetch schedules are selected explicitly.
 
 Use a fresh output directory. The driver checks both schedules, captures rocprofv3 counters, dumps final ISA and origin IR, and records a main-loop excerpt with source line numbers. It verifies that the dump is the full 1024³ specialization rather than an overwritten boundary-case specialization. It also checks that prefetch global loads precede WMMA and that the first VMEM wait follows all sixteen WMMA instructions in the main loop, before the LDS stores.
 
@@ -209,14 +209,20 @@ The driver writes counter data, assembly, IR, loop-order excerpts, logs, and a m
 
 ## Practice and verification
 
-The completed [practice.py](practice.py) and [solution.py](solution.py) use the same three tracing helpers and prologue/steady-state/drain structure. Follow `initial_tile_k = 0` and `next_tile_k = tile_k + 1`, then trace which values occupy the staging registers and LDS at each helper call. The `run()` and `solve()` defaults select prefetch; use `solve("serial")` to check the stage-06 ordering explicitly.
+The [practice.py](practice.py) scaffold has two TODOs in the prefetch path:
+
+1. `initial_tile_k` selects the first tile published to LDS in the prologue.
+2. `next_tile_k` selects the future tile staged while the current `tile_k` is computed.
+
+Keep the separate drain outside the loop. The `run()` and `solve()` defaults select prefetch; use `solve("serial")` in a filled practice to check the stage-06 ordering explicitly. Compare with the [worked solution](solution.py).
+
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/practice.py --check-only
 pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/solution.py --check-only
 # Omit --check-only for the usual per-file GPU PyTorch comparison.
 ```
 
-The completed practice and solution report `Exercise passed:` with the fixed main comparison `shapes_MNK: [(1024,1024,1024)]`, two patterns, and `first_four: [3,-6,-1,-3]`. Trace tolerances remain `rtol=0, atol=0.001`; seeded BF16 random checks use `rtol=0.016, atol=0.03125`, against independent CPU FP32 matmul rounded to BF16. Output starts as NaN; 16 trailing sentinels check stray writes.
+The unfilled practice reports `Practice not finished:`. After completing both expressions, it and the solution report `Exercise passed:` with the fixed main comparison `shapes_MNK: [(1024,1024,1024)]`, two patterns, and `first_four: [3,-6,-1,-3]`. Trace tolerances remain `rtol=0, atol=0.001`; seeded BF16 random checks use `rtol=0.016, atol=0.03125`, against independent CPU FP32 matmul rounded to BF16. Output starts as NaN; 16 trailing sentinels check stray writes.
 
 The additional `pipeline_boundaries` checkpoint covers 64×64 outputs with **one, two, and three K tiles**. A's successive K tiles contain values 1,2,4 and B contains 1, so every output must equal 64, 192, or 448 exactly. These checks exercise the zero-trip loop, first handoff, and repeated handoff without changing the 1024³ performance comparison. No partial tile or K=0 path is implemented.
 

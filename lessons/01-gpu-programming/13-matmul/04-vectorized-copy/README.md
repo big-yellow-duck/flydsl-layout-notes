@@ -155,7 +155,14 @@ The output plan uses one logical thread with layout `(1,1):(1,1)` and a `(4,4)` 
 
 ## Practice and verification
 
-The completed [practice.py](practice.py) and worked [solution.py](solution.py) use the same three copy paths: 128-bit global-to-LDS staging through temporary registers, separate A/B LDS-to-register plans, and 64-bit output stores after BF16 conversion. Trace `gmem2lds_thread_copy`, `lds2reg_left_thread_copy`, `lds2reg_right_thread_copy`, and `reg2gmem_thread_copy` to compare which ID each plan receives. The practice file contains the completed implementation rather than unfilled TODOs.
+In [practice.py](practice.py), build four `TiledCopy` plans from the supplied atoms and thread/value layouts:
+
+1. `gmem2lds_copy_plan` for eight-value 128-bit global loads and LDS stores.
+2. `lds2reg_left_copy_plan` for A's four strided rows using 16-bit copies.
+3. `lds2reg_right_copy_plan` for B's four contiguous columns using 64-bit copies.
+4. `reg2gmem_copy_plan` for four BF16 output values per 64-bit row store.
+
+The remaining code partitions each source and destination, moves data, computes, and checks the full output. Compare each plan's logical slots with the supplied layouts and the [worked solution](solution.py).
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/04-vectorized-copy/practice.py --check-only
@@ -163,7 +170,7 @@ pixi run python lessons/01-gpu-programming/13-matmul/04-vectorized-copy/solution
 # Omit --check-only to compare this kernel with GPU torch.matmul.
 ```
 
-Both programs print `Exercise passed:` with `shapes_MNK: [(1024,1024,1024)]`, two patterns, and `first_four: [3,-6,-1,-3]`. The checker compares every output against CPU FP32 matmul on the quantized inputs, rounded to BF16. Trace tolerance is `rtol=0, atol=0.001`; seeded random tolerance is `rtol=0.016, atol=0.03125`. Output starts as NaN, and 16 trailing sentinels check stray writes.
+The unfilled practice reports `Practice not finished:`. After completing all four expressions, it prints `Exercise passed:` with `shapes_MNK: [(1024,1024,1024)]`, two patterns, and `first_four: [3,-6,-1,-3]`. The solution prints the same checkpoint. The checker compares every output against CPU FP32 matmul on the quantized inputs, rounded to BF16. Trace tolerance is `rtol=0, atol=0.001`; seeded random tolerance is `rtol=0.016, atol=0.03125`. Output starts as NaN, and 16 trailing sentinels check stray writes.
 
 To inspect lowering rather than infer it from the atom's name:
 

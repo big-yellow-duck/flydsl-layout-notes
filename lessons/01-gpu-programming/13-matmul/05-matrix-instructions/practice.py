@@ -89,8 +89,14 @@ def exercise_kernel(
 
     # lds to register copies using mma compatible plans
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-    lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-    lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+    # TODO 1: Derive A's LDS-to-register ownership from the MMA instruction.
+    lds2reg_left_copy_plan = None
+    if lds2reg_left_copy_plan is None:
+        raise NotImplementedError("Fill in lds2reg_left_copy_plan.")
+    # TODO 2: Derive B's LDS-to-register ownership from the MMA instruction.
+    lds2reg_right_copy_plan = None
+    if lds2reg_right_copy_plan is None:
+        raise NotImplementedError("Fill in lds2reg_right_copy_plan.")
 
     lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(fx.thread_idx.x)
     lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(fx.thread_idx.x)
@@ -152,7 +158,10 @@ def exercise_kernel(
     for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
         out_registers[slot] = accumulator[slot].to(fx.BFloat16)
 
-    rmem2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
+    # TODO 3: Derive C's register-to-global ownership from the MMA instruction.
+    rmem2gmem_copy_plan = None
+    if rmem2gmem_copy_plan is None:
+        raise NotImplementedError("Fill in rmem2gmem_copy_plan.")
     rmem2gmem_thread_copy = rmem2gmem_copy_plan.get_slice(fx.thread_idx.x)
     rmem2gmem_source = rmem2gmem_thread_copy.retile(out_registers)
     rmem2gmem_dest = rmem2gmem_thread_copy.partition_D(out_block_view)
