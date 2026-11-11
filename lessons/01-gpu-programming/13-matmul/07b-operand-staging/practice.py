@@ -68,17 +68,10 @@ def exercise_kernel(
     gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
     # TODO 1: Derive LEFT staging ownership from BLOCK_K.
     left_copy_threads = None
-    # (32,8) :(1.0)
-    left_copy_threads = fx.make_ordered_layout(
-        (THREADS_PER_BLOCK // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
-    )
     if left_copy_threads is None:
         raise NotImplementedError("Fill in left_copy_threads.")
     # TODO 2: Derive RIGHT staging ownership from BLOCK_N.
     right_copy_threads = None
-    right_copy_threads = fx.make_ordered_layout(
-        (THREADS_PER_BLOCK // (BLOCK_N // 8), BLOCK_N // 8), (1, 0)
-    )
     if right_copy_threads is None:
         raise NotImplementedError("Fill in right_copy_threads.")
     copy_values = fx.make_ordered_layout((1, 8), (1, 0))

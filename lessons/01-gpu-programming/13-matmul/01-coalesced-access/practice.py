@@ -35,13 +35,11 @@ def exercise_kernel(
     # 3. Keep one output per thread; both selected inputs are contiguous along K.
     # TODO 1: Fill in thread_layout; see README.md.
     thread_layout = None
-    thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
     if thread_layout is None:
         raise NotImplementedError("Fill in thread_layout.")
     # TODO 2: Fill in thread_coordinate; see README.md.
     thread_coordinate = None
     thread_index_x = fx.thread_idx.x
-    thread_coordinate = fx.idx2crd(thread_index_x, thread_layout)
     if thread_coordinate is None:
         raise NotImplementedError("Fill in thread_coordinate.")
     left_row = fx.slice(left_block_view, (thread_coordinate[0], None))

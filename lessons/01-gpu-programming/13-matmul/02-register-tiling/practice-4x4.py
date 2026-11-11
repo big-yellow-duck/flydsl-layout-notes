@@ -60,10 +60,8 @@ def exercise_kernel(
     print(right_thread_tiled_view)
     # TODO 1: Fill in left_thread_view; see README.md.
     left_thread_view = None
-    left_thread_view = fx.slice(
-        left_thread_tiled_view,
-        (None, None, thread_coordinate[0], 0),
-    )
+    if left_thread_view is None:
+        raise NotImplementedError("Fill in left_thread_view.")
     print("left thread view:")
     print(left_thread_view)
 

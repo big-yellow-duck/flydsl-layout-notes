@@ -52,10 +52,6 @@ def exercise_kernel(
     print(left_thread_tiled_view)
     # TODO 1: Fill in left_thread_view; see README.md.
     left_thread_view = None
-    left_thread_view = fx.slice(
-        left_thread_tiled_view,
-        (None, None, thread_coordinate[0], 0),
-    )
     print('left thread view:')
     print(left_thread_view)
     if left_thread_view is None:
@@ -70,7 +66,6 @@ def exercise_kernel(
             a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])  # noqa: F841 -- used by the practice TODOs
             # TODO 2: Fill in updated; see README.md.
             updated = None
-            updated = a * b
             if updated is None:
                 raise NotImplementedError("Fill in updated.")
             accumulators[slot] += updated
