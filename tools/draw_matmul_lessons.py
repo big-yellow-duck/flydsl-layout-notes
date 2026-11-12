@@ -779,32 +779,101 @@ def interleaved_loads():
 
 def buffer_access():
     d = Diagram(700, "07a - Buffer global transfers; retain the shared staging plan")
-    d.text(32, 66, "Fixed: 64x64x64 tile, 128 threads, padded A, one LDS tile per operand.", 18)
-    d.card(32, 120, 893, "Global A/B/C -> make_buffer_tensor -> row-major views",
-           "Resource wrapping describes access; it allocates no new matrix and loads no values.", BLUE)
-    d.card(32, 235, 893, "BufferCopy128b: global A/B -> private staging registers",
-           "One shared (16,8) thread plan; eight BF16 values per group, four row groups.", GOLD)
-    d.card(32, 350, 893, "UniversalCopy128b: staging registers -> ordinary LDS views",
-           "A stride 72, B stride 64. Keep the reader and ready barriers.", TEAL)
-    d.card(32, 465, 893, "Four K=16 steps -> WMMA -> FP32 accumulators -> BF16",
-           "BufferCopy16b stores through the same instruction-derived C ownership.", PURPLE)
-    d.text(32, 602, "Next: derive independent A and B staging plans without changing this schedule.", 18)
+    d.text(
+        32,
+        66,
+        "Fixed: 64x64x64 tile, 128 threads, padded A, one LDS tile per operand.",
+        18,
+    )
+    d.card(
+        32,
+        120,
+        893,
+        "Global A/B/C -> make_buffer_tensor -> row-major views",
+        "Resource wrapping describes access; it allocates no new matrix and loads no values.",
+        BLUE,
+    )
+    d.card(
+        32,
+        235,
+        893,
+        "BufferCopy128b: global A/B -> private staging registers",
+        "One shared (16,8) thread plan; eight BF16 values per group, four row groups.",
+        GOLD,
+    )
+    d.card(
+        32,
+        350,
+        893,
+        "UniversalCopy128b: staging registers -> ordinary LDS views",
+        "A stride 72, B stride 64. Keep the reader and ready barriers.",
+        TEAL,
+    )
+    d.card(
+        32,
+        465,
+        893,
+        "Four K=16 steps -> WMMA -> FP32 accumulators -> BF16",
+        "BufferCopy16b stores through the same instruction-derived C ownership.",
+        PURPLE,
+    )
+    d.text(
+        32,
+        602,
+        "Next: derive independent A and B staging plans without changing this schedule.",
+        18,
+    )
     d.save(f"{BASE}/07a-buffer-access/buffer-staging")
 
 
 def operand_staging():
     d = Diagram(810, "07b - Derive A and B staging plans independently")
-    d.text(32, 66, "Fixed: 64x64x64 tile, 128 threads, padded A, one LDS tile per operand.", 18)
-    d.card(32, 120, 893, "Global A/B: row-major buffer views, stride 1024",
-           "BufferCopy128b -> staging registers -> UniversalCopy128b -> LDS", BLUE)
-    d.card(32, 235, 893, "A plan: contiguous K=64; 64/8=8 chunks per row",
-           "128/8=16 thread rows. Thread 17: row 2, K columns 8..15.", GOLD)
-    d.card(32, 350, 893, "B plan: contiguous N=64; 64/8=8 chunks per row",
-           "Same (16,8) geometry here; derived independently for later tuning.", TEAL)
-    d.card(32, 465, 893, "Thread 17 repeats at rows 2, 18, 34, 50",
-           "32 BF16 values per operand. A LDS stride 72; B LDS stride 64.", PURPLE)
-    d.card(32, 580, 893, "LDS -> K=16 operand registers -> WMMA -> FP32 accumulator",
-           "Same buffer transfers and prefetch schedule as stage 07a.", BLUE)
+    d.text(
+        32,
+        66,
+        "Fixed: 64x64x64 tile, 128 threads, padded A, one LDS tile per operand.",
+        18,
+    )
+    d.card(
+        32,
+        120,
+        893,
+        "Global A/B: row-major buffer views, stride 1024",
+        "BufferCopy128b -> staging registers -> UniversalCopy128b -> LDS",
+        BLUE,
+    )
+    d.card(
+        32,
+        235,
+        893,
+        "A plan: contiguous K=64; 64/8=8 chunks per row",
+        "128/8=16 thread rows. Thread 17: row 2, K columns 8..15.",
+        GOLD,
+    )
+    d.card(
+        32,
+        350,
+        893,
+        "B plan: contiguous N=64; 64/8=8 chunks per row",
+        "Same (16,8) geometry here; derived independently for later tuning.",
+        TEAL,
+    )
+    d.card(
+        32,
+        465,
+        893,
+        "Thread 17 repeats at rows 2, 18, 34, 50",
+        "32 BF16 values per operand. A LDS stride 72; B LDS stride 64.",
+        PURPLE,
+    )
+    d.card(
+        32,
+        580,
+        893,
+        "LDS -> K=16 operand registers -> WMMA -> FP32 accumulator",
+        "Same buffer transfers and prefetch schedule as stage 07a.",
+        BLUE,
+    )
     d.text(32, 705, "Block (x,y)=(1,2), K tile 2, thread 17: first staging chunk", 20)
     d.text(32, 748, "A[130,136..143] -> padded LDS; B[130,72..79] -> packed LDS", 20)
     d.save(f"{BASE}/07b-operand-staging/operand-staging")

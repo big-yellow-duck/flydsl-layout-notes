@@ -9,6 +9,7 @@ import random
 import runpy
 import statistics
 from dataclasses import asdict, replace
+from functools import partial
 from pathlib import Path
 
 COURSE = Path(__file__).resolve().parent.parent
@@ -48,7 +49,8 @@ def capture(launch, data):
     finally:
         if enabled:
             gc.enable()
-    assert metadata["nodes"] == metadata["kernel_nodes"] == 32
+    assert metadata["nodes"] == 32 + metadata.get("workspace_initialization_nodes", 0)
+    assert 32 <= metadata["kernel_nodes"] <= metadata["nodes"]
     return graph, metadata
 
 
@@ -58,20 +60,22 @@ def compare(
     shape,
     stage,
     timing="graph-host",
-    launch_factory=None,
+    matmul=None,
     seed=13,
     batches=5,
     repeats=8,
 ):
     shape = tuple(shape)
     COMMON["inputs"].__globals__.update(
-        MODULE=module, BUILD=module["build"], SHAPE=shape
+        MODULE=module, BUILD=module["_matmul_bf16"]._original_func, SHAPE=shape
     )
     data = COMMON["inputs"](seed)
     trace = COMMON["inputs"](0, True)
-    factory = module["launch_for"] if launch_factory is None else launch_factory
+    launcher = matmul or module["matmul_bf16"]
     configs = {"stage": config, **variants(module, config, stage)}
-    launches = {name: factory(choice, shape) for name, choice in configs.items()}
+    launches = {
+        name: partial(launcher, config=choice) for name, choice in configs.items()
+    }
     launches["torch"] = COMMON["torch_launch"]
     for launch in launches.values():
         COMMON["validate"](launch, trace, True)
@@ -86,7 +90,7 @@ def compare(
         a, b, storage, _ = data
         out = storage[:-16].view(shape[:2])
         callbacks = {
-            name: (lambda fn=fn: fn(a, b, out)) for name, fn in launches.items()
+            name: (lambda fn=fn: fn(a, b, out=out)) for name, fn in launches.items()
         }
         operations = 1
     for callback in callbacks.values():
@@ -104,8 +108,8 @@ def compare(
                 COMMON["timed_batch"](callbacks[name], repeats) / operations
             )
     for launch in launches.values():
-        if hasattr(launch, "workspace"):
-            module["check_workspace"](launch)
+        if timing != "graph-host":
+            COMMON["check_launch_workspace"](launch, data)
     medians = {name: statistics.median(values) for name, values in samples.items()}
     ratios = {
         name: statistics.median(
@@ -121,7 +125,7 @@ def compare(
         "environment": {
             **COMMON["environment"](),
             "native_factory_sha256": hashlib.sha256(
-                inspect.getsource(module["build"].__wrapped__).encode()
+                inspect.getsource(module["_matmul_bf16"]._original_func).encode()
             ).hexdigest(),
         },
         "kernel_ms": medians["stage"],

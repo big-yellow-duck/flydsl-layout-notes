@@ -2,8 +2,6 @@
 
 import argparse
 import ast
-import hashlib
-import inspect
 import json
 import runpy
 import subprocess
@@ -130,11 +128,34 @@ def main():
             )
     execute("course-check", ["pixi", "run", "gpu-check"])
 
-    def factory(path):
-        source = inspect.getsource(runpy.run_path(str(path))["build"].__wrapped__)
-        return hashlib.sha256(source.encode()).hexdigest()
+    def computation(path):
+        tree = ast.parse(path.read_text())
+        kernel = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name in ("_matmul_bf16", "exercise_kernel")
+        )
+        # These values moved from the enclosing factory into the kernel. The
+        # accumulator extent now comes from the native fragment shape.
+        moved = {
+            "(MMA_M, MMA_N, MMA_K)",
+            "THREADS_PER_GROUP",
+            "SharedStorage",
+            "ACCUMULATOR_VALUES",
+        }
+        statements = [
+            node
+            for node in kernel.body
+            if not (
+                isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) in moved
+            )
+        ]
+        return ast.dump(
+            ast.Module(body=statements, type_ignores=[]), include_attributes=False
+        )
 
-    assert factory(COURSE / "10c-k-unrolling/solution.py") == factory(
+    assert computation(COURSE / "10c-k-unrolling/solution.py") == computation(
         ROOT / "experiments/wave-local-prefetch/solution.py"
     )
     (args.output / "validation.json").write_text(
@@ -143,7 +164,7 @@ def main():
                 "checks": checks,
                 "practice_AST_equivalent": True,
                 "selected_shape_split_cases_per_lesson": 9,
-                "combined_prefetch_factory_preserved_in_10c": True,
+                "combined_prefetch_computation_preserved_in_10c": True,
                 "active_solution_count": len(
                     list((ROOT / "lessons").rglob("solution.py"))
                 ),

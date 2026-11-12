@@ -46,12 +46,16 @@ def main():
         "--verification", type=Path, default=HERE / "results/prefetch-comparison"
     )
     args = parser.parse_args()
-    factory = factory_hash(HERE / "solution.py")
     verification = args.verification
-    assert digest(HERE / "solution.py") == digest(verification / "solution-source.txt")
-    assert digest(HERE / "practice.py") == digest(verification / "practice-source.txt")
+    # Historical timings and profiler reports belong to their retained sources.
+    factory = factory_hash(verification / "solution-source.txt")
     assert read(verification / "validation.json")["all_commands_passed"]
-    completed = runpy.run_path(str(HERE / "verify.py"))["complete_practice"]()
+    complete_practice = runpy.run_path(str(HERE / "verify.py"))["complete_practice"]
+    completed = complete_practice(
+        (verification / "practice-source.txt").read_text(),
+        (verification / "solution-source.txt").read_text(),
+    )
+    complete_practice()  # Independently verify the current public-API exercises.
     assert completed == (verification / "completed-practice-source.txt").read_text()
     manifest = read(RESEARCH / "results/native-sources/manifest.json")
     for entry in manifest.values():
@@ -163,7 +167,8 @@ def main():
         } == {original_torch}
     result = {
         "native_factory_sha256": factory,
-        "native_and_practice_sources_match_verified_snapshots": True,
+        "historical_reports_audited_against_retained_sources": True,
+        "current_completed_practice_AST_matches_solution": True,
         "completed_practice_AST_and_snapshot_match": True,
         "prototype_sources_verified": len(manifest),
         "prototype_report_hashes_verified": prototype_reports,

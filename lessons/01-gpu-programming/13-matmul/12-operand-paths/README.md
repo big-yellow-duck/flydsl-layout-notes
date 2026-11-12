@@ -45,8 +45,12 @@ Follow the gold A path first. Only its owner needs the loaded fragment. The blue
 The input views remain:
 
 ```python
-left_global_view = fx.make_view(fx.get_iter(left_buffer), fx.make_layout((m, k), (k, 1)))
-right_global_view = fx.make_view(fx.get_iter(right_buffer), fx.make_layout((k, n), (n, 1)))
+left_global_view = fx.make_view(
+    fx.get_iter(left_buffer), fx.make_layout((m, k), (k, 1))
+)
+right_global_view = fx.make_view(
+    fx.get_iter(right_buffer), fx.make_layout((k, n), (n, 1))
+)
 ```
 
 A's `(row,K)` layout has strides `(8192,1)`; B's `(K,column)` layout has strides `(1024,1)`. Dividing and slicing these views preserves their original row strides. A view selection does not pack the input or copy any values.

@@ -29,7 +29,7 @@ def instrument(source, independent_waves):
     kernel = next(
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == "exercise_kernel"
+        if isinstance(node, ast.FunctionDef) and node.name == "_matmul_bf16"
     )
     assignment = next(
         node
@@ -43,13 +43,13 @@ def instrument(source, independent_waves):
     logical_id = "logical_block_id" if independent_waves else "fx.block_idx.x"
     local_thread = "compute_thread_id" if independent_waves else "fx.thread_idx.x"
     recording = f"""
-        # Extra test-only storage follows the production partial workspace.
-        record_base = tiles_m * tiles_n * SPLIT_K * BLOCK_M * BLOCK_N + {logical_id} * 4
-        if {local_thread} == 0:
-            partials[record_base] = fx.Float32(block_row)
-            partials[record_base + 1] = fx.Float32(block_col)
-            partials[record_base + 2] = fx.Float32(split_id)
-            partials[record_base + 3] = fx.Float32(flat_block_id)
+    # Extra test-only storage follows the production partial workspace.
+    record_base = tiles_m * tiles_n * SPLIT_K * BLOCK_M * BLOCK_N + {logical_id} * 4
+    if {local_thread} == 0:
+        partials[record_base] = fx.Float32(block_row)
+        partials[record_base + 1] = fx.Float32(block_col)
+        partials[record_base + 2] = fx.Float32(split_id)
+        partials[record_base + 3] = fx.Float32(flat_block_id)
 """
     lines = source.splitlines(keepends=True)
     lines.insert(assignment.end_lineno, recording)
@@ -60,7 +60,29 @@ def check(module, config):
     m, n, k = 4 * config.block_m, 2 * config.block_n, 384
     shape = (m, n, k)
     module["validate_config"](config, shape)
-    run = module["build"](config)
+    # Test-only recording storage is passed to the private JIT bridge so even
+    # unsplit probes can record IDs without adding production workspace.
+    run = module["_launch_matmul_bf16"]
+    fields_by_parameter = {
+        "BLOCK_M": "block_m",
+        "BLOCK_N": "block_n",
+        "BLOCK_K": "block_k",
+        "WAVES_M": "waves_m",
+        "WAVES_N": "waves_n",
+        "GROUP_M": "group_m",
+        "SPLIT_K": "split_k",
+        "WAVE_GROUPS": "wave_groups",
+        "SYNC_MODE": "sync_mode",
+        "K_UNROLL": "k_unroll",
+        "RIGHT_CACHE_MODIFIER": "right_cache_modifier",
+        "LEFT_CACHE_MODIFIER": "left_cache_modifier",
+        "LEFT_IN_REGISTERS": "left_in_registers",
+    }
+    tuning = {
+        name: getattr(config, field)
+        for name, field in fields_by_parameter.items()
+        if name in run.func.__annotations__
+    }
     tiles_m, tiles_n = m // config.block_m, n // config.block_n
     logical_blocks = tiles_m * tiles_n * config.split_k
     partial_count = logical_blocks * config.block_m * config.block_n
@@ -99,7 +121,7 @@ def check(module, config):
     for sign in (1, -1, 1):
         a.copy_(a_cpu * sign)
         out.fill_(float("nan"))
-        run(a, b, out, partials, counters[:-16], *shape)
+        run(a, b, out, partials, counters[:-16], *shape, **tuning)
         torch.cuda.synchronize()
         torch.testing.assert_close(
             out.cpu(), reference * sign, rtol=0.016, atol=0.03125

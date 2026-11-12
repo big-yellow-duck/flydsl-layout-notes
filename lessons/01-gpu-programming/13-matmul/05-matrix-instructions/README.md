@@ -57,9 +57,7 @@ For coordinate `(n,k)=(1,2)`, this reaches element offset `1+2*64=129`, the same
 ## 3. Let WMMA define thread and value ownership
 
 ```python
-mma_atom = fx.make_mma_atom(
-    fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
-)
+mma_atom = fx.make_mma_atom(fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32))
 mma = fx.make_tiled_mma(mma_atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
 thread_mma = mma.thr_slice(fx.thread_idx.x)
 accumulator = thread_mma.make_fragment_C(out_block_view)

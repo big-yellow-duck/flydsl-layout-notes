@@ -1,5 +1,7 @@
 # Skinny split-K measurements
 
+The [2026-11-12 CTA-counter experiment](cta-counters-20261112/README.md) compares one counter per CTA with the completed practice's per-thread counters using identical compute, partial layout, and FP32 traffic. All correctness and reuse checks passed; paired timing differences were below 1%, so it does not establish a useful performance gain.
+
 The latest three-shape locked verification is the [repeat after the reported cooling repair](thermal-rerun-20261106T064532Z/README.md). It uses identical source code, configurations, seeds, and timing methods, records GPU telemetry, and supersedes the absolute timings below. Graph replay measured **1.51×** and **2.23×** throughput on the two split-K shapes; the wide fallback stayed within the 5% parity band. Direct verification classified the three cases as slower, parity, and parity respectively.
 
 The [expanded wide-case search](wide-exhaustive-20261106T065525Z/README.md) subsequently enumerated all 1080 complete tile/wave/split combinations in the current kernel family. All 132 legal configurations passed correctness; the training-selected candidate and existing default both remained about 4% slower than Torch on fresh seeds. The defaults are unchanged.

@@ -11,7 +11,7 @@ import torch
 
 
 @flyc.kernel
-def exercise_kernel(out: fx.Tensor):
+def _shape_stride_offsets(out: fx.Tensor):
     thread_id = fx.thread_idx.x
     data_layout = fx.make_layout((3, 4), (5, 1))
     # Each GPU thread visits one explicit coordinate, first mode fastest.
@@ -27,15 +27,46 @@ def exercise_kernel(out: fx.Tensor):
 
 
 @flyc.jit
-def run(out: fx.Tensor, stream: fx.Stream = fx.Stream(None)):  # noqa: B008 -- FlyDSL stream default
-    # Exactly 12 threads: every thread owns one output row; no tail mask needed.
-    exercise_kernel(out).launch(grid=(1, 1, 1), block=(12, 1, 1), stream=stream)
+def _launch_shape_stride_offsets(
+    out: fx.Tensor,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
+):
+    _shape_stride_offsets(out).launch(grid=(1, 1, 1), block=(12, 1, 1), stream=stream)
+
+
+def shape_stride_offsets(*, out=None, device="cuda", stream=None):
+    """Evaluate this lesson's complete coordinate domain on the GPU."""
+    if out is not None:
+        if not isinstance(out, torch.Tensor):
+            raise TypeError("out must be a torch.Tensor")
+        device = out.device
+    device = torch.device(device)
+    if device.type != "cuda":
+        raise ValueError("device must be a ROCm GPU")
+    if torch.version.hip is None:
+        raise RuntimeError("This lesson requires ROCm")
+    supplied_out = out is not None
+    with torch.cuda.device(device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty((36,), dtype=torch.int32, device=device)
+        if (
+            out.dtype != torch.int32
+            or tuple(out.shape) != (36,)
+            or not out.is_contiguous()
+        ):
+            raise ValueError("out must be a contiguous int32 tensor of shape (36,)")
+        _launch_shape_stride_offsets(
+            out, stream=fx.Stream(torch.cuda.current_stream(device))
+        )
+    if supplied_out:
+        torch.autograd.graph.increment_version(out)
+    return out
 
 
 def solve():
     """Launch the exercise, check every GPU result, and return the lesson checkpoint."""
     out = torch.full((36,), -1, dtype=torch.int32, device="cuda")
-    run(out)
+    shape_stride_offsets(out=out)
     torch.cuda.synchronize()
     rows = out.cpu().reshape(12, 3).tolist()
     # Host code only checks and formats results; it does not implement layouts.

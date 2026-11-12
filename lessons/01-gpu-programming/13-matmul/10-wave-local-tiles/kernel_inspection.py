@@ -110,7 +110,7 @@ def main(here):
         * config.block_n
         // config.compute_threads,
         "native_factory_sha256": hashlib.sha256(
-            inspect.getsource(native["build"].__wrapped__).encode()
+            inspect.getsource(native["_matmul_bf16"]._original_func).encode()
         ).hexdigest(),
         "command": command,
         "scope": "Static code/resources and native correctness, not occupancy or overlapped cycles.",

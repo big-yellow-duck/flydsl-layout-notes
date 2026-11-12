@@ -32,8 +32,7 @@ The allocator reserves a separate region for each group. A retains padded stride
 
 ```python
 left_lds_view = fx.make_view(
-    fx.get_iter(left_lds_view)
-    + wave_group * BLOCK_M * (BLOCK_K + 8),
+    fx.get_iter(left_lds_view) + wave_group * BLOCK_M * (BLOCK_K + 8),
     left_lds_view.layout,
 )
 right_group_ptr = fx.get_iter(right_lds_view) + wave_group * BLOCK_K * BLOCK_N

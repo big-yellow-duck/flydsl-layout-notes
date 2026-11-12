@@ -42,12 +42,15 @@ Adapt a nearby working lesson rather than inventing a new FlyDSL harness. The co
 | Program part | Responsibility |
 | --- | --- |
 | Module docstring | Identify the lesson and its root-relative run command |
-| `@flyc.kernel exercise_kernel(...)` | Describe indexing, ownership, and native GPU operations; include numbered conceptual comments |
-| `@flyc.jit run(...)` | Launch with grid and block dimensions matching the example |
-| Host `solve()` | Prepare inputs/output, call `run`, synchronize, check every result, return a readable checkpoint |
+| Private module-level `@flyc.kernel _<operation>(...)` | Describe indexing, ownership, and native GPU operations; include numbered conceptual comments and explicit constexpr tuning parameters |
+| Private `@flyc.jit _launch_<operation>(...)` | Launch with grid and block dimensions matching the example |
+| Public Python `<operation>(..., out=None, ...)` | Validate arguments, infer dimensions, allocate optional output and necessary scratch, launch the bridge, and return output |
+| Host `solve()` | Prepare fixtures, call the public operation, synchronize, check every result, and return a readable checkpoint |
 | CLI entry point | Print `Exercise passed:` or turn an unfinished expression into `Practice not finished:` |
 
 Use `flydsl.compiler as flyc`, `flydsl.expr as fx`, and PyTorch host allocation as in the neighboring lessons. ROCm PyTorch uses `device="cuda"` here. Preserve the launch and type conventions that the example needs; optional stream parameters are not required for every lesson.
+
+Use `matmul_bf16` for matrix-product entry points and descriptive operation names for layout/copy/vector lessons. Kernels stay outside factories. Public launchers raise useful errors instead of falling back to Torch; `solve()` remains the checker rather than a second launch API. Split-K partials/counters are created only when `split_k > 1`, with separate cached storage per stream and graph capture. The structural and GPU entry-point checks live in `tools/check_lesson_style.py`.
 
 A practice expression follows this pattern inside the kernel:
 

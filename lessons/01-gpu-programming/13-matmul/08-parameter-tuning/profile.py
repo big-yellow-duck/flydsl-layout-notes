@@ -20,6 +20,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
 
 import flydsl  # noqa: F401 -- load the compiler's LLVM before torch
@@ -59,7 +60,7 @@ def worker(output):
     data = tune["inputs"](2026110413)
     config = tune["MODULE"]["SELECTED_CONFIG"]
     implementations = {
-        "native": tune["launch_for"](config),
+        "native": partial(tune["MODULE"]["matmul_bf16"], config=config),
         "torch": tune["torch_launch"],
     }
     for launch in implementations.values():
@@ -68,7 +69,7 @@ def worker(output):
     out = storage[:-16].view(1024, 1024)
     for _ in range(20):
         for launch in implementations.values():
-            launch(a, b, out)
+            launch(a, b, out=out)
     torch.cuda.synchronize()
     sequence = []
     set_profiling(marker, True)
@@ -115,7 +116,7 @@ def dispatches(path, sequence, counters=False):
     for name, key in zip(sequence, sorted(grouped), strict=True):
         group = grouped[key]
         first = group[0]
-        if first["Kernel_Name"].startswith("exercise_kernel") != (name == "native"):
+        if first["Kernel_Name"].startswith("_matmul_bf16") != (name == "native"):
             raise RuntimeError(
                 f"Unexpected dispatch order: {name}, {first['Kernel_Name']}"
             )

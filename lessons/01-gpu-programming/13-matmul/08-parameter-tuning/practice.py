@@ -4,12 +4,15 @@ import argparse
 import json
 import runpy
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 
 import flydsl.compiler as flyc
 import flydsl.expr as fx
 import torch
+
+WAVE_SIZE = 32
+MMA_M, MMA_N, MMA_K = 16, 16, 16
 
 
 @dataclass(frozen=True)
@@ -73,231 +76,248 @@ def validate_config(config, shape=(1024, 1024, 1024)):
 
 
 @lru_cache(None)
-def build(config):
-    """Create one native specialization; compilation is lazy on its first launch."""
-    validate_config(config, (config.block_m, config.block_n, config.block_k))
-    BLOCK_M, BLOCK_N, BLOCK_K = config.block_m, config.block_n, config.block_k
-    MMA_M, MMA_N, MMA_K = 16, 16, 16
-    WAVES_M, WAVES_N = config.waves_m, config.waves_n
-    THREADS_PER_BLOCK = 32 * WAVES_M * WAVES_N
-    GROUP_M = config.group_m
-
+def _shared_storage_type(BLOCK_M, BLOCK_N, BLOCK_K):
     @fx.struct
     class SharedStorage:
         # Retain stage 06's measured padded A layout and packed B layout.
         left: fx.Array[fx.BFloat16, BLOCK_M * (BLOCK_K + 8), 16]
         right: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
 
-    @flyc.kernel
-    def exercise_kernel(
-        left: fx.Tensor,
-        right: fx.Tensor,
-        out: fx.Tensor,
-        m: fx.Constexpr,
-        n: fx.Constexpr,
-        k: fx.Constexpr,
-    ):
-        # 1. Buffer resources retain the existing row-major matrix layouts.
-        left_buffer = fx.rocdl.make_buffer_tensor(left)
-        right_buffer = fx.rocdl.make_buffer_tensor(right)
-        out_buffer = fx.rocdl.make_buffer_tensor(out)
-        left_global_view = fx.make_view(
-            fx.get_iter(left_buffer),
-            fx.make_layout((m, k), (k, 1)),
-        )
-        right_global_view = fx.make_view(
-            fx.get_iter(right_buffer),
-            fx.make_layout((k, n), (n, 1)),
-        )
-        out_global_view = fx.make_view(
-            fx.get_iter(out_buffer),
-            fx.make_layout((m, n), (n, 1)),
-        )
-        # Keep the grouped strategy; express block selection with native layouts.
-        tiles_m = m // BLOCK_M
-        tiles_n = n // BLOCK_N
-        flat_block_id = fx.block_idx.x
-        group_width = min(GROUP_M, tiles_m)
-        block_tile_order = fx.make_layout(
-            (group_width, tiles_n, tiles_m // group_width),
-            (tiles_n, 1, group_width * tiles_n),
-        )
-        output_tile_offset = fx.crd2idx(flat_block_id, block_tile_order)
-        output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
-        output_tile_coords = fx.idx2crd(output_tile_offset, output_tile_layout)
-        block_row = fx.get_scalar(output_tile_coords[0])
-        block_col = fx.get_scalar(output_tile_coords[1])
+    return SharedStorage
 
-        # 2. Group neighboring blocks along M to share B tiles in cache.
-        left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
-        right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
-        out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
-        out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
 
-        # 3. Keep one padded A tile and one packed B tile in LDS.
-        lds = fx.SharedAllocator().allocate(SharedStorage).peek()
-        left_lds_view = lds.left.view(
-            fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
+@flyc.kernel
+def _matmul_bf16(
+    left: fx.Tensor,
+    right: fx.Tensor,
+    out: fx.Tensor,
+    m: fx.Constexpr,
+    n: fx.Constexpr,
+    k: fx.Constexpr,
+    *,
+    BLOCK_M: fx.Constexpr,
+    BLOCK_N: fx.Constexpr,
+    BLOCK_K: fx.Constexpr,
+    WAVES_M: fx.Constexpr,
+    WAVES_N: fx.Constexpr,
+    GROUP_M: fx.Constexpr,
+):
+    THREADS_PER_BLOCK = WAVE_SIZE * WAVES_M * WAVES_N
+    SharedStorage = _shared_storage_type(BLOCK_M, BLOCK_N, BLOCK_K)
+    left_buffer = fx.rocdl.make_buffer_tensor(left)
+    right_buffer = fx.rocdl.make_buffer_tensor(right)
+    out_buffer = fx.rocdl.make_buffer_tensor(out)
+
+    left_global_view = fx.make_view(
+        fx.get_iter(left_buffer), fx.make_layout((m, k), (k, 1))
+    )
+    right_global_view = fx.make_view(
+        fx.get_iter(right_buffer), fx.make_layout((k, n), (n, 1))
+    )
+    out_global_view = fx.make_view(
+        fx.get_iter(out_buffer), fx.make_layout((m, n), (n, 1))
+    )
+    tiles_m = m // BLOCK_M
+    tiles_n = n // BLOCK_N
+    flat_block_id = fx.block_idx.x
+
+    # For case (1024,1024,1024)
+    # group width = 8
+    # block tile order = (8, 8, 1): (8, 1, 64)
+    # for case (1024, 4096, 2048)
+    # group width = 2
+    # block tile order = (2,32,4): (32,1,64)
+    group_width = min(GROUP_M, tiles_m)
+    block_tile_order = fx.make_layout(
+        (group_width, tiles_n, tiles_m // group_width),
+        (tiles_n, 1, group_width * tiles_n),
+    )
+
+    # map each block to the group_m output tile layout
+    output_tile_offset = fx.crd2idx(flat_block_id, block_tile_order)
+    output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
+    output_tile_coords = fx.idx2crd(output_tile_offset, output_tile_layout)
+    block_row = fx.get_scalar(output_tile_coords[0])
+    block_col = fx.get_scalar(output_tile_coords[1])
+
+    # group neighouting blocks
+    left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
+    right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
+    out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
+    out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+
+    # allocate shared mem
+    lds = fx.SharedAllocator().allocate(SharedStorage).peek()
+    left_lds_view = lds.left.view(fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1)))
+    right_lds_view = lds.right.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))
+
+    # setup copies from gmem to registers to lds
+    copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
+    left_staging_thread_layout = fx.make_ordered_layout(
+        (THREADS_PER_BLOCK // (BLOCK_K // 8), (BLOCK_K // 8)), (1, 0)
+    )
+    right_staging_thread_layout = fx.make_ordered_layout(
+        (THREADS_PER_BLOCK // (BLOCK_N // 8), (BLOCK_N // 8)), (1, 0)
+    )
+    staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
+    left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
+        left_staging_thread_layout, staging_value_layout
+    )
+    right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(
+        right_staging_thread_layout, staging_value_layout
+    )
+
+    left_staging_copy_plan = fx.make_tiled_copy(
+        copy_128b, left_staging_copy_tv, left_staging_copy_tile
+    )
+    right_staging_copy_plan = fx.make_tiled_copy(
+        copy_128b, right_staging_copy_tv, right_staging_copy_tile
+    )
+
+    left_thread_staging_copy = left_staging_copy_plan.get_slice(fx.thread_idx.x)
+    right_thread_staging_copy = right_staging_copy_plan.get_slice(fx.thread_idx.x)
+
+    left_lds_destination = left_thread_staging_copy.partition_D(left_lds_view)
+    right_lds_destination = right_thread_staging_copy.partition_D(right_lds_view)
+    left_staging_fragment = fx.make_fragment_like(left_lds_destination)
+    right_staging_fragment = fx.make_fragment_like(right_lds_destination)
+
+    ## setup copies for mma
+    buffer_copy_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
+    left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
+    right_lds_transposed_view = fx.make_view(
+        fx.get_iter(right_lds_view),
+        fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
+    )
+    right_lds_transposed_tiled = fx.flat_divide(
+        right_lds_transposed_view, (BLOCK_N, MMA_K)
+    )
+    left_lds_initial_view = fx.slice(left_lds_tiled, (None, None, 0, 0))
+    right_lds_transposed_initial_view = fx.slice(
+        right_lds_transposed_tiled, (None, None, 0, 0)
+    )
+
+    # setup mma
+    mma_atom = fx.make_mma_atom(
+        fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
+    )
+    mma = fx.make_tiled_mma(
+        mma_atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0))
+    )
+    thread_mma = mma.thr_slice(fx.thread_idx.x)
+    accumulator = thread_mma.make_fragment_C(out_block_view)
+    accumulator.fill(0)
+
+    # lds to register copies for mma
+    copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
+    left_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
+    right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+    left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+
+    left_r_tile = thread_mma.make_fragment_A(left_lds_initial_view)
+    right_r_tile = thread_mma.make_fragment_B(right_lds_transposed_initial_view)
+
+    left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
+    right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
+
+    def create_gmem2reg_sources(left_block_view, right_block_view):
+        return (
+            left_thread_staging_copy.partition_S(left_block_view),
+            right_thread_staging_copy.partition_S(right_block_view),
         )
-        right_lds_view = lds.right.view(
-            fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1))
+
+    def gmem2reg_load_tile(tile_k):
+        left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
+        right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+        left_global_source, right_global_source = create_gmem2reg_sources(
+            left_block_view, right_block_view
         )
+        fx.copy(buffer_copy_128b, left_global_source, left_staging_fragment)
+        fx.copy(buffer_copy_128b, right_global_source, right_staging_fragment)
 
-        # 4. Derive each operand's staging geometry from its contiguous extent.
-        copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-        gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
-        left_staging_thread_layout = fx.make_ordered_layout(
-            (THREADS_PER_BLOCK // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
-        )
-        # TODO 1: Derive B's staging thread layout for eight-BF16 chunks.
-        right_staging_thread_layout = None
-        if right_staging_thread_layout is None:
-            raise NotImplementedError("Fill in right_staging_thread_layout.")
-        staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
-        left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
-            left_staging_thread_layout, staging_value_layout
-        )
-        right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(
-            right_staging_thread_layout, staging_value_layout
-        )
-        left_staging_copy_plan = fx.make_tiled_copy(
-            copy_128b, left_staging_copy_tv, left_staging_copy_tile
-        )
-        right_staging_copy_plan = fx.make_tiled_copy(
-            copy_128b, right_staging_copy_tv, right_staging_copy_tile
-        )
-        left_thread_staging_copy = left_staging_copy_plan.get_slice(fx.thread_idx.x)
-        right_thread_staging_copy = right_staging_copy_plan.get_slice(fx.thread_idx.x)
-        left_lds_destination = left_thread_staging_copy.partition_D(left_lds_view)
-        right_lds_destination = right_thread_staging_copy.partition_D(right_lds_view)
-        left_staging_fragment = fx.make_fragment_like(left_lds_destination)
-        right_staging_fragment = fx.make_fragment_like(right_lds_destination)
-
-        # create tiled view ready for mma to consume
-        left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
-        right_lds_transposed_view = fx.make_view(
-            fx.get_iter(right_lds_view),
-            fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
-        )
-        right_lds_transposed_tiled = fx.flat_divide(
-            right_lds_transposed_view, (BLOCK_N, MMA_K)
-        )
-
-        # setup initial views
-        left_lds_initial_view = fx.slice(left_lds_tiled, (None, None, 0, 0))
-        right_lds_transposed_initial_view = fx.slice(
-            right_lds_transposed_tiled, (None, None, 0, 0)
-        )
-        # setup mma
-        mma_atom = fx.make_mma_atom(
-            fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
-        )
-        mma = fx.make_tiled_mma(
-            mma_atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0))
-        )
-
-        thread_mma = mma.thr_slice(fx.thread_idx.x)
-        accumulator = thread_mma.make_fragment_C(out_block_view)
-        accumulator.fill(0)
-
-        # lds to register copies using mma compatible plans
-        copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-        left_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-        right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
-
-        left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
-        right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
-
-        left_r_tile = thread_mma.make_fragment_A(left_lds_initial_view)
-        right_r_tile = thread_mma.make_fragment_B(right_lds_transposed_initial_view)
-
-        left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
-        right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
-
-        def create_gmem2reg_sources(left_block_view, right_block_view):
-            return (
-                left_thread_staging_copy.partition_S(left_block_view),
-                right_thread_staging_copy.partition_S(right_block_view),
-            )
-
-        def gmem2reg_load_tile(tile_k):
-            left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
-            right_block_view = fx.slice(
-                right_tiled_view, (None, None, tile_k, block_col)
-            )
-            left_global_source, right_global_source = create_gmem2reg_sources(
-                left_block_view, right_block_view
-            )
-            fx.copy(gmem_load_128b, left_global_source, left_staging_fragment)
-            fx.copy(gmem_load_128b, right_global_source, right_staging_fragment)
-
-        def reg2lds_copy_tile():
-            fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
-            fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
-            fx.barrier()
-
-        def compute_lds():
-            for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-                left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
-                right_mma_view = fx.slice(
-                    right_lds_transposed_tiled, (None, None, 0, inner_k)
-                )
-                left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
-                right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
-                fx.copy(copy_16b, left_r_source, left_r_destination)
-                fx.copy(copy_16b, right_r_source, right_r_destination)
-                fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
-
-        # 6. Prefetch next globals while consuming the current LDS tile.
-        # Prologue: make tile 0 visible in LDS before any consumer reads it.
-        initial_tile_k = 0
-        gmem2reg_load_tile(initial_tile_k)
-        reg2lds_copy_tile()
-        # Steady state: prefetch next globals into private registers, consume LDS,
-        # protect current readers, then publish the next tile into the same LDS.
-        for tile_k in range(k // BLOCK_K - 1):
-            next_tile_k = tile_k + 1
-            gmem2reg_load_tile(next_tile_k)
-            compute_lds()
-            fx.barrier()
-            reg2lds_copy_tile()
-        # Drain: the final tile is already in LDS; do not read a nonexistent next tile.
-        compute_lds()
+    def reg2lds_copy_tile():
+        fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+        fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
         fx.barrier()
 
-        # 7. Convert to BF16, then store through the instruction's C ownership.
-        out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
-        # TODO 2: Derive the value count from accumulator.shape.
-        ACCUMULATOR_VALUES = None
-        if ACCUMULATOR_VALUES is None:
-            raise NotImplementedError("Fill in ACCUMULATOR_VALUES.")
-        for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
-            out_registers[slot] = accumulator[slot].to(fx.BFloat16)
-        # Replace stage 04's one-thread output plan with the collective C plan.
-        gmem_store_16b = fx.make_copy_atom(fx.rocdl.BufferCopy16b(), fx.BFloat16)
-        reg2gmem_copy_plan = fx.make_tiled_copy_C(gmem_store_16b, mma)
-        reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(fx.thread_idx.x)
-        reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
-        reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
-        fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
+    def compute_lds():
+        for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
+            left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
+            right_mma_view = fx.slice(
+                right_lds_transposed_tiled, (None, None, 0, inner_k)
+            )
+            left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
+            right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
+            fx.copy(copy_16b, left_r_source, left_r_destination)
+            fx.copy(copy_16b, right_r_source, right_r_destination)
+            fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
 
-    @flyc.jit
-    def run(
-        left: fx.Tensor,
-        right: fx.Tensor,
-        out: fx.Tensor,
-        m: fx.Constexpr,
-        n: fx.Constexpr,
-        k: fx.Constexpr,
-        stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
-    ):
-        exercise_kernel(left, right, out, m, n, k).launch(
-            grid=((m // BLOCK_M) * (n // BLOCK_N), 1, 1),
-            block=(THREADS_PER_BLOCK, 1, 1),
-            stream=stream,
-        )
+    # compute
+    initial_tile_k = 0
+    gmem2reg_load_tile(initial_tile_k)
+    reg2lds_copy_tile()
 
-    return run
+    for tile_k in range(k // BLOCK_K - 1):
+        next_tile_k = tile_k + 1
+        gmem2reg_load_tile(next_tile_k)
+        compute_lds()
+        fx.barrier()
+        reg2lds_copy_tile()
+    compute_lds()
+    fx.barrier()
+
+    out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
+    print(accumulator.layout)
+    ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
+    print(ACCUMULATOR_VALUES)
+
+    for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
+        out_registers[slot] = accumulator[slot].to(fx.BFloat16)
+    buffer_copy_16b = fx.make_copy_atom(fx.rocdl.BufferCopy16b(), fx.BFloat16)
+    reg2gmem_copy_plan = fx.make_tiled_copy_C(buffer_copy_16b, mma)
+    reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(fx.thread_idx.x)
+    reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
+    reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
+    fx.copy(buffer_copy_16b, reg2gmem_source, reg2gmem_dest)
+
+
+@flyc.jit
+def _launch_matmul_bf16(
+    left: fx.Tensor,
+    right: fx.Tensor,
+    out: fx.Tensor,
+    m: fx.Constexpr,
+    n: fx.Constexpr,
+    k: fx.Constexpr,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
+    *,
+    BLOCK_M: fx.Constexpr,
+    BLOCK_N: fx.Constexpr,
+    BLOCK_K: fx.Constexpr,
+    WAVES_M: fx.Constexpr,
+    WAVES_N: fx.Constexpr,
+    GROUP_M: fx.Constexpr,
+):
+    THREADS_PER_BLOCK = WAVE_SIZE * WAVES_M * WAVES_N
+    _matmul_bf16(
+        left,
+        right,
+        out,
+        m,
+        n,
+        k,
+        BLOCK_M=BLOCK_M,
+        BLOCK_N=BLOCK_N,
+        BLOCK_K=BLOCK_K,
+        WAVES_M=WAVES_M,
+        WAVES_N=WAVES_N,
+        GROUP_M=GROUP_M,
+    ).launch(
+        grid=(m // BLOCK_M * (n // BLOCK_N), 1, 1),
+        block=(THREADS_PER_BLOCK, 1, 1),
+        stream=stream,
+    )
 
 
 SELECTED_CONFIG = Config(128, 128, 32, 1, 4, group_m=8)
@@ -305,11 +325,115 @@ CONFIGS_BY_SHAPE = {
     (1024, 1024, 1024): SELECTED_CONFIG,
     (1024, 4096, 2048): Config(128, 128, 32, 1, 4, group_m=2),
 }
-run = build(SELECTED_CONFIG)
+
+
+def matmul_bf16(input, other, *, out=None, config=None, stream=None):
+    """Launch contiguous 2-D BF16 matmul on gfx1151/gfx1152.
+
+    Unsupported calls raise an error. Supply config for compatible shapes
+    outside CONFIGS_BY_SHAPE. Split-K scratch is cached per device/stream/capture
+    and allocated only for split_k > 1. Warm up before graph capture.
+    """
+    tensors = [("input", input), ("other", other)]
+    if out is not None:
+        tensors.append(("out", out))
+    for name, tensor in tensors:
+        if type(tensor) not in (torch.Tensor, torch.nn.Parameter):
+            raise TypeError(
+                f"{name} must be a torch.Tensor; custom tensor subclasses are unsupported"
+            )
+    if torch._C._are_functorch_transforms_active():
+        raise RuntimeError("matmul_bf16 does not support vmap or tensor transforms")
+    if torch.autograd.forward_ad._current_level >= 0:
+        raise RuntimeError("matmul_bf16 does not support forward-mode autograd")
+    if torch.is_autocast_enabled("cuda"):
+        raise RuntimeError(
+            "matmul_bf16 requires explicit BF16 inputs; disable autocast"
+        )
+    for name, tensor in tensors:
+        if tensor.dtype != torch.bfloat16:
+            raise TypeError(
+                f"{name} must have dtype torch.bfloat16; got {tensor.dtype}"
+            )
+        if not tensor.is_cuda:
+            raise ValueError(f"{name} must be on a ROCm GPU")
+        if tensor.device != input.device:
+            raise ValueError(f"{name} must be on the same device as input")
+        if tensor.layout != torch.strided or not tensor.is_contiguous():
+            raise ValueError(f"{name} must be contiguous and row-major")
+        if tensor.is_neg():
+            raise ValueError(
+                f"{name} must not be a negative view; call resolve_neg() first"
+            )
+        if torch.is_grad_enabled() and tensor.requires_grad:
+            raise RuntimeError(
+                f"{name} requires gradients; matmul_bf16 has no autograd support, use torch.no_grad()"
+            )
+    if input.ndim != 2 or other.ndim != 2:
+        raise ValueError("input and other must be two-dimensional matrices")
+    if input.shape[1] != other.shape[0]:
+        raise ValueError(
+            f"K dimensions must match; got {input.shape[1]} and {other.shape[0]}"
+        )
+    if input.data_ptr() % 16 or other.data_ptr() % 16:
+        raise ValueError("input and other must have 16-byte aligned data pointers")
+    if torch.version.hip is None:
+        raise RuntimeError("matmul_bf16 requires ROCm")
+    arch = torch.cuda.get_device_properties(input.device).gcnArchName.split(":")[0]
+    if arch not in ("gfx1151", "gfx1152"):
+        raise RuntimeError(f"matmul_bf16 requires gfx1151/gfx1152; detected {arch}")
+    shape = (input.shape[0], other.shape[1], input.shape[1])
+    if config is None:
+        config = CONFIGS_BY_SHAPE.get(shape)
+        if config is None:
+            raise ValueError(
+                f"No default config for M,N,K={shape}; supply config=Config(...)"
+            )
+    if not isinstance(config, Config):
+        raise TypeError("config must be a Config")
+    validate_config(config, shape)
+    if out is not None:
+        if out.shape != (shape[0], shape[1]):
+            raise ValueError(
+                f"out must have shape {(shape[0], shape[1])}; got {tuple(out.shape)}"
+            )
+        start = out.data_ptr()
+        stop = start + out.numel() * out.element_size()
+        for name, tensor in tensors[:2]:
+            if (
+                start < tensor.data_ptr() + tensor.numel() * tensor.element_size()
+                and tensor.data_ptr() < stop
+            ):
+                raise ValueError(f"out must not overlap {name}")
+    if stream is not None and stream.device != input.device:
+        raise ValueError("Stream and inputs must use the same device")
+    supplied_out = out is not None
+    with torch.cuda.device(input.device), torch.cuda.stream(stream):
+        current_stream = torch.cuda.current_stream(input.device)
+        if out is None:
+            out = torch.empty(
+                (shape[0], shape[1]), dtype=input.dtype, device=input.device
+            )
+        _launch_matmul_bf16(
+            input,
+            other,
+            out,
+            *shape,
+            fx.Stream(current_stream),
+            BLOCK_M=config.block_m,
+            BLOCK_N=config.block_n,
+            BLOCK_K=config.block_k,
+            WAVES_M=config.waves_m,
+            WAVES_N=config.waves_n,
+            GROUP_M=config.group_m,
+        )
+        if supplied_out:
+            torch.autograd.graph.increment_version(out)
+    return out
 
 
 def check_boundaries(config):
-    launch = build(config)
+
     checked = []
     for tiles in (1, 2, 3):
         m, n, k = config.block_m, config.block_n, config.block_k * tiles
@@ -321,7 +445,7 @@ def check_boundaries(config):
         storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
         out = storage[: m * n].view(m, n)
         out.fill_(float("nan"))
-        launch(left, right, out, m, n, k)
+        matmul_bf16(left, right, out=out, config=config)
         torch.cuda.synchronize()
         expected = config.block_k * (2**tiles - 1)
         torch.testing.assert_close(
@@ -345,7 +469,7 @@ def solve(config=None, shape=(1024, 1024, 1024)):
         raise RuntimeError(
             f"This lesson supports gfx1151/gfx1152; detected {architecture}"
         )
-    launch = build(config)
+
     boundaries = check_boundaries(config)
     generator = torch.Generator().manual_seed(13)
     checkpoint = None
@@ -361,7 +485,7 @@ def solve(config=None, shape=(1024, 1024, 1024)):
         storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
         out = storage[: m * n].view(m, n)
         out.fill_(float("nan"))
-        launch(left, right, out, m, n, k)
+        matmul_bf16(left, right, out=out, config=config)
         torch.cuda.synchronize()
         expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
         torch.testing.assert_close(
@@ -420,7 +544,10 @@ def main():
         )
         config = CONFIGS_BY_SHAPE[shape]
         metadata, rows = benchmark["comparison"](
-            {config.name: build(config)}, args.timing, args.repeats, shape=shape
+            {config.name: partial(matmul_bf16, config=config)},
+            args.timing,
+            args.repeats,
+            shape=shape,
         )
         print(json.dumps(metadata))
         for row in rows:

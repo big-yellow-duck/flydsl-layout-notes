@@ -6,7 +6,7 @@ import torch
 
 
 @flyc.kernel
-def exercise_kernel(left: fx.Tensor, right: fx.Tensor, out: fx.Tensor):
+def _add_fragments(left: fx.Tensor, right: fx.Tensor, out: fx.Tensor):
     # 1. Each input is one complete tile: attach the tile's indexing to its storage.
     tile_layout = fx.make_layout((2, 4), (1, 2))
     left_tile = fx.make_view(fx.get_iter(left), tile_layout)
@@ -40,15 +40,67 @@ def exercise_kernel(left: fx.Tensor, right: fx.Tensor, out: fx.Tensor):
 
 
 @flyc.jit
-def run(left: fx.Tensor, right: fx.Tensor, out: fx.Tensor):
-    exercise_kernel(left, right, out).launch(grid=(1, 1, 1), block=(4, 1, 1))
+def _launch_add_fragments(
+    left: fx.Tensor,
+    right: fx.Tensor,
+    out: fx.Tensor,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
+):
+    _add_fragments(left, right, out).launch(
+        grid=(1, 1, 1), block=(4, 1, 1), stream=stream
+    )
+
+
+def add_fragments(left, right, *, out=None, stream=None):
+    """Validate inputs, allocate output if needed, and launch this lesson's kernel."""
+    for name, tensor in (
+        ("left", left),
+        ("right", right),
+    ):
+        if not isinstance(tensor, torch.Tensor) or tensor.dtype != torch.float32:
+            raise TypeError(f"{name} must be a torch.float32 tensor")
+        if not tensor.is_cuda or tensor.ndim != 1 or not tensor.is_contiguous():
+            raise ValueError(f"{name} must be a contiguous 1-D tensor on a ROCm GPU")
+        if tensor.device != left.device:
+            raise ValueError("Inputs must use the same device")
+        if tensor.is_neg() or (torch.is_grad_enabled() and tensor.requires_grad):
+            raise ValueError(f"{name} must be materialized and used without autograd")
+    if left.shape != right.shape:
+        raise ValueError("Input shapes must match")
+    if tuple(left.shape) != (8,):
+        raise ValueError("Input shape must be (8,)")
+    if out is not None:
+        if not isinstance(out, torch.Tensor) or out.dtype != torch.float32:
+            raise TypeError("out has the wrong tensor type or dtype")
+        if (
+            out.device != left.device
+            or out.shape != left.shape
+            or not out.is_contiguous()
+        ):
+            raise ValueError(
+                "out must be contiguous with the expected shape on the input device"
+            )
+        if out.is_neg() or (torch.is_grad_enabled() and out.requires_grad):
+            raise ValueError("out must be materialized and used without autograd")
+    if torch.version.hip is None:
+        raise RuntimeError("This lesson requires ROCm")
+    supplied_out = out is not None
+    with torch.cuda.device(left.device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty(left.shape, dtype=left.dtype, device=left.device)
+        _launch_add_fragments(
+            left, right, out, stream=fx.Stream(torch.cuda.current_stream(left.device))
+        )
+    if supplied_out:
+        torch.autograd.graph.increment_version(out)
+    return out
 
 
 def solve():
     left = torch.arange(8, dtype=torch.float32, device="cuda")
     right = left * 2 + 10
     out = torch.full_like(left, -1)
-    run(left, right, out)
+    add_fragments(left, right, out=out)
     torch.cuda.synchronize()
     torch.testing.assert_close(out, left + right)
     return out.cpu().tolist()

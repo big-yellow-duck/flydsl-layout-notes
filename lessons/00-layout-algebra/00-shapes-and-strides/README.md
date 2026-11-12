@@ -57,7 +57,7 @@ Offset 13, size 12, cosize 14. The row pitch introduces holes at offsets 4 and 9
 
 Measure every coordinate of `(3,4):(5,1)` with 12 GPU threads. The expected checkpoint is `(offset_at_2_3, logical_size, storage_span) = (13,12,14)`.
 
-Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`_shape_stride_offsets()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 

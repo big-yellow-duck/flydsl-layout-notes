@@ -9,7 +9,7 @@ import torch
 
 
 @flyc.kernel
-def exercise_kernel(source: fx.Tensor, out: fx.Tensor, width: fx.Constexpr):
+def _copy_tiles(source: fx.Tensor, out: fx.Tensor, width: fx.Constexpr):
     # 1. Reuse the incoming contiguous 1-D views.
     window_layout = fx.make_layout(256, 1)
     source_windows = fx.logical_divide(source, window_layout)
@@ -39,16 +39,70 @@ def exercise_kernel(source: fx.Tensor, out: fx.Tensor, width: fx.Constexpr):
 
 
 @flyc.jit
-def run(source: fx.Tensor, out: fx.Tensor, width: fx.Constexpr, count: fx.Constexpr):
-    exercise_kernel(source, out, width).launch(
-        grid=(count // 256, 1, 1), block=(64, 1, 1)
+def _launch_copy_tiles(
+    source: fx.Tensor,
+    out: fx.Tensor,
+    width: fx.Constexpr,
+    count: fx.Constexpr,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
+):
+    _copy_tiles(source, out, width).launch(
+        grid=(count // 256, 1, 1), block=(64, 1, 1), stream=stream
     )
+
+
+def copy_tiles(source, *, out=None, width=128, stream=None):
+    """Validate inputs, allocate output if needed, and launch this lesson's kernel."""
+    for name, tensor in (("source", source),):
+        if not isinstance(tensor, torch.Tensor) or tensor.dtype != torch.float32:
+            raise TypeError(f"{name} must be a torch.float32 tensor")
+        if not tensor.is_cuda or tensor.ndim != 1 or not tensor.is_contiguous():
+            raise ValueError(f"{name} must be a contiguous 1-D tensor on a ROCm GPU")
+        if tensor.device != source.device:
+            raise ValueError("Inputs must use the same device")
+        if tensor.is_neg() or (torch.is_grad_enabled() and tensor.requires_grad):
+            raise ValueError(f"{name} must be materialized and used without autograd")
+    if source.numel() == 0:
+        raise ValueError("Input must not be empty")
+    if width not in (32, 128) or source.numel() % 256:
+        raise ValueError("Use width 32 or 128 with complete 256-element tiles")
+    if out is not None:
+        if not isinstance(out, torch.Tensor) or out.dtype != torch.float32:
+            raise TypeError("out has the wrong tensor type or dtype")
+        if (
+            out.device != source.device
+            or out.shape != source.shape
+            or not out.is_contiguous()
+        ):
+            raise ValueError(
+                "out must be contiguous with the expected shape on the input device"
+            )
+        if out.is_neg() or (torch.is_grad_enabled() and out.requires_grad):
+            raise ValueError("out must be materialized and used without autograd")
+    if source.data_ptr() % 16 or (out is not None and out.data_ptr() % 16):
+        raise ValueError("Source and output pointers must be 16-byte aligned")
+    if torch.version.hip is None:
+        raise RuntimeError("This lesson requires ROCm")
+    supplied_out = out is not None
+    with torch.cuda.device(source.device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty(source.shape, dtype=source.dtype, device=source.device)
+        _launch_copy_tiles(
+            source,
+            out,
+            width,
+            source.numel(),
+            stream=fx.Stream(torch.cuda.current_stream(source.device)),
+        )
+    if supplied_out:
+        torch.autograd.graph.increment_version(out)
+    return out
 
 
 def measure(source, out, width, count):
     # Compile and warm up before starting any event measurements.
     for _ in range(3):
-        run(source, out, width, count)
+        copy_tiles(source, out=out, width=width)
     torch.cuda.synchronize()
     samples = []
     for _ in range(5):
@@ -58,7 +112,7 @@ def measure(source, out, width, count):
         )
         start.record()
         for _ in range(20):
-            run(source, out, width, count)
+            copy_tiles(source, out=out, width=width)
         end.record()
         end.synchronize()
         samples.append(start.elapsed_time(end) / 20)
@@ -75,7 +129,7 @@ def solve(widths=(32, 128)):
     results = []
     for width in widths:
         out.fill_(-1)
-        run(source, out, width, count)
+        copy_tiles(source, out=out, width=width)
         torch.cuda.synchronize()
         torch.testing.assert_close(out, source)
         milliseconds = measure(source, out, width, count)

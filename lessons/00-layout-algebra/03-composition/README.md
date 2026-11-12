@@ -78,7 +78,7 @@ B emits 6; A expands it to `(0,3)` and returns offset 3. Composition connects th
 
 Build `fx.composition(A,B)` for `A=(2,4):(4,1)` and `B=(4,2):(2,1)`, then evaluate it for all eight coordinates of B.
 
-Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`_compose_offsets()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 

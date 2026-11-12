@@ -36,10 +36,18 @@ Each plan's natural copy tile is 16×64, repeating four times down its 64×64 op
 Build and slice the two plans independently:
 
 ```python
-left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(left_staging_thread_layout, staging_value_layout)
-right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(right_staging_thread_layout, staging_value_layout)
-left_staging_copy_plan = fx.make_tiled_copy(copy_128b, left_staging_copy_tv, left_staging_copy_tile)
-right_staging_copy_plan = fx.make_tiled_copy(copy_128b, right_staging_copy_tv, right_staging_copy_tile)
+left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
+    left_staging_thread_layout, staging_value_layout
+)
+right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(
+    right_staging_thread_layout, staging_value_layout
+)
+left_staging_copy_plan = fx.make_tiled_copy(
+    copy_128b, left_staging_copy_tv, left_staging_copy_tile
+)
+right_staging_copy_plan = fx.make_tiled_copy(
+    copy_128b, right_staging_copy_tv, right_staging_copy_tile
+)
 left_thread_staging_copy = left_staging_copy_plan.get_slice(fx.thread_idx.x)
 right_thread_staging_copy = right_staging_copy_plan.get_slice(fx.thread_idx.x)
 ```

@@ -47,7 +47,7 @@ def worker(mode):
     a, b = a_cpu.cuda(), b_cpu.cuda()
     output = torch.empty_like(a)
     for _ in range(8):
-        module["run"](a, b, output, 1024, 1024, 1024, mode)
+        module["matmul_bf16"](a, b, out=output, layout_mode=mode)
     torch.cuda.synchronize()
     torch.testing.assert_close(
         output.cpu(),
@@ -64,7 +64,7 @@ def summarize(path):
         rows = list(csv.DictReader(stream))
     dispatches = {}
     for row in rows:
-        if not row["Kernel_Name"].startswith("exercise_kernel"):
+        if not row["Kernel_Name"].startswith("_matmul_bf16"):
             continue
         dispatches.setdefault(int(row["Dispatch_Id"]), []).append(row)
     if len(dispatches) != 10:
@@ -144,7 +144,7 @@ def collect(output, timing, repeats):
             "--pmc",
             *COUNTERS,
             "--kernel-include-regex",
-            "exercise_kernel",
+            "_matmul_bf16",
             "-d",
             str(destination),
             "-o",
@@ -190,7 +190,7 @@ def collect(output, timing, repeats):
     # These launches run after profiler subprocesses exit, without counter instrumentation.
     module = runpy.run_path(str(HERE / "solution.py"))
     benchmark = runpy.run_path(str(ROOT / "examples/matmul_benchmark.py"))
-    kernels = {mode: partial(module["run"], layout_mode=mode) for mode in MODES}
+    kernels = {mode: partial(module["matmul_bf16"], layout_mode=mode) for mode in MODES}
     metadata, timings = benchmark["comparison"](kernels, timing, repeats)
     report = {
         "source_sha256": {

@@ -60,7 +60,7 @@ Expand 5 as `(5 % 3, 5 // 3) = (2,1)`. Offset is `2*2 + 1 = 5`. The matching inp
 
 Expand each scalar logical coordinate of `(2,4):(4,1)` and map the resulting tuple to an offset. Eight threads cover `thread_id=0..7`.
 
-Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`_coordinate_offsets()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 

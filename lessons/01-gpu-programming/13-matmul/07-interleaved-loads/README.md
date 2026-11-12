@@ -50,7 +50,6 @@ def reg2lds_copy_tile():
     fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
     fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
     fx.barrier()
-
 ```
 
 `reg2lds_copy_tile` stores the staged values and waits until the block can consume them. All three helpers expand into the same kernel during tracing; they do not launch extra kernels.
@@ -63,9 +62,7 @@ right_lds_transposed_view = fx.make_view(
     fx.get_iter(right_lds_view),
     fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
 )
-right_lds_transposed_tiled = fx.flat_divide(
-    right_lds_transposed_view, (BLOCK_N, MMA_K)
-)
+right_lds_transposed_tiled = fx.flat_divide(right_lds_transposed_view, (BLOCK_N, MMA_K))
 ```
 
 The initial slices at `(None, None, 0, 0)` define `left_lds_initial_view` and `right_lds_transposed_initial_view`. `make_fragment_A/B` allocates their K=16 operand registers. The copy plan's `retile` supplies compatible aliases of those same registers; it allocates no additional operand buffer and moves no data.
@@ -76,9 +73,7 @@ The practice and solution name the compute helper `compute_lds`:
 def compute_lds():
     for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
         left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
-        right_mma_view = fx.slice(
-            right_lds_transposed_tiled, (None, None, 0, inner_k)
-        )
+        right_mma_view = fx.slice(right_lds_transposed_tiled, (None, None, 0, inner_k))
         left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
         right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
         fx.copy(copy_16b, left_r_source, left_r_destination)
@@ -214,7 +209,7 @@ The [practice.py](practice.py) scaffold has two TODOs in the prefetch path:
 1. `initial_tile_k` selects the first tile published to LDS in the prologue.
 2. `next_tile_k` selects the future tile staged while the current `tile_k` is computed.
 
-Keep the separate drain outside the loop. The `run()` and `solve()` defaults select prefetch; use `solve("serial")` in a filled practice to check the stage-06 ordering explicitly. Compare with the [worked solution](solution.py).
+Keep the separate drain outside the loop. The `matmul_bf16()` and `solve()` defaults select prefetch; use `solve("serial")` in a filled practice to check the stage-06 ordering explicitly. Compare with the [worked solution](solution.py).
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/07-interleaved-loads/practice.py --check-only

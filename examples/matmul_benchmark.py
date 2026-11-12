@@ -83,7 +83,7 @@ def comparison(
     out = torch.empty((m, n), dtype=torch.bfloat16, device="cuda")
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     launches = {
-        name: partial(kernel, left, right, out, m, n, k)
+        name: partial(kernel, left, right, out=out)
         for name, kernel in kernel_map.items()
     }
     launches["torch.matmul"] = partial(torch.matmul, left, right, out=out)
@@ -218,7 +218,7 @@ def main():
     groups = {}
     for stage, module in modules.items():
         layout = module.get("RIGHT_LAYOUT", "row-major")
-        groups.setdefault(layout, {})[stage] = module["run"]
+        groups.setdefault(layout, {})[stage] = module["matmul_bf16"]
     for layout, kernels in groups.items():
         metadata, rows = comparison(
             kernels, args.timing, args.repeats, right_layout=layout

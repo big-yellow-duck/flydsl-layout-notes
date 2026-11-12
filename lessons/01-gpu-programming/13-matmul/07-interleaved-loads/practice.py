@@ -17,7 +17,6 @@ MMA_M = 16
 MMA_N = 16
 MMA_K = 16
 THREADS_PER_BLOCK = 128
-ACCUMULATOR_VALUES = BLOCK_M * BLOCK_N // THREADS_PER_BLOCK
 
 
 @fx.struct
@@ -28,7 +27,7 @@ class SharedStorage:
 
 
 @flyc.kernel
-def exercise_kernel(
+def _matmul_bf16(
     left: fx.Tensor,
     right: fx.Tensor,
     out: fx.Tensor,
@@ -92,6 +91,7 @@ def exercise_kernel(
 
     thread_mma = mma.thr_slice(fx.thread_idx.x)
     accumulator = thread_mma.make_fragment_C(out_block_view)
+    ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
     accumulator.fill(0)
 
     # lds to register copies using mma compatible plans
@@ -148,18 +148,12 @@ def exercise_kernel(
             fx.barrier()
     else:
         # get the first block ready
-        # TODO 1: Select the first K tile for the prefetch prologue.
-        initial_tile_k = None
-        if initial_tile_k is None:
-            raise NotImplementedError("Fill in initial_tile_k.")
+        initial_tile_k = 0
         gmem2reg_load_tile(initial_tile_k)
         reg2lds_copy_tile()
 
         for tile_k in range(k // BLOCK_K - 1):
-            # TODO 2: Select the tile staged while this iteration computes tile_k.
-            next_tile_k = None
-            if next_tile_k is None:
-                raise NotImplementedError("Fill in next_tile_k.")
+            next_tile_k = tile_k + 1
             gmem2reg_load_tile(next_tile_k)
             compute_lds()
             fx.barrier()
@@ -180,7 +174,7 @@ def exercise_kernel(
 
 
 @flyc.jit
-def run(
+def _launch_matmul_bf16(
     left: fx.Tensor,
     right: fx.Tensor,
     out: fx.Tensor,
@@ -188,10 +182,107 @@ def run(
     n: fx.Constexpr,
     k: fx.Constexpr,
     schedule: fx.Constexpr = "prefetch",
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
 ):
-    exercise_kernel(left, right, out, m, n, k, schedule).launch(
-        grid=(n // BLOCK_N, m // BLOCK_M, 1), block=(THREADS_PER_BLOCK, 1, 1)
+    _matmul_bf16(left, right, out, m, n, k, schedule).launch(
+        grid=(n // BLOCK_N, m // BLOCK_M, 1),
+        block=(THREADS_PER_BLOCK, 1, 1),
+        stream=stream,
     )
+
+
+def matmul_bf16(input, other, *, out=None, schedule="prefetch", stream=None):
+    """Multiply complete BF16 matrix tiles with this lesson's kernel."""
+    tensors = [("input", input), ("other", other)]
+    if out is not None:
+        tensors.append(("out", out))
+    for name, tensor in tensors:
+        if type(tensor) not in (torch.Tensor, torch.nn.Parameter):
+            raise TypeError(
+                f"{name} must be a torch.Tensor; custom tensor subclasses are unsupported"
+            )
+    if torch._C._are_functorch_transforms_active():
+        raise RuntimeError("matmul_bf16 does not support vmap or tensor transforms")
+    if torch.autograd.forward_ad._current_level >= 0:
+        raise RuntimeError("matmul_bf16 does not support forward-mode autograd")
+    if torch.is_autocast_enabled("cuda"):
+        raise RuntimeError(
+            "matmul_bf16 requires explicit BF16 inputs; disable autocast"
+        )
+    for name, tensor in tensors:
+        if tensor.dtype != torch.bfloat16:
+            raise TypeError(
+                f"{name} must have dtype torch.bfloat16; got {tensor.dtype}"
+            )
+        if not tensor.is_cuda:
+            raise ValueError(f"{name} must be on a ROCm GPU")
+        if tensor.device != input.device:
+            raise ValueError(f"{name} must be on the same device as input")
+        if tensor.layout != torch.strided or not tensor.is_contiguous():
+            raise ValueError(f"{name} must be contiguous and row-major")
+        if tensor.is_neg():
+            raise ValueError(
+                f"{name} must not be a negative view; call resolve_neg() first"
+            )
+        if torch.is_grad_enabled() and tensor.requires_grad:
+            raise RuntimeError(
+                f"{name} requires gradients; matmul_bf16 has no autograd support, use torch.no_grad()"
+            )
+    if input.ndim != 2 or other.ndim != 2:
+        raise ValueError("input and other must be two-dimensional matrices")
+    if input.shape[1] != other.shape[0]:
+        raise ValueError(
+            f"K dimensions must match; got {input.shape[1]} and {other.shape[0]}"
+        )
+    if input.data_ptr() % 16 or other.data_ptr() % 16:
+        raise ValueError("input and other must have 16-byte aligned data pointers")
+    if torch.version.hip is None:
+        raise RuntimeError("matmul_bf16 requires ROCm")
+    arch = torch.cuda.get_device_properties(input.device).gcnArchName.split(":")[0]
+    if arch not in ("gfx1151", "gfx1152"):
+        raise RuntimeError(f"matmul_bf16 requires gfx1151/gfx1152; detected {arch}")
+    shape = (input.shape[0], other.shape[1], input.shape[1])
+    if (
+        min(shape) <= 0
+        or shape[0] % BLOCK_M
+        or shape[1] % BLOCK_N
+        or shape[2] % BLOCK_K
+    ):
+        raise ValueError("M,N,K must contain complete positive block tiles")
+    if schedule not in ("serial", "prefetch"):
+        raise ValueError("Unsupported schedule")
+    if out is not None:
+        if out.shape != (shape[0], shape[1]):
+            raise ValueError(
+                f"out must have shape {(shape[0], shape[1])}; got {tuple(out.shape)}"
+            )
+        start = out.data_ptr()
+        stop = start + out.numel() * out.element_size()
+        for name, tensor in tensors[:2]:
+            if (
+                start < tensor.data_ptr() + tensor.numel() * tensor.element_size()
+                and tensor.data_ptr() < stop
+            ):
+                raise ValueError(f"out must not overlap {name}")
+    if stream is not None and stream.device != input.device:
+        raise ValueError("Stream and inputs must use the same device")
+    supplied_out = out is not None
+    with torch.cuda.device(input.device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty(
+                (shape[0], shape[1]), dtype=input.dtype, device=input.device
+            )
+        _launch_matmul_bf16(
+            input,
+            other,
+            out,
+            *shape,
+            schedule=schedule,
+            stream=fx.Stream(torch.cuda.current_stream(input.device)),
+        )
+        if supplied_out:
+            torch.autograd.graph.increment_version(out)
+    return out
 
 
 def check_boundaries(schedule):
@@ -207,7 +298,7 @@ def check_boundaries(schedule):
         storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
         out = storage[: m * n].view(m, n)
         out.fill_(float("nan"))
-        run(left, right, out, m, n, k, schedule)
+        matmul_bf16(left, right, out=out, schedule=schedule)
         torch.cuda.synchronize()
         expected = BLOCK_K * (2**tiles - 1)
         torch.testing.assert_close(
@@ -248,7 +339,7 @@ def solve(schedule="prefetch"):
             )
             out = storage[: m * n].view(m, n)
             out.fill_(float("nan"))
-            run(left, right, out, m, n, k, schedule)
+            matmul_bf16(left, right, out=out, schedule=schedule)
             torch.cuda.synchronize()
             # CPU FP32 arithmetic on the actual quantized BF16 inputs is independent
             # of the GPU kernel. Round the reference to the same output dtype.
@@ -275,7 +366,7 @@ if __name__ == "__main__":
         str(Path(__file__).resolve().parents[4] / "examples/matmul_benchmark.py")
     )
     benchmark["lesson_main"](
-        run,
+        matmul_bf16,
         solve,
         Path(__file__).parent.name,
         check_only=globals().get("_COURSE_CHECK_ONLY", False),

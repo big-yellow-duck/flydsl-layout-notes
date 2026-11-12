@@ -5,6 +5,7 @@ import ast
 import hashlib
 import inspect
 import json
+import re
 import runpy
 import subprocess
 import sys
@@ -15,25 +16,31 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
 
 
-def complete_practice():
-    source = (HERE / "practice.py").read_text()
-    source = source.replace(
-        '        left_direct_plan = None\n        if left_direct_plan is None:\n            raise NotImplementedError("Fill in left_direct_plan.")',
-        "        left_direct_plan = fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(compute_thread_id)",
-    ).replace(
-        '                left_current = None\n                if left_current is None:\n                    raise NotImplementedError("Fill in left_current.")',
-        "                left_current = fx.slice(left_full_tiled, (None, None, None, 0, 0, inner_k))",
-    )
+def complete_practice(source=None, solution=None):
+    source = (HERE / "practice.py").read_text() if source is None else source
+    solution = (HERE / "solution.py").read_text() if solution is None else solution
+    expressions = {
+        "left_direct_plan": "fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(compute_thread_id)",
+        "left_current": "fx.slice(left_full_tiled, (None, None, None, 0, 0, inner_k))",
+    }
+    for name, expression in expressions.items():
+        pattern = rf'(?m)^([ ]*){name} = None\n\1if {name} is None:\n\1    raise NotImplementedError\("Fill in {name}\."\)'
+        source, count = re.subn(
+            pattern,
+            lambda match, name=name, expression=expression: (
+                match[1] + name + " = " + expression
+            ),
+            source,
+        )
+        assert count == 1, name
     assert "raise NotImplementedError" not in source
 
     def normalized(text):
         tree = ast.parse(text)
-        tree.body = tree.body[
-            1:
-        ]  # Module docstrings describe practice/solution separately.
+        tree.body = tree.body[1:]
         return ast.dump(tree, include_attributes=False)
 
-    assert normalized(source) == normalized((HERE / "solution.py").read_text())
+    assert normalized(source) == normalized(solution)
     return source
 
 
@@ -53,12 +60,20 @@ def main():
         parser.error("Use a fresh output directory")
     args.output.mkdir(parents=True)
     selected = json.loads(args.selection.read_text())
+    (args.output / "selection-source.json").write_text(
+        json.dumps(selected, indent=2) + "\n"
+    )
     native = runpy.run_path(str(HERE / "solution.py"))
     factory_hash = hashlib.sha256(
-        inspect.getsource(native["build"].__wrapped__).encode()
+        inspect.getsource(native["_matmul_bf16"]._original_func).encode()
     ).hexdigest()
+    print("Current kernel SHA256:", factory_hash, flush=True)
+    historical_hash = runpy.run_path(str(HERE / "audit.py"))["factory_hash"](
+        HERE / "results/prefetch-comparison/solution-source.txt"
+    )
     for key, choice in selected["shapes"].items():
-        assert choice["native_factory_sha256"] == factory_hash
+        # The locked choices retain the source hash of the original selection.
+        assert choice["native_factory_sha256"] == historical_hash
         shape = tuple(map(int, key.split("x")))
         assert native["CONFIGS_BY_SHAPE"][shape] == native["Config"](**choice["config"])
     for name in (
@@ -153,11 +168,12 @@ def main():
     (args.output / "validation.json").write_text(
         json.dumps(
             {
-                "factory_sha256": factory_hash,
+                "current_kernel_sha256": factory_hash,
+                "selection_factory_sha256": historical_hash,
                 "selection": str(args.selection.resolve()),
                 "seeds": args.seeds,
                 "comparison": "operand_paths_vs_prefetch",
-                "native_factory_unchanged": True,
+                "locked_selection_matches_retained_factory": True,
                 "practice_AST_matches_solution": True,
                 "native_and_completed_practice_shape_split_cases_each": 9,
                 "all_commands_passed": True,

@@ -19,9 +19,7 @@ staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
 staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
     staging_thread_layout, staging_value_layout
 )
-staging_copy_plan = fx.make_tiled_copy(
-    copy_128b, staging_copy_tv, staging_copy_tile
-)
+staging_copy_plan = fx.make_tiled_copy(copy_128b, staging_copy_tv, staging_copy_tile)
 thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
 ```
 
@@ -115,12 +113,8 @@ right_lds_tiled_view = fx.flat_divide(right_lds_view, (1, 64))
 Their shapes are `(64,1,1,64)` and `(1,64,64,1)`. Inside the K loop, slice the appropriate tile modes:
 
 ```python
-left_lds_innerk_view = fx.slice(
-    left_lds_tiled_view, (None, None, 0, inner_k)
-)
-right_lds_innerk_view = fx.slice(
-    right_lds_tiled_view, (None, None, inner_k, 0)
-)
+left_lds_innerk_view = fx.slice(left_lds_tiled_view, (None, None, 0, inner_k))
+right_lds_innerk_view = fx.slice(right_lds_tiled_view, (None, None, inner_k, 0))
 left_r_source, right_r_source = create_lds2reg_sources(
     left_lds_innerk_view, right_lds_innerk_view
 )

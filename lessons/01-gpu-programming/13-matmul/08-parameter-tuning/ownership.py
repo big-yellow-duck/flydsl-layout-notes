@@ -9,7 +9,7 @@ import torch
 
 
 @flyc.kernel
-def owner_kernel(
+def _record_ownership(
     output: fx.Tensor,
     m: fx.Constexpr,
     n: fx.Constexpr,
@@ -29,21 +29,21 @@ def owner_kernel(
 
 
 @flyc.jit
-def run(
+def _launch_record_ownership(
     output: fx.Tensor,
     m: fx.Constexpr,
     n: fx.Constexpr,
     waves_m: fx.Constexpr,
     waves_n: fx.Constexpr,
 ):
-    owner_kernel(output, m, n, waves_m, waves_n).launch(
+    _record_ownership(output, m, n, waves_m, waves_n).launch(
         grid=(1, 1, 1), block=(32 * waves_m * waves_n, 1, 1)
     )
 
 
 def check(m, n, waves_m, waves_n):
     output = torch.full((m, n), float("nan"), dtype=torch.float32, device="cuda")
-    run(output, m, n, waves_m, waves_n)
+    _launch_record_ownership(output, m, n, waves_m, waves_n)
     torch.cuda.synchronize()
     actual = output.cpu()
     rows, cols = torch.meshgrid(torch.arange(m), torch.arange(n), indexing="ij")

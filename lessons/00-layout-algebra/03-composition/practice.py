@@ -12,7 +12,7 @@ import torch
 
 
 @flyc.kernel
-def exercise_kernel(out: fx.Tensor):
+def _compose_offsets(out: fx.Tensor):
     thread_id = fx.thread_idx.x
     a = fx.make_layout((2, 4), (4, 1))
     b = fx.make_layout((4, 2), (2, 1))
@@ -39,15 +39,46 @@ def exercise_kernel(out: fx.Tensor):
 
 
 @flyc.jit
-def run(out: fx.Tensor, stream: fx.Stream = fx.Stream(None)):  # noqa: B008 -- FlyDSL stream default
-    # Exactly 8 threads: every thread owns one output row; no tail mask needed.
-    exercise_kernel(out).launch(grid=(1, 1, 1), block=(8, 1, 1), stream=stream)
+def _launch_compose_offsets(
+    out: fx.Tensor,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
+):
+    _compose_offsets(out).launch(grid=(1, 1, 1), block=(8, 1, 1), stream=stream)
+
+
+def compose_offsets(*, out=None, device="cuda", stream=None):
+    """Evaluate this lesson's complete coordinate domain on the GPU."""
+    if out is not None:
+        if not isinstance(out, torch.Tensor):
+            raise TypeError("out must be a torch.Tensor")
+        device = out.device
+    device = torch.device(device)
+    if device.type != "cuda":
+        raise ValueError("device must be a ROCm GPU")
+    if torch.version.hip is None:
+        raise RuntimeError("This lesson requires ROCm")
+    supplied_out = out is not None
+    with torch.cuda.device(device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty((24,), dtype=torch.int32, device=device)
+        if (
+            out.dtype != torch.int32
+            or tuple(out.shape) != (24,)
+            or not out.is_contiguous()
+        ):
+            raise ValueError("out must be a contiguous int32 tensor of shape (24,)")
+        _launch_compose_offsets(
+            out, stream=fx.Stream(torch.cuda.current_stream(device))
+        )
+    if supplied_out:
+        torch.autograd.graph.increment_version(out)
+    return out
 
 
 def solve():
     """Launch the exercise, check every GPU result, and return the lesson checkpoint."""
     out = torch.full((24,), -1, dtype=torch.int32, device="cuda")
-    run(out)
+    compose_offsets(out=out)
     torch.cuda.synchronize()
     rows = out.cpu().reshape(8, 3).tolist()
     # Host code only checks and formats results; it does not implement layouts.

@@ -4,6 +4,16 @@ Write every README as a standalone teaching document for a public reader. Introd
 
 Keep each lesson focused on one question. Start with intuition, trace one small example, then explain one common confusion. Finish with a revision question and a collapsible answer.
 
+Use the same program structure in every practice and solution:
+
+- Define a descriptive, private `@flyc.kernel` at module scope, such as `_matmul_bf16` or `_copy_tile`. Pass tunable values as explicit `fx.Constexpr` arguments.
+- Put the native `.launch(...)` in a private `@flyc.jit` bridge named `_launch_<operation>`.
+- Expose one Python launcher named for the operation, such as `matmul_bf16(left, right, out=None, config=None)` or `copy_tile(source, out=None)`, with optional arguments passed by keyword. It validates dtype, shape, layout, and configuration, allocates output when omitted, and returns it. Unsupported inputs raise a specific error; do not fall back to Torch.
+- Keep `solve()` as the independent checker. Infer sizes in the public launcher rather than asking callers to repeat dimensions already present in tensors. Layout-only lessons retain their fixed coordinate-domain APIs.
+- Allocate partials and counters only for Split-K configurations that need them. Cache scratch separately by config, shape, device, stream, and graph capture; keep guards and counter-reset checks in the checker. Do not hide kernels in `build` factories or expose `run`/`launch_for` aliases.
+
+Run `pixi run python tools/check_lesson_style.py --gpu --practices --output /tmp/lesson-style-check` and `pixi run gpu-check` when changing this structure. Preserve existing learner edits and unfinished expressions; temporary completed copies provide practice validation.
+
 - Preserve the coordinate/offset distinction and show parentheses explicitly.
 - Use exact diagrams with readable labels; keep the drawing source in `tools/`.
 - Use native FlyDSL operations in lessons; do not add a Python layout interpreter. Run `pixi run gpu-check` and record the FlyDSL version and target GPU. Use thread-dependent coordinates to check the whole small domain.

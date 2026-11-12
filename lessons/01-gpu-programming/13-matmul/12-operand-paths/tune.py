@@ -9,6 +9,7 @@ import random
 import runpy
 import statistics
 from dataclasses import asdict
+from functools import partial
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -17,7 +18,7 @@ COMMON = runpy.run_path(str(HERE.parent / "09-split-k/tune.py"))
 PREFETCH = runpy.run_path(str(HERE.parent / "10c-k-unrolling/solution.py"))
 PREFETCH_SELECTION = json.loads((HERE / "results/prefetch-control.json").read_text())
 CONTEXT = COMMON["inputs"].__globals__
-CONTEXT.update(MODULE=MODULE, BUILD=MODULE["build"])
+CONTEXT.update(MODULE=MODULE, BUILD=MODULE["_matmul_bf16"]._original_func)
 
 
 def configure(shape):
@@ -33,7 +34,10 @@ def capture(launch, data):
     finally:
         if enabled:
             gc.enable()
-    if metadata["nodes"] != 32 or metadata["kernel_nodes"] != 32:
+    if (
+        metadata["nodes"] != 32 + metadata.get("workspace_initialization_nodes", 0)
+        or not 32 <= metadata["kernel_nodes"] <= metadata["nodes"]
+    ):
         raise RuntimeError(f"Expected one kernel per GEMM: {metadata}")
     return graph, metadata
 
@@ -51,7 +55,7 @@ def measure(launches, data, batches=7, repeats=20, order_seed=0, timing="graph-h
         m, n, _ = CONTEXT["SHAPE"]
         out = storage[:-16].view(m, n)
         callbacks = {
-            name: (lambda launch=launch: launch(a, b, out))
+            name: (lambda launch=launch: launch(a, b, out=out))
             for name, launch in launches.items()
         }
         operations = 1
@@ -77,8 +81,8 @@ def measure(launches, data, batches=7, repeats=20, order_seed=0, timing="graph-h
         if name != "operand_paths"
     }
     for launch in launches.values():
-        if hasattr(launch, "workspace"):
-            MODULE["check_workspace"](launch)
+        if timing != "graph-host":
+            COMMON["check_launch_workspace"](launch, data)
     return {
         "median_ms": {
             name: statistics.median(values) for name, values in samples.items()
@@ -102,7 +106,7 @@ def controls(shape, config):
     key = "x".join(map(str, shape))
     tuned = PREFETCH["Config"](**PREFETCH_SELECTION["shapes"][key])
     launches = {
-        "prefetch": PREFETCH["launch_for"](tuned, shape),
+        "prefetch": partial(PREFETCH["matmul_bf16"], config=tuned),
         "torch": COMMON["torch_launch"],
     }
     compatible = {
@@ -116,14 +120,14 @@ def controls(shape, config):
     except ValueError:
         pass
     else:
-        launches["matched_prefetch"] = PREFETCH["launch_for"](matched, shape)
+        launches["matched_prefetch"] = partial(PREFETCH["matmul_bf16"], config=matched)
     return launches
 
 
 def environment(shape):
     configure(shape)
     factory_hash = hashlib.sha256(
-        inspect.getsource(MODULE["build"].__wrapped__).encode()
+        inspect.getsource(MODULE["_matmul_bf16"]._original_func).encode()
     ).hexdigest()
     return {
         **COMMON["environment"](),
@@ -153,13 +157,13 @@ def environment(shape):
     }
 
 
-def compare(config, shape, timing="graph-host", launch_factory=None):
+def compare(config, shape, timing="graph-host", *, matmul=None):
     shape = tuple(shape)
     configure(shape)
-    launch_factory = MODULE["launch_for"] if launch_factory is None else launch_factory
+    launcher = matmul or MODULE["matmul_bf16"]
     data = COMMON["inputs"](13)
     launches = {
-        "operand_paths": launch_factory(config, shape),
+        "operand_paths": partial(launcher, config=config),
         **controls(shape, config),
     }
     for launch in launches.values():
@@ -185,7 +189,7 @@ def verify(config, shape, seeds, timing):
         "rounds": [],
     }
     launches = {
-        "operand_paths": MODULE["launch_for"](config, shape),
+        "operand_paths": partial(MODULE["matmul_bf16"], config=config),
         **controls(shape, config),
     }
     for seed in seeds:

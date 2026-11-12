@@ -6,7 +6,7 @@ import torch
 
 
 @flyc.kernel
-def layout_kernel(output: fx.Tensor):
+def _record_lds_offsets(output: fx.Tensor):
     q = fx.block_idx.x * 128 + fx.thread_idx.x
     coord = fx.make_coord(q // 64, q % 64)
     packed = fx.make_layout((64, 64), (64, 1))
@@ -19,13 +19,13 @@ def layout_kernel(output: fx.Tensor):
 
 
 @flyc.jit
-def run(output: fx.Tensor):
-    layout_kernel(output).launch(grid=(32, 1, 1), block=(128, 1, 1))
+def _launch_record_lds_offsets(output: fx.Tensor):
+    _record_lds_offsets(output).launch(grid=(32, 1, 1), block=(128, 1, 1))
 
 
 def main():
     output = torch.empty(4096 * 3, dtype=torch.int32, device="cuda")
-    run(output)
+    _launch_record_lds_offsets(output)
     torch.cuda.synchronize()
     actual = output.cpu().reshape(4096, 3)
     q = torch.arange(4096, dtype=torch.int32)

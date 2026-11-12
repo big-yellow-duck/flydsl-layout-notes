@@ -36,7 +36,7 @@ Use `lessons/<section>/<number>-<topic>/` with `README.md`, `practice.py`, and `
 
 Use the pinned environment in `pixi.toml` and `pixi.lock`; verify unfamiliar APIs against the installed FlyDSL source. The currently documented baseline is FlyDSL 0.4.1 / ROCm 10 on `gfx1152`; record the environment actually tested rather than assuming it is unchanged.
 
-Keep the established boundary: native FlyDSL operations implement the example inside `@flyc.kernel`; `@flyc.jit` defines its launch; host `solve()` allocates buffers, runs, synchronizes, checks, and returns a readable checkpoint. Expected tables or PyTorch arithmetic provide independent checks, not a replacement Python layout implementation.
+Keep the established boundary: a private module-level `@flyc.kernel` implements the example; a private `@flyc.jit` bridge defines its launch; one public Python launcher validates arguments, infers dimensions, allocates optional output and required scratch, and returns output. `solve()` supplies fixtures, synchronizes, checks, and returns a readable checkpoint. Use names such as `_matmul_bf16`, `_launch_matmul_bf16`, and `matmul_bf16`. Pass tuning parameters explicitly as `fx.Constexpr`; avoid `build` factories and `run`/`launch_for` aliases. Unsupported calls raise descriptive errors. Split-K scratch is allocated only when needed and isolated by config, shape, device, stream, and capture. Expected tables or PyTorch arithmetic provide independent checks, not a replacement Python layout implementation.
 
 For memory lessons, make the access path visible:
 

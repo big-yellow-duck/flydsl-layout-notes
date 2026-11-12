@@ -36,7 +36,7 @@ pixi run gpu-check
 pixi run python lessons/00-layout-algebra/00-shapes-and-strides/practice.py
 ```
 
-The starter reports `Practice not finished: ...` and exits with status 1. Read the lesson's **Practice** section and replace the numbered `None` TODOs in `exercise_kernel()`. Keep the supplied stores, launch, and checker. A completed exercise prints `Exercise passed: ...`; incorrect results fail the host assertions.
+The starter reports `Practice not finished: ...` and exits with status 1. Read the lesson's **Practice** section and replace the numbered `None` TODOs in the private GPU kernel (for example, `_matmul_bf16`). Keep the supplied stores, launch, and checker. A completed exercise prints `Exercise passed: ...`; incorrect results fail the host assertions.
 
 After your attempt, compare with the worked solution:
 

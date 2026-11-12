@@ -25,7 +25,7 @@ The overall strategy is the same as 07c: grouped output-block traversal, buffer 
 | Group M | 2 | 8 |
 | LDS bytes per block | 17408 | 18432 |
 
-Changing M/N increases output reuse and accumulator storage; changing K adjusts staging granularity. Wave arrangement redistributes the repeated output tiles, and group size adjusts cache locality. Copy ownership and padded LDS strides follow those dimensions. The `build(Config)` factory, shape selection, optional launch stream, and tuning/profiling tools support these experiments; they do not introduce another compute pipeline.
+Changing M/N increases output reuse and accumulator storage; changing K adjusts staging granularity. Wave arrangement redistributes the repeated output tiles, and group size adjusts cache locality. Copy ownership and padded LDS strides follow those dimensions. The `matmul_bf16(left, right, config=...)` launcher, shape selection, optional launch stream, and tuning/profiling tools support these experiments; they do not introduce another compute pipeline.
 
 ## Watch the full strategy
 
@@ -87,9 +87,7 @@ The staged payload counts input movement before cache reuse. For one K stage, ar
 The selected MMA uses:
 
 ```python
-mma = fx.make_tiled_mma(
-    atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0))
-)
+mma = fx.make_tiled_mma(atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0)))
 ```
 
 With `(WM,WN)=(1,4)`, the natural footprint is **16×64×16**. The 128×128 output view repeats this footprint eight times along M and twice along N. The hardware instruction remains 16×16×16 WMMA.
@@ -121,9 +119,7 @@ The solution allocates MMA operand fragments for K=16 and slices each LDS stage 
 ```python
 for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
     left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
-    right_mma_view = fx.slice(
-        right_lds_transposed_tiled, (None, None, 0, inner_k)
-    )
+    right_mma_view = fx.slice(right_lds_transposed_tiled, (None, None, 0, inner_k))
     left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
     right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
     fx.copy(copy_16b, left_r_source, left_r_destination)

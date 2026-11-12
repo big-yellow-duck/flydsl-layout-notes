@@ -2,7 +2,7 @@
 
 Run: pixi run python lessons/01-gpu-programming/13-matmul/09-split-k/profile.py \
     --collect --output /tmp/skinny-profile
-Use --module PATH to compare another lesson with the same launch_for interface.
+Use --module PATH to compare another lesson exposing matmul_bf16.
 """
 
 import argparse
@@ -17,6 +17,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
 
 import flydsl  # noqa: F401 -- initialize compiler LLVM before torch
@@ -87,7 +88,8 @@ def worker(args):
     shape = tuple(args.shape)
     module = runpy.run_path(str(args.module))
     tune = runpy.run_path(str(HERE / "tune.py"))
-    tune["inputs"].__globals__.update(SHAPE=shape, MODULE=module, BUILD=module["build"])
+    kernel_source = module["_matmul_bf16"]._original_func
+    tune["inputs"].__globals__.update(SHAPE=shape, MODULE=module, BUILD=kernel_source)
     config = module["CONFIGS_BY_SHAPE"][shape]
     if args.config_json:
         config = module["Config"](**json.loads(args.config_json))
@@ -96,28 +98,48 @@ def worker(args):
         config = module["Config"](*values[:5], group_m=1, split_k=values[5])
     data = tune["inputs"](2026111201)
     launches = {
-        "native": module["launch_for"](config, shape),
+        "native": partial(module["matmul_bf16"], config=config),
         "torch": tune["torch_launch"],
     }
     for launch in launches.values():
         tune["validate"](launch, data)
+    if "matmul_bf16" in module:
+        module["check_workspace"](
+            module["_workspace_for"](
+                config,
+                shape,
+                data[0].device,
+                torch.cuda.current_stream(data[0].device),
+                0,
+            )
+        )
     a, b, storage, _ = data
     out = storage[:-16].view(shape[0], shape[1])
     for _ in range(20):
         for launch in launches.values():
-            launch(a, b, out)
+            launch(a, b, out=out)
     torch.cuda.synchronize()
     sequence = []
     profiling_control(True)
     for pair in range(args.pairs):
         order = ("native", "torch") if pair % 2 == 0 else ("torch", "native")
         for name in order:
-            launches[name](a, b, out)
+            launches[name](a, b, out=out)
             torch.cuda.synchronize()
             sequence.append(name)
     profiling_control(False)
     for launch in launches.values():
         tune["validate"](launch, data)
+    if "matmul_bf16" in module:
+        module["check_workspace"](
+            module["_workspace_for"](
+                config,
+                shape,
+                data[0].device,
+                torch.cuda.current_stream(data[0].device),
+                0,
+            )
+        )
     environment = tune["environment"]()
     environment["source_sha256"] = {
         str(path): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -161,7 +183,9 @@ def parse_dispatches(path, sequence, counters=()):
     for name, key in zip(sequence, sorted(grouped), strict=True):
         group = grouped[key]
         first = group[0]
-        if first["Kernel_Name"].startswith("exercise_kernel") != (name == "native"):
+        if first["Kernel_Name"].startswith(("_matmul_bf16", "_matmul_bf16")) != (
+            name == "native"
+        ):
             raise RuntimeError(
                 f"Unexpected dispatch for {name}: {first['Kernel_Name']}"
             )

@@ -20,7 +20,7 @@ class SharedStorage:
 
 
 @flyc.kernel
-def exercise_kernel(
+def _matmul_bf16(
     left: fx.Tensor,
     right: fx.Tensor,
     out: fx.Tensor,
@@ -57,10 +57,9 @@ def exercise_kernel(
     staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
         staging_thread_layout, staging_value_layout
     )
-    # TODO 1: Build the global-to-LDS plan from its atom and thread/value layout.
-    staging_copy_plan = None
-    if staging_copy_plan is None:
-        raise NotImplementedError("Fill in staging_copy_plan.")
+    staging_copy_plan = fx.make_tiled_copy(
+        copy_128b, staging_copy_tv, staging_copy_tile
+    )
     # get per thread copy plan
     thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
 
@@ -78,10 +77,9 @@ def exercise_kernel(
     left_lds2reg_copy_tile, left_lds2reg_copy_tv = fx.make_layout_tv(
         left_lds2reg_thread_layout, left_lds2reg_value_layout
     )
-    # TODO 2: Build A's LDS-to-register copy plan.
-    left_lds2reg_copy_plan = None
-    if left_lds2reg_copy_plan is None:
-        raise NotImplementedError("Fill in left_lds2reg_copy_plan.")
+    left_lds2reg_copy_plan = fx.make_tiled_copy(
+        copy_16b, left_lds2reg_copy_tv, left_lds2reg_copy_tile
+    )
 
     copy_64b = fx.make_copy_atom(fx.UniversalCopy64b(), fx.BFloat16)
     right_lds2reg_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
@@ -89,10 +87,9 @@ def exercise_kernel(
     right_lds2reg_copy_tile, right_lds2reg_copy_tv = fx.make_layout_tv(
         right_lds2reg_thread_layout, right_lds2reg_value_layout
     )
-    # TODO 3: Build B's LDS-to-register copy plan.
-    right_lds2reg_copy_plan = None
-    if right_lds2reg_copy_plan is None:
-        raise NotImplementedError("Fill in right_lds2reg_copy_plan.")
+    right_lds2reg_copy_plan = fx.make_tiled_copy(
+        copy_64b, right_lds2reg_copy_tv, right_lds2reg_copy_tile
+    )
 
     compute_thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
     thread_coord = fx.idx2crd(fx.thread_idx.x, compute_thread_layout)
@@ -193,10 +190,9 @@ def exercise_kernel(
     reg2gmem_tilemn, reg2gmem_tv_layout = fx.make_layout_tv(
         reg2gmem_thread_layout, reg2gmem_val_layout
     )
-    # TODO 4: Build the register-to-global output copy plan.
-    reg2gmem_copy_plan = None
-    if reg2gmem_copy_plan is None:
-        raise NotImplementedError("Fill in reg2gmem_copy_plan.")
+    reg2gmem_copy_plan = fx.make_tiled_copy(
+        copy_64b, reg2gmem_tv_layout, reg2gmem_tilemn
+    )
     reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(0)
     reg2gmem_source = reg2gmem_thread_copy.partition_S(out_registers)
     reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_thread_view)
@@ -204,17 +200,108 @@ def exercise_kernel(
 
 
 @flyc.jit
-def run(
+def _launch_matmul_bf16(
     left: fx.Tensor,
     right: fx.Tensor,
     out: fx.Tensor,
     m: fx.Constexpr,
     n: fx.Constexpr,
     k: fx.Constexpr,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
 ):
-    exercise_kernel(left, right, out, m, n, k).launch(
-        grid=(n // BLOCK_N, m // BLOCK_M, 1), block=(THREADS_PER_BLOCK, 1, 1)
+    _matmul_bf16(left, right, out, m, n, k).launch(
+        grid=(n // BLOCK_N, m // BLOCK_M, 1),
+        block=(THREADS_PER_BLOCK, 1, 1),
+        stream=stream,
     )
+
+
+def matmul_bf16(input, other, *, out=None, stream=None):
+    """Multiply complete BF16 matrix tiles with this lesson's kernel."""
+    tensors = [("input", input), ("other", other)]
+    if out is not None:
+        tensors.append(("out", out))
+    for name, tensor in tensors:
+        if type(tensor) not in (torch.Tensor, torch.nn.Parameter):
+            raise TypeError(
+                f"{name} must be a torch.Tensor; custom tensor subclasses are unsupported"
+            )
+    if torch._C._are_functorch_transforms_active():
+        raise RuntimeError("matmul_bf16 does not support vmap or tensor transforms")
+    if torch.autograd.forward_ad._current_level >= 0:
+        raise RuntimeError("matmul_bf16 does not support forward-mode autograd")
+    if torch.is_autocast_enabled("cuda"):
+        raise RuntimeError(
+            "matmul_bf16 requires explicit BF16 inputs; disable autocast"
+        )
+    for name, tensor in tensors:
+        if tensor.dtype != torch.bfloat16:
+            raise TypeError(
+                f"{name} must have dtype torch.bfloat16; got {tensor.dtype}"
+            )
+        if not tensor.is_cuda:
+            raise ValueError(f"{name} must be on a ROCm GPU")
+        if tensor.device != input.device:
+            raise ValueError(f"{name} must be on the same device as input")
+        if tensor.layout != torch.strided or not tensor.is_contiguous():
+            raise ValueError(f"{name} must be contiguous and row-major")
+        if tensor.is_neg():
+            raise ValueError(
+                f"{name} must not be a negative view; call resolve_neg() first"
+            )
+        if torch.is_grad_enabled() and tensor.requires_grad:
+            raise RuntimeError(
+                f"{name} requires gradients; matmul_bf16 has no autograd support, use torch.no_grad()"
+            )
+    if input.ndim != 2 or other.ndim != 2:
+        raise ValueError("input and other must be two-dimensional matrices")
+    if input.shape[1] != other.shape[0]:
+        raise ValueError(
+            f"K dimensions must match; got {input.shape[1]} and {other.shape[0]}"
+        )
+    if input.data_ptr() % 16 or other.data_ptr() % 16:
+        raise ValueError("input and other must have 16-byte aligned data pointers")
+    if torch.version.hip is None:
+        raise RuntimeError("matmul_bf16 requires ROCm")
+    shape = (input.shape[0], other.shape[1], input.shape[1])
+    if (
+        min(shape) <= 0
+        or shape[0] % BLOCK_M
+        or shape[1] % BLOCK_N
+        or shape[2] % BLOCK_K
+    ):
+        raise ValueError("M,N,K must contain complete positive block tiles")
+    if out is not None:
+        if out.shape != (shape[0], shape[1]):
+            raise ValueError(
+                f"out must have shape {(shape[0], shape[1])}; got {tuple(out.shape)}"
+            )
+        start = out.data_ptr()
+        stop = start + out.numel() * out.element_size()
+        for name, tensor in tensors[:2]:
+            if (
+                start < tensor.data_ptr() + tensor.numel() * tensor.element_size()
+                and tensor.data_ptr() < stop
+            ):
+                raise ValueError(f"out must not overlap {name}")
+    if stream is not None and stream.device != input.device:
+        raise ValueError("Stream and inputs must use the same device")
+    supplied_out = out is not None
+    with torch.cuda.device(input.device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty(
+                (shape[0], shape[1]), dtype=input.dtype, device=input.device
+            )
+        _launch_matmul_bf16(
+            input,
+            other,
+            out,
+            *shape,
+            stream=fx.Stream(torch.cuda.current_stream(input.device)),
+        )
+        if supplied_out:
+            torch.autograd.graph.increment_version(out)
+    return out
 
 
 def solve():
@@ -236,7 +323,7 @@ def solve():
             )
             out = storage[: m * n].view(m, n)
             out.fill_(float("nan"))
-            run(left, right, out, m, n, k)
+            matmul_bf16(left, right, out=out)
             torch.cuda.synchronize()
             # CPU FP32 arithmetic on the actual quantized BF16 inputs is independent
             # of the GPU kernel. Round the reference to the same output dtype.
@@ -258,7 +345,7 @@ if __name__ == "__main__":
         str(Path(__file__).resolve().parents[4] / "examples/matmul_benchmark.py")
     )
     benchmark["lesson_main"](
-        run,
+        matmul_bf16,
         solve,
         Path(__file__).parent.name,
         check_only=globals().get("_COURSE_CHECK_ONLY", False),

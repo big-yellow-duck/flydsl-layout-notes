@@ -7,7 +7,7 @@ import torch
 
 
 @flyc.kernel
-def exercise_kernel(source: fx.Tensor, out: fx.Tensor):
+def _copy_tile(source: fx.Tensor, out: fx.Tensor):
     # 1. Describe the matrix indexing. This layout contains no data.
     matrix_layout = fx.make_layout((4, 8), (8, 1))
     # 2. Apply that indexing to source's existing GPU storage. No copy occurs.
@@ -31,14 +31,54 @@ def exercise_kernel(source: fx.Tensor, out: fx.Tensor):
 
 
 @flyc.jit
-def run(source: fx.Tensor, out: fx.Tensor):
-    exercise_kernel(source, out).launch(grid=(1, 1, 1), block=(8, 1, 1))
+def _launch_copy_tile(
+    source: fx.Tensor,
+    out: fx.Tensor,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
+):
+    _copy_tile(source, out).launch(grid=(1, 1, 1), block=(8, 1, 1), stream=stream)
+
+
+def copy_tile(source, *, out=None, stream=None):
+    """Validate inputs, allocate output if needed, and launch this lesson's kernel."""
+    for name, tensor in (("source", source),):
+        if not isinstance(tensor, torch.Tensor) or tensor.dtype != torch.int32:
+            raise TypeError(f"{name} must be a torch.int32 tensor")
+        if not tensor.is_cuda or tensor.ndim != 1 or not tensor.is_contiguous():
+            raise ValueError(f"{name} must be a contiguous 1-D tensor on a ROCm GPU")
+        if tensor.device != source.device:
+            raise ValueError("Inputs must use the same device")
+        if tensor.is_neg() or (torch.is_grad_enabled() and tensor.requires_grad):
+            raise ValueError(f"{name} must be materialized and used without autograd")
+    if tuple(source.shape) != (32,):
+        raise ValueError("Input shape must be (32,)")
+    if out is not None:
+        if not isinstance(out, torch.Tensor) or out.dtype != torch.int32:
+            raise TypeError("out has the wrong tensor type or dtype")
+        if out.device != source.device or out.shape != (8,) or not out.is_contiguous():
+            raise ValueError(
+                "out must be contiguous with the expected shape on the input device"
+            )
+        if out.is_neg() or (torch.is_grad_enabled() and out.requires_grad):
+            raise ValueError("out must be materialized and used without autograd")
+    if torch.version.hip is None:
+        raise RuntimeError("This lesson requires ROCm")
+    supplied_out = out is not None
+    with torch.cuda.device(source.device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty((8,), dtype=source.dtype, device=source.device)
+        _launch_copy_tile(
+            source, out, stream=fx.Stream(torch.cuda.current_stream(source.device))
+        )
+    if supplied_out:
+        torch.autograd.graph.increment_version(out)
+    return out
 
 
 def solve():
     source = torch.arange(32, dtype=torch.int32, device="cuda") + 100
     out = torch.full((8,), -1, dtype=torch.int32, device="cuda")
-    run(source, out)
+    copy_tile(source, out=out)
     torch.cuda.synchronize()
     actual = out.cpu().tolist()
     expected = [120, 121, 122, 123, 128, 129, 130, 131]

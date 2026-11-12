@@ -66,7 +66,7 @@ def main():
     out = torch.empty_like(a)
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     launches = {
-        name: partial(module["run"], a, b, out, 1024, 1024, 1024)
+        name: partial(module["matmul_bf16"], a, b, out=out)
         for name, module in modules.items()
     }
     for launch in launches.values():

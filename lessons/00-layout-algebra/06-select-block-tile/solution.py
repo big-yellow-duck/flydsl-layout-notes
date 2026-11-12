@@ -6,7 +6,7 @@ import torch
 
 
 @flyc.kernel
-def exercise_kernel(source: fx.Tensor, out: fx.Tensor):
+def _copy_block_tiles(source: fx.Tensor, out: fx.Tensor):
     # 1. Reuse the incoming 1-D tensor views: they already have the right layout.
     block_id = fx.block_idx.x
     tile_layout = fx.make_layout(8, 1)
@@ -25,14 +25,60 @@ def exercise_kernel(source: fx.Tensor, out: fx.Tensor):
 
 
 @flyc.jit
-def run(source: fx.Tensor, out: fx.Tensor):
-    exercise_kernel(source, out).launch(grid=(4, 1, 1), block=(8, 1, 1))
+def _launch_copy_block_tiles(
+    source: fx.Tensor,
+    out: fx.Tensor,
+    stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
+):
+    _copy_block_tiles(source, out).launch(
+        grid=(4, 1, 1), block=(8, 1, 1), stream=stream
+    )
+
+
+def copy_block_tiles(source, *, out=None, stream=None):
+    """Validate inputs, allocate output if needed, and launch this lesson's kernel."""
+    for name, tensor in (("source", source),):
+        if not isinstance(tensor, torch.Tensor) or tensor.dtype != torch.float32:
+            raise TypeError(f"{name} must be a torch.float32 tensor")
+        if not tensor.is_cuda or tensor.ndim != 1 or not tensor.is_contiguous():
+            raise ValueError(f"{name} must be a contiguous 1-D tensor on a ROCm GPU")
+        if tensor.device != source.device:
+            raise ValueError("Inputs must use the same device")
+        if tensor.is_neg() or (torch.is_grad_enabled() and tensor.requires_grad):
+            raise ValueError(f"{name} must be materialized and used without autograd")
+    if tuple(source.shape) != (32,):
+        raise ValueError("Input shape must be (32,)")
+    if out is not None:
+        if not isinstance(out, torch.Tensor) or out.dtype != torch.float32:
+            raise TypeError("out has the wrong tensor type or dtype")
+        if (
+            out.device != source.device
+            or out.shape != source.shape
+            or not out.is_contiguous()
+        ):
+            raise ValueError(
+                "out must be contiguous with the expected shape on the input device"
+            )
+        if out.is_neg() or (torch.is_grad_enabled() and out.requires_grad):
+            raise ValueError("out must be materialized and used without autograd")
+    if torch.version.hip is None:
+        raise RuntimeError("This lesson requires ROCm")
+    supplied_out = out is not None
+    with torch.cuda.device(source.device), torch.cuda.stream(stream):
+        if out is None:
+            out = torch.empty(source.shape, dtype=source.dtype, device=source.device)
+        _launch_copy_block_tiles(
+            source, out, stream=fx.Stream(torch.cuda.current_stream(source.device))
+        )
+    if supplied_out:
+        torch.autograd.graph.increment_version(out)
+    return out
 
 
 def solve():
     source = torch.arange(32, dtype=torch.float32, device="cuda") + 100
     out = torch.full_like(source, -1)
-    run(source, out)
+    copy_block_tiles(source, out=out)
     torch.cuda.synchronize()
     torch.testing.assert_close(out, source)
     return out[16:24].cpu().tolist()

@@ -32,9 +32,7 @@ group_id = fx.get_scalar(split_block_coords[3])
 block_row = row_in_group + group_id * group_width
 # Workspace IDs follow output coordinates independently of launch order.
 output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
-flat_block_id = fx.get_scalar(
-    fx.crd2idx((block_row, block_col), output_tile_layout)
-)
+flat_block_id = fx.get_scalar(fx.crd2idx((block_row, block_col), output_tile_layout))
 ```
 
 The grid is `(tiles_m * tiles_n * SPLIT_K, 1, 1)`. Neighboring M tiles in a group read the same B tile and the same K partition before the launch order advances to another split. `group_width` clamps `group_m` to the number of tile rows; complete groups are required. With `SPLIT_K=1`, this is the grouped M traversal from 07c/08. With `group_m=1`, split K advances fastest, matching the single-row skinny example below. The split coordinate selects K work, not another output row or column.
@@ -103,21 +101,33 @@ For four splits, the atomic returns old values 0, 1, 2, and 3 in an unspecified 
 
 The acquire/release atomic is part of correctness: its release publishes the preceding partial stores, and its acquire makes earlier peers' published stores visible to the finalizer. A counter increment with relaxed ordering would not establish that visibility. The ordering follows the [LLVM AMDGPU memory model](https://llvm.org/docs/AMDGPUMemoryModel.html); the installed FlyDSL 0.4.1 implementations are in `expr/llvm.py` (`atomic_add`, `generic_store`) and `expr/rocdl/enum.py` (`SyncScope.Agent`). See the [upstream atomic helpers](https://github.com/ROCm/FlyDSL/blob/main/python/flydsl/expr/llvm.py), which may evolve beyond the installed version.
 
-Earlier arrivals leave without waiting. There is no polling loop or grid-wide barrier, so progress does not require all split blocks to be resident at once. There is **one kernel launch per GEMM**, including publication, reduction, final conversion, output storage, and counter reset. The benchmark checks this by inspecting captured HIP graph nodes.
+Earlier arrivals leave without waiting. There is no polling loop or grid-wide barrier, so progress does not require all split blocks to be resident at once. There is **one kernel launch per GEMM**, including publication, reduction, final conversion, output storage, and counter reset. The benchmark checks one GEMM kernel node per call. A new graph capture also records its workspace initialization, which is included in replay timing.
 
 ## 4. Reuse the workspace without a clear pass
 
-`make_workspace` initializes counters once, outside timed execution. Partial storage needs no per-call initialization: every peer overwrites its own region before arriving. Output storage can contain NaNs or results of an earlier GEMM; the finalizer overwrites it completely.
+The public `matmul_bf16` launcher allocates scratch and initializes counters when a Split-K cache entry is first needed. Ordinary repeated calls reuse it; a graph capture owns separate scratch and records its initialization once. Partial storage needs no per-call initialization: every peer overwrites its own region before arriving. Output storage can contain NaNs or results of an earlier GEMM; the finalizer overwrites it completely.
 
 ```python
-launch = launch_for(config, shape)  # allocate persistent workspace once
-launch(a, b, out)  # one native kernel
-launch(other_a, b, out)  # same workspace, another single kernel
+out = matmul_bf16(a, b, config=config)
+matmul_bf16(other_a, b, out=out, config=config)  # reuse output and cached scratch
 ```
 
-Calls sharing workspace must be serialized on the same stream. Pass `stream=s` explicitly for a nondefault stream, and initialize workspace on that stream or establish a dependency before first use. Allocate a separate `launch_for` workspace for overlapping calls on different streams, and establish completion before transferring workspace ownership between streams. A newly captured graph reuses this initialized workspace; no output-zeroing, counter-clear, or reduction node is captured.
+The launcher caches scratch separately for each config, shape, device, stream, and graph capture. Calls using one workspace are ordered on its stream. Pass `stream=s` to use a nondefault stream, and establish input dependencies before calling it. Different streams and graph captures receive independent buffers. Unsplit calls allocate no partials or counters. Each Split-K graph captures its workspace initialization once before its matmuls; timing reports record those setup nodes separately from the one compute kernel per GEMM.
 
 The checker changes inputs between workspace reuses, poisons outputs, checks the entire product against CPU FP32 arithmetic on the actual BF16 inputs, and verifies output/workspace sentinels and reset counters. One, two, and three K tiles **per split** exercise prologue, handoffs, and drain; their FP32 partial values are checked independently before the final output comparison. Random-output tolerances are `rtol=0.016, atol=0.03125`; trace and tagged boundary checks use exact BF16 results.
+
+### Compare one counter per CTA
+
+The completed [practice](practice.py) also supports `--counter-scope cta`; its default `thread` mode retains the per-thread baseline. In CTA mode, each thread stores its FP32 partial and executes an agent-scope release fence before a workgroup barrier. Thread 0 performs the agent-scope acquire/release arrival atomic and writes the election result into an aligned word of the now-unused operand LDS. Another workgroup barrier broadcasts that result. All threads of the winning CTA execute an agent-scope acquire fence and reduce their original fragment slots. A final workgroup barrier precedes thread 0's release reset. Earlier CTAs leave without polling. These barriers transfer publication and acquisition between the leader and its workers; see the [AMDGPU execution-barrier rules](https://llvm.org/docs/AMDGPUUsage.html#execution-barriers).
+
+For the 16×64 tile with 64 threads and four splits, this reduces counters per output tile from 64 to 1 and atomic increments from 256 to 4. Partial layout and FP32 traffic stay fixed at 16 KiB of writes plus 16 KiB of reads per output tile. The fragment size is inferred from `accumulator.shape` in both modes.
+
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/09-split-k/practice.py --counter-scope cta --check-only
+pixi run python lessons/01-gpu-programming/13-matmul/09-split-k/benchmark_counters.py --output /tmp/split-k-counters.json
+```
+
+The [controlled counter comparison](results/cta-counters-20261112/README.md) checks both strategies, including multiwave CTAs, repeated workspace reuse, and one-kernel graph capture. On gfx1151, graph-batched paired timing differences were below 1% across the three workloads; fewer atomics did not establish a useful performance improvement. CTA mode remains an optional experiment.
 
 ## 5. Tune split count for the shape
 

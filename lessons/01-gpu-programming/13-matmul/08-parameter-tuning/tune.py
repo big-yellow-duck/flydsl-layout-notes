@@ -19,12 +19,11 @@ import statistics
 import time
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
-from functools import lru_cache
+from functools import lru_cache, partial
 from importlib.metadata import version
 from itertools import product
 from pathlib import Path
 
-import flydsl
 import torch
 
 torch.set_num_threads(1)  # Keep CPU reference checks from occupying APU cores.
@@ -32,7 +31,7 @@ torch.set_num_threads(1)  # Keep CPU reference checks from occupying APU cores.
 HERE = Path(__file__).resolve().parent
 MODULE = runpy.run_path(str(HERE / "solution.py"))
 Config = MODULE["Config"]
-BUILD = MODULE["build"]
+BUILD = MODULE["_matmul_bf16"]._original_func
 SHAPE = (1024, 1024, 1024)
 MATCH_LIMIT = 1.05
 WIN_LIMIT = 0.95
@@ -54,7 +53,7 @@ def environment():
         "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
         "cpu_reference_threads": torch.get_num_threads(),
         "kernel_build_sha256": hashlib.sha256(
-            inspect.getsource(BUILD.__wrapped__).encode()
+            inspect.getsource(BUILD).encode()
         ).hexdigest(),
         "source_sha256": {
             name: hashlib.sha256((HERE / name).read_bytes()).hexdigest()
@@ -81,7 +80,7 @@ def validate(launch, data, trace=False):
     a, b, storage, expected = data
     out = storage[:-16].view(SHAPE[0], SHAPE[1])
     out.fill_(float("nan"))
-    launch(a, b, out)
+    launch(a, b, out=out)
     torch.cuda.synchronize()
     torch.testing.assert_close(
         out.cpu(),
@@ -143,12 +142,12 @@ def capture(launch, data, operations=32):
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream):
         for _ in range(3):
-            launch(a, b, out, stream=stream)
+            launch(a, b, out=out, stream=stream)
     torch.cuda.synchronize()
     graph = torch.cuda.CUDAGraph(keep_graph=True)
     with torch.cuda.graph(graph, stream=stream):
         for _ in range(operations):
-            launch(a, b, out, stream=stream)
+            launch(a, b, out=out, stream=stream)
     metadata = graph_nodes(graph)
     if metadata["kernel_nodes"] < operations:
         raise RuntimeError(f"Incomplete graph capture: {metadata}")
@@ -191,8 +190,8 @@ def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing)
         operations = 32
     else:
         launches = {
-            "kernel": lambda: kernel(a, b, out),
-            "torch": lambda: baseline(a, b, out),
+            "kernel": lambda: kernel(a, b, out=out),
+            "torch": lambda: baseline(a, b, out=out),
         }
         operations = 1
     for launch in launches.values():
@@ -228,20 +227,6 @@ def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing)
 
 def torch_launch(a, b, out, stream=None):
     torch.matmul(a, b, out=out)
-
-
-def launch_for(config):
-    shape = SHAPE
-    MODULE["validate_config"](config, shape)
-    run = BUILD(config)
-
-    def launch(a, b, out, stream=None):
-        if stream is None:
-            run(a, b, out, *shape)
-        else:
-            run(a, b, out, *shape, flydsl.expr.Stream(stream))
-
-    return launch
 
 
 def candidates(group_m=8, extended=False):
@@ -282,7 +267,7 @@ def prepare(group_m=8, extended=False):
     # Compile and check every candidate before recording any search timings.
     for config in candidates(group_m, extended):
         try:
-            launch = launch_for(config)
+            launch = partial(MODULE["matmul_bf16"], config=config)
             validate(launch, trace_data, True)
             validate(launch, training_data)
             accepted.append((config, launch))
@@ -352,7 +337,7 @@ def idle_probe():
 def verify(config, seeds, timing):
     print("LOCKED", config.name, flush=True)
     checkpoint = MODULE["solve"](config, shape=SHAPE)
-    kernel = launch_for(config)
+    kernel = partial(MODULE["matmul_bf16"], config=config)
     rounds = []
     idle_samples = []
     for seed in seeds:

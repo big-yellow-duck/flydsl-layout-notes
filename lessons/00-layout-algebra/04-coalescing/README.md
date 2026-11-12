@@ -53,7 +53,7 @@ Yes: `6:3`, because `6 = 2*3`. Offsets remain `0,3,6,9,12,15`.
 
 Ask FlyDSL to coalesce `(2,3):(3,6)` and compare both mappings over all six scalar coordinates.
 
-Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`_coalesce_offsets()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 

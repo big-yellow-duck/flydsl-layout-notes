@@ -38,9 +38,7 @@ The number of remaining steady steps is `(tiles_per_split-1)%K_UNROLL`:
 ```python
 for tail in fx.range_constexpr((tiles_per_split - 1) % K_UNROLL):
     next_tile_k = (
-        initial_tile_k
-        + ((tiles_per_split - 1) // K_UNROLL) * K_UNROLL
-        + tail + 1
+        initial_tile_k + ((tiles_per_split - 1) // K_UNROLL) * K_UNROLL + tail + 1
     )
     # The same load / compute / handoff sequence follows.
 ```

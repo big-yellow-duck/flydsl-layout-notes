@@ -54,7 +54,7 @@ Size 12, rank 2, offset 12.
 
 Trace every scalar coordinate of `((2,2),3):((1,4),8)` on 12 GPU threads. The returned checkpoint for `thread_id=7` is `(12, ((1,1),1), 13)`.
 
-Open [`practice.py`](practice.py) and complete the numbered expressions in **`exercise_kernel()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
+Open [`practice.py`](practice.py) and complete the numbered expressions in **`_nested_offsets()`** using the native APIs introduced below. The scaffold supplies allocation, launch, output stores, and host checks, so the exercise can focus on the layout operation.
 
 ### Native APIs and output
 

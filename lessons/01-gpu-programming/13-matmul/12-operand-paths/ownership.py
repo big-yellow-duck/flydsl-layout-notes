@@ -6,7 +6,9 @@ import torch
 
 
 @flyc.kernel
-def offsets_kernel(a_offsets: fx.Tensor, b_stage: fx.Tensor, b_operand: fx.Tensor):
+def _record_operand_offsets(
+    a_offsets: fx.Tensor, b_stage: fx.Tensor, b_operand: fx.Tensor
+):
     thread = fx.thread_idx.x
     atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
     mma = fx.make_tiled_mma(atom, fx.make_layout((1, 2, 1), (1, 1, 0)))
@@ -38,8 +40,10 @@ def offsets_kernel(a_offsets: fx.Tensor, b_stage: fx.Tensor, b_operand: fx.Tenso
 
 
 @flyc.jit
-def run(a_offsets: fx.Tensor, b_stage: fx.Tensor, b_operand: fx.Tensor):
-    offsets_kernel(a_offsets, b_stage, b_operand).launch(
+def _launch_record_operand_offsets(
+    a_offsets: fx.Tensor, b_stage: fx.Tensor, b_operand: fx.Tensor
+):
+    _record_operand_offsets(a_offsets, b_stage, b_operand).launch(
         grid=(1, 1, 1), block=(64, 1, 1)
     )
 
@@ -49,7 +53,7 @@ def solve():
         torch.full((64 * width,), -1, dtype=torch.int32, device="cuda")
         for width in (128, 64, 32)
     ]
-    run(*outputs)
+    _launch_record_operand_offsets(*outputs)
     torch.cuda.synchronize()
     a, stage, operand = [out.cpu().view(64, -1) for out in outputs]
     tid = torch.arange(64)[:, None]

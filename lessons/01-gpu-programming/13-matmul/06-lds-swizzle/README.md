@@ -101,14 +101,14 @@ pixi run python lessons/01-gpu-programming/13-matmul/06-lds-swizzle/profile.py \
   --collect --output /tmp/flydsl-lds-profile-new
 ```
 
-Use a fresh output directory. For each mode, the driver first checks every output for trace and seeded random inputs against CPU FP32 matmul on the quantized inputs, rounded to BF16, including 16 trailing sentinels. It then launches three warm-ups and five sampled matmuls on the same seeded BF16 inputs. The profiler filters `exercise_kernel`; the summary requires ten matmul dispatches, discards the two checker dispatches and three warm-ups, and reports the final five. An unsuccessful correctness check or incomplete collection fails the driver.
+Use a fresh output directory. For each mode, the driver first checks every output for trace and seeded random inputs against CPU FP32 matmul on the quantized inputs, rounded to BF16, including 16 trailing sentinels. It then launches three warm-ups and five sampled matmuls on the same seeded BF16 inputs. The profiler filters `_matmul_bf16`; the summary requires ten matmul dispatches, discards the two checker dispatches and three warm-ups, and reports the final five. An unsuccessful correctness check or incomplete collection fails the driver.
 
 The exact profiler argv is recorded in `summary.json`. Its essential counter request is:
 
 ```bash
 pixi run rocprofv3 \
   --pmc LDSBankConflict SQC_LDS_BANK_CONFLICT_sum SQC_LDS_IDX_ACTIVE_sum SQ_INSTS_LDS_sum \
-  --kernel-include-regex exercise_kernel --output-format csv \
+  --kernel-include-regex _matmul_bf16 --output-format csv \
   -d /tmp/flydsl-one-layout -o swizzle -- \
   python lessons/01-gpu-programming/13-matmul/06-lds-swizzle/profile.py --worker swizzle
 ```

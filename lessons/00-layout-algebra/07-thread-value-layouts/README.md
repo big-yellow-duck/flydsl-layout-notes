@@ -35,7 +35,7 @@ A coordinate is `(thread_id, value_id)`. Here `value_id` is a **slot number with
 ```python
 # Native FlyDSL API pattern; both layouts have the same shape.
 # Shape: (threads, slots). Strides: (thread stride, slot stride).
-adjacent = fx.make_layout((4, 2), (2, 1))     # Neighbor pairs
+adjacent = fx.make_layout((4, 2), (2, 1))  # Neighbor pairs
 interleaved = fx.make_layout((4, 2), (1, 4))  # Repeat across threads
 
 coordinate = fx.make_coord(thread_id, value_id)
