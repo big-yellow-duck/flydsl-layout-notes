@@ -49,46 +49,46 @@ def exercise_kernel(
     # 4. Stage eight contiguous BF16 values per 128-bit copy.
     # Thread layout: (32,8); value layout: (1,8).
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-    gmem2lds_thread_layout = fx.make_ordered_layout((32, 8), (1, 0))
-    gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
+    staging_thread_layout = fx.make_ordered_layout((32, 8), (1, 0))
+    staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
     # The plan covers (32,64); partitioning (64,64) adds two row repetitions.
-    gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
-        gmem2lds_thread_layout, gmem2lds_val_layout
+    staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
+        staging_thread_layout, staging_value_layout
     )
-    gmem2lds_copy_plan = fx.make_tiled_copy(
-        copy_128b, gmem2lds_tv_layout, gmem2lds_tilemn
+    staging_copy_plan = fx.make_tiled_copy(
+        copy_128b, staging_copy_tv, staging_copy_tile
     )
     # Staging uses the full physical thread ID, 0..255.
-    gmem2lds_thread_copy = gmem2lds_copy_plan.get_slice(fx.thread_idx.x)
+    thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
 
     # Partition matching LDS destinations before allocating staging fragments.
-    left_lds_destination = gmem2lds_thread_copy.partition_D(left_lds_view)
-    right_lds_destination = gmem2lds_thread_copy.partition_D(right_lds_view)
+    left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
+    right_lds_destination = thread_staging_copy.partition_D(right_lds_view)
     # Separate private fragments hold global loads before the LDS stores.
-    left_fragment = fx.make_fragment_like(left_lds_destination)
-    right_fragment = fx.make_fragment_like(right_lds_destination)
+    left_staging_fragment = fx.make_fragment_like(left_lds_destination)
+    right_staging_fragment = fx.make_fragment_like(right_lds_destination)
 
     # 5. Define 16 logical LDS-to-register slots for each operand.
     # A: each slot selects four strided rows at one K position.
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-    lds2reg_left_thread_layout = fx.make_ordered_layout((16, 1), (1, 0))
-    lds2reg_left_val_layout = fx.make_ordered_layout((4, 1), (1, 0))
-    lds2reg_left_tilemn, lds2reg_left_tv_layout = fx.make_layout_tv(
-        lds2reg_left_thread_layout, lds2reg_left_val_layout
+    left_lds2reg_thread_layout = fx.make_ordered_layout((16, 1), (1, 0))
+    left_lds2reg_value_layout = fx.make_ordered_layout((4, 1), (1, 0))
+    left_lds2reg_copy_tile, left_lds2reg_copy_tv = fx.make_layout_tv(
+        left_lds2reg_thread_layout, left_lds2reg_value_layout
     )
-    lds2reg_left_copy_plan = fx.make_tiled_copy(
-        copy_16b, lds2reg_left_tv_layout, lds2reg_left_tilemn
+    left_lds2reg_copy_plan = fx.make_tiled_copy(
+        copy_16b, left_lds2reg_copy_tv, left_lds2reg_copy_tile
     )
 
     # B: each slot selects four contiguous columns at one K position.
     copy_64b = fx.make_copy_atom(fx.UniversalCopy64b(), fx.BFloat16)
-    lds2reg_right_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
-    lds2reg_right_val_layout = fx.make_ordered_layout((1, 4), (1, 0))
-    lds2reg_right_tilemn, lds2reg_right_tv_layout = fx.make_layout_tv(
-        lds2reg_right_thread_layout, lds2reg_right_val_layout
+    right_lds2reg_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
+    right_lds2reg_value_layout = fx.make_ordered_layout((1, 4), (1, 0))
+    right_lds2reg_copy_tile, right_lds2reg_copy_tv = fx.make_layout_tv(
+        right_lds2reg_thread_layout, right_lds2reg_value_layout
     )
-    lds2reg_right_copy_plan = fx.make_tiled_copy(
-        copy_64b, lds2reg_right_tv_layout, lds2reg_right_tilemn
+    right_lds2reg_copy_plan = fx.make_tiled_copy(
+        copy_64b, right_lds2reg_copy_tv, right_lds2reg_copy_tile
     )
 
     # Columns vary fastest: thread 17 has (row, column) = (1,1).
@@ -97,8 +97,8 @@ def exercise_kernel(
 
     # A slots repeat across thread columns; B slots repeat across thread rows.
     # Every physical thread loads into its own private operand registers.
-    lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(thread_coord[0])
-    lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(thread_coord[1])
+    left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(thread_coord[0])
+    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(thread_coord[1])
 
     # Expose a (64,1) A column and a (1,64) B row for each inner_k.
     left_lds_tiled_view = fx.flat_divide(left_lds_view, (64, 1))
@@ -107,8 +107,8 @@ def exercise_kernel(
     left_lds_initial_slice = fx.slice(left_lds_tiled_view, (None, None, 0, 0))
     right_lds_initial_slice = fx.slice(right_lds_tiled_view, (None, None, 0, 0))
 
-    left_r_initial_source = lds2reg_left_thread_copy.partition_S(left_lds_initial_slice)
-    right_r_initial_source = lds2reg_right_thread_copy.partition_S(
+    left_r_initial_source = left_lds2reg_thread_copy.partition_S(left_lds_initial_slice)
+    right_r_initial_source = right_lds2reg_thread_copy.partition_S(
         right_lds_initial_slice
     )
 
@@ -121,30 +121,30 @@ def exercise_kernel(
     accumulator.fill(0)
 
     # Tracing-time helpers keep copy wrappers outside runtime loop state.
-    def create_gmem2lds_sources(left_block_view, right_block_view):
+    def create_gmem2reg_sources(left_block_view, right_block_view):
         return (
-            gmem2lds_thread_copy.partition_S(left_block_view),
-            gmem2lds_thread_copy.partition_S(right_block_view),
+            thread_staging_copy.partition_S(left_block_view),
+            thread_staging_copy.partition_S(right_block_view),
         )
 
     def create_lds2reg_sources(left_source, right_source):
         return (
-            lds2reg_left_thread_copy.partition_S(left_source),
-            lds2reg_right_thread_copy.partition_S(right_source),
+            left_lds2reg_thread_copy.partition_S(left_source),
+            right_lds2reg_thread_copy.partition_S(right_source),
         )
 
     # 6. Stage, synchronize, consume, then synchronize before reusing LDS.
     for tile_k in range(k // BLOCK_K):
         left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
         right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
-        left_lds_source, right_lds_source = create_gmem2lds_sources(
+        left_global_source, right_global_source = create_gmem2reg_sources(
             left_block_view, right_block_view
         )
 
-        fx.copy(copy_128b, left_lds_source, left_fragment)
-        fx.copy(copy_128b, right_lds_source, right_fragment)
-        fx.copy(copy_128b, left_fragment, left_lds_destination)
-        fx.copy(copy_128b, right_fragment, right_lds_destination)
+        fx.copy(copy_128b, left_global_source, left_staging_fragment)
+        fx.copy(copy_128b, right_global_source, right_staging_fragment)
+        fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+        fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
         fx.barrier()
 
         # Select one K position, then load operands for the outer product.

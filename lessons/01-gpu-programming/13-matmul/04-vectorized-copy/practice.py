@@ -51,54 +51,54 @@ def exercise_kernel(
     # 4. prepare gmem to lds copy
     # thread layout: (32,8) val_layout: (1,8)
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-    gmem2lds_thread_layout = fx.make_ordered_layout((32, 8), (1, 0))
-    gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
+    staging_thread_layout = fx.make_ordered_layout((32, 8), (1, 0))
+    staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
     # logical elements shape covered = (32,64)
-    gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
-        gmem2lds_thread_layout, gmem2lds_val_layout
+    staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
+        staging_thread_layout, staging_value_layout
     )
     # TODO 1: Build the global-to-LDS plan from its atom and thread/value layout.
-    gmem2lds_copy_plan = None
-    if gmem2lds_copy_plan is None:
-        raise NotImplementedError("Fill in gmem2lds_copy_plan.")
+    staging_copy_plan = None
+    if staging_copy_plan is None:
+        raise NotImplementedError("Fill in staging_copy_plan.")
     # get per thread copy plan
-    gmem2lds_thread_copy = gmem2lds_copy_plan.get_slice(fx.thread_idx.x)
+    thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
 
     # setup directions
-    left_lds_destination = gmem2lds_thread_copy.partition_D(left_lds_view)
-    right_lds_destination = gmem2lds_thread_copy.partition_D(right_lds_view)
+    left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
+    right_lds_destination = thread_staging_copy.partition_D(right_lds_view)
     # create intermediate registers to hold copy destinations
-    left_fragment = fx.make_fragment_like(left_lds_destination)
-    right_fragment = fx.make_fragment_like(right_lds_destination)
+    left_staging_fragment = fx.make_fragment_like(left_lds_destination)
+    right_staging_fragment = fx.make_fragment_like(right_lds_destination)
 
     # 5. prepare lds to regsiter copy for left and right
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-    lds2reg_left_thread_layout = fx.make_ordered_layout((16, 1), (1, 0))
-    lds2reg_left_val_layout = fx.make_ordered_layout((4, 1), (1, 0))
-    lds2reg_left_tilemn, lds2reg_left_tv_layout = fx.make_layout_tv(
-        lds2reg_left_thread_layout, lds2reg_left_val_layout
+    left_lds2reg_thread_layout = fx.make_ordered_layout((16, 1), (1, 0))
+    left_lds2reg_value_layout = fx.make_ordered_layout((4, 1), (1, 0))
+    left_lds2reg_copy_tile, left_lds2reg_copy_tv = fx.make_layout_tv(
+        left_lds2reg_thread_layout, left_lds2reg_value_layout
     )
     # TODO 2: Build A's LDS-to-register copy plan.
-    lds2reg_left_copy_plan = None
-    if lds2reg_left_copy_plan is None:
-        raise NotImplementedError("Fill in lds2reg_left_copy_plan.")
+    left_lds2reg_copy_plan = None
+    if left_lds2reg_copy_plan is None:
+        raise NotImplementedError("Fill in left_lds2reg_copy_plan.")
 
     copy_64b = fx.make_copy_atom(fx.UniversalCopy64b(), fx.BFloat16)
-    lds2reg_right_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
-    lds2reg_right_val_layout = fx.make_ordered_layout((1, 4), (1, 0))
-    lds2reg_right_tilemn, lds2reg_right_tv_layout = fx.make_layout_tv(
-        lds2reg_right_thread_layout, lds2reg_right_val_layout
+    right_lds2reg_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
+    right_lds2reg_value_layout = fx.make_ordered_layout((1, 4), (1, 0))
+    right_lds2reg_copy_tile, right_lds2reg_copy_tv = fx.make_layout_tv(
+        right_lds2reg_thread_layout, right_lds2reg_value_layout
     )
     # TODO 3: Build B's LDS-to-register copy plan.
-    lds2reg_right_copy_plan = None
-    if lds2reg_right_copy_plan is None:
-        raise NotImplementedError("Fill in lds2reg_right_copy_plan.")
+    right_lds2reg_copy_plan = None
+    if right_lds2reg_copy_plan is None:
+        raise NotImplementedError("Fill in right_lds2reg_copy_plan.")
 
     compute_thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
     thread_coord = fx.idx2crd(fx.thread_idx.x, compute_thread_layout)
 
-    lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(thread_coord[0])
-    lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(thread_coord[1])
+    left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(thread_coord[0])
+    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(thread_coord[1])
 
     left_lds_tiled_view = fx.flat_divide(left_lds_view, (64, 1))
     right_lds_tiled_view = fx.flat_divide(right_lds_view, (1, 64))
@@ -106,8 +106,8 @@ def exercise_kernel(
     left_lds_initial_slice = fx.slice(left_lds_tiled_view, (None, None, 0, 0))
     right_lds_initial_slice = fx.slice(right_lds_tiled_view, (None, None, 0, 0))
 
-    left_r_initial_source = lds2reg_left_thread_copy.partition_S(left_lds_initial_slice)
-    right_r_initial_source = lds2reg_right_thread_copy.partition_S(
+    left_r_initial_source = left_lds2reg_thread_copy.partition_S(left_lds_initial_slice)
+    right_r_initial_source = right_lds2reg_thread_copy.partition_S(
         right_lds_initial_slice
     )
 
@@ -120,30 +120,30 @@ def exercise_kernel(
     accumulator.fill(0)
 
     # create helper to partition
-    def create_gmem2lds_sources(left_block_view, right_block_view):
+    def create_gmem2reg_sources(left_block_view, right_block_view):
         return (
-            gmem2lds_thread_copy.partition_S(left_block_view),
-            gmem2lds_thread_copy.partition_S(right_block_view),
+            thread_staging_copy.partition_S(left_block_view),
+            thread_staging_copy.partition_S(right_block_view),
         )
 
     def create_lds2reg_sources(left_source, right_source):
         return (
-            lds2reg_left_thread_copy.partition_S(left_source),
-            lds2reg_right_thread_copy.partition_S(right_source),
+            left_lds2reg_thread_copy.partition_S(left_source),
+            right_lds2reg_thread_copy.partition_S(right_source),
         )
 
     # K loop
     for tile_k in range(k // BLOCK_K):
         left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
         right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
-        left_lds_source, right_lds_source = create_gmem2lds_sources(
+        left_global_source, right_global_source = create_gmem2reg_sources(
             left_block_view, right_block_view
         )
 
-        fx.copy(copy_128b, left_lds_source, left_fragment)
-        fx.copy(copy_128b, right_lds_source, right_fragment)
-        fx.copy(copy_128b, left_fragment, left_lds_destination)
-        fx.copy(copy_128b, right_fragment, right_lds_destination)
+        fx.copy(copy_128b, left_global_source, left_staging_fragment)
+        fx.copy(copy_128b, right_global_source, right_staging_fragment)
+        fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+        fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
         fx.barrier()
 
         # loop within lds block
@@ -180,9 +180,7 @@ def exercise_kernel(
     #         out_thread_view[coord] = accumulator[coord].to(fx.BFloat16)
 
     # Convert in registers before copying BF16 values to global memory.
-    out_registers = fx.make_rmem_tensor(
-        fx.make_layout((4, 4), (4, 1)), fx.BFloat16
-    )
+    out_registers = fx.make_rmem_tensor(fx.make_layout((4, 4), (4, 1)), fx.BFloat16)
     for row in fx.range_constexpr(4):
         for col in fx.range_constexpr(4):
             coord = fx.make_coord(row, col)

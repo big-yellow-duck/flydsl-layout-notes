@@ -17,13 +17,13 @@ Global A/B/C views remain backed by `fx.rocdl.make_buffer_tensor`. Global loads 
 Eight BF16 elements occupy 128 bits. Physical A `(M,K)` is contiguous along K; physical B `(K,N)` is contiguous along N:
 
 ```python
-left_copy_threads = fx.make_ordered_layout(
+left_staging_thread_layout = fx.make_ordered_layout(
     (THREADS_PER_BLOCK // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
 )
-right_copy_threads = fx.make_ordered_layout(
+right_staging_thread_layout = fx.make_ordered_layout(
     (THREADS_PER_BLOCK // (BLOCK_N // 8), BLOCK_N // 8), (1, 0)
 )
-copy_values = fx.make_ordered_layout((1, 8), (1, 0))
+staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
 ```
 
 | Operand | Contiguous extent | Eight-value chunks per row | Thread layout |
@@ -36,12 +36,12 @@ Each plan's natural copy tile is 16×64, repeating four times down its 64×64 op
 Build and slice the two plans independently:
 
 ```python
-left_copy_tile, left_copy_tv = fx.make_layout_tv(left_copy_threads, copy_values)
-right_copy_tile, right_copy_tv = fx.make_layout_tv(right_copy_threads, copy_values)
-left_copy_plan = fx.make_tiled_copy(copy_128b, left_copy_tv, left_copy_tile)
-right_copy_plan = fx.make_tiled_copy(copy_128b, right_copy_tv, right_copy_tile)
-left_thread_copy = left_copy_plan.get_slice(fx.thread_idx.x)
-right_thread_copy = right_copy_plan.get_slice(fx.thread_idx.x)
+left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(left_staging_thread_layout, staging_value_layout)
+right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(right_staging_thread_layout, staging_value_layout)
+left_staging_copy_plan = fx.make_tiled_copy(copy_128b, left_staging_copy_tv, left_staging_copy_tile)
+right_staging_copy_plan = fx.make_tiled_copy(copy_128b, right_staging_copy_tv, right_staging_copy_tile)
+left_thread_staging_copy = left_staging_copy_plan.get_slice(fx.thread_idx.x)
+right_thread_staging_copy = right_staging_copy_plan.get_slice(fx.thread_idx.x)
 ```
 
 The plans use a `UniversalCopy128b` atom to describe eight-value transfers and LDS publication. Their source partitions can also feed the equal-width buffer global-load atom. Thread/value ownership and the selected global transfer instruction are separate choices.
@@ -61,16 +61,16 @@ The existing helpers now use:
 
 ```python
 # gmem2reg_load_tile: buffer global source -> private staging registers
-fx.copy(gmem_load_128b, left_lds_source, left_fragment)
-fx.copy(gmem_load_128b, right_lds_source, right_fragment)
+fx.copy(gmem_load_128b, left_global_source, left_staging_fragment)
+fx.copy(gmem_load_128b, right_global_source, right_staging_fragment)
 
 # reg2lds_copy_tile: private staging registers -> ordinary LDS views
-fx.copy(copy_128b, left_fragment, gmem2lds_left_destination)
-fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
+fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
 fx.barrier()
 ```
 
-`create_gmem2lds_sources` uses `left_thread_copy.partition_S(left_block_view)` and `right_thread_copy.partition_S(right_block_view)`. LDS destinations come from the matching plans. Keep both global sources buffer-backed: replacing the copy atom alone on an ordinary pointer view is insufficient for this API path.
+`create_gmem2reg_sources` uses `left_thread_staging_copy.partition_S(left_block_view)` and `right_thread_staging_copy.partition_S(right_block_view)`. LDS destinations come from the matching plans. Keep both global sources buffer-backed: replacing the copy atom alone on an ordinary pointer view is insufficient for this API path.
 
 Operand reads retain `UniversalCopy16b` and instruction-derived A/B plans. The `compute_lds()` helper still slices four K=16 regions, refills the operand registers, and calls WMMA. Neither A padding nor the `(N,K)` B operand convention changes.
 
@@ -95,8 +95,8 @@ Buffer access does not itself make a pipeline asynchronous. Independent operands
 
 In [practice.py](practice.py), fill two expressions:
 
-1. `left_copy_threads`: derive A's thread layout from contiguous K and eight-value chunks.
-2. `right_copy_threads`: derive B's thread layout from contiguous N and eight-value chunks.
+1. `left_staging_thread_layout`: derive A's thread layout from contiguous K and eight-value chunks.
+2. `right_staging_thread_layout`: derive B's thread layout from contiguous N and eight-value chunks.
 
 The remaining source/destination partitions, transfer atoms, padded LDS, compute, prefetch handoff, output stores, and independent checker are supplied. Compare with the [worked solution](solution.py).
 

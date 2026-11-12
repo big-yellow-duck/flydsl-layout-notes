@@ -4,6 +4,8 @@ Build one GPU matrix product in eighteen steps: a naive dot product, a column-ma
 
 Stages 00–08 retain the **M = N = K = 1024** comparison; stages 09–12 target declared skinny workloads with K=8192. A is row-major BF16. Stage 01 supplies a column-major BF16 B to make each thread's K walk contiguous; other stages supply row-major BF16 B. All tensors are on the GPU. Kernels accumulate in FP32 and write a BF16 matrix C implementing `C = A @ B`. There is no bias, activation, or alpha/beta scaling. Stage-01 B packing and all allocations are outside timing. Diagrams zoom into block tiles and thread fragments within this same workload; each stage states its tile dimensions.
 
+From stage 04 onward, `staging_*` names describe the ownership shared by global-to-register loads and register-to-LDS stores. Separate operand plans use `left_staging_*` and `right_staging_*`; their thread slices are `left_thread_staging_copy` and `right_thread_staging_copy`. The staging registers are `left_staging_fragment` and `right_staging_fragment`. The `left_lds2reg_*` and `right_lds2reg_*` plans then load the compute operands from LDS.
+
 | Stage | What it teaches | Block tile / threads |
 | --- | --- | --- |
 | [00 · Naive](00-naive/README.md) | Native global/tiled/block/thread views and one FP32 dot product per thread | 16×16 / 256 |

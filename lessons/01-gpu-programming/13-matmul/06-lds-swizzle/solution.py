@@ -78,19 +78,19 @@ def exercise_kernel(
 
     # 4. Keep stage 04's generic staging plan; adapt ownership to 128 threads.
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-    gmem2lds_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
-    gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
-    gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
-        gmem2lds_thread_layout, gmem2lds_val_layout
+    staging_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
+    staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
+    staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
+        staging_thread_layout, staging_value_layout
     )
-    gmem2lds_copy_plan = fx.make_tiled_copy(
-        copy_128b, gmem2lds_tv_layout, gmem2lds_tilemn
+    staging_copy_plan = fx.make_tiled_copy(
+        copy_128b, staging_copy_tv, staging_copy_tile
     )
-    gmem2lds_thread_copy = gmem2lds_copy_plan.get_slice(fx.thread_idx.x)
-    left_lds_destination = gmem2lds_thread_copy.partition_D(left_lds_view)
-    right_lds_destination = gmem2lds_thread_copy.partition_D(right_lds_view)
-    left_fragment = fx.make_fragment_like(left_lds_destination)
-    right_fragment = fx.make_fragment_like(right_lds_destination)
+    thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
+    left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
+    right_lds_destination = thread_staging_copy.partition_D(right_lds_view)
+    left_staging_fragment = fx.make_fragment_like(left_lds_destination)
+    right_staging_fragment = fx.make_fragment_like(right_lds_destination)
 
     # Allocate registers for only one K=16 slice of the K=64 LDS tile.
     left_mma_lds_view = fx.slice(
@@ -115,11 +115,11 @@ def exercise_kernel(
 
     # lds to register copies using mma compatible plans
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-    lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-    lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+    left_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
+    right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-    lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(fx.thread_idx.x)
-    lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(fx.thread_idx.x)
+    left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
 
     left_r_tile = thread_mma.make_fragment_A(left_mma_lds_view)
     right_mma_slice = fx.slice(
@@ -127,31 +127,31 @@ def exercise_kernel(
     )
     right_r_tile = thread_mma.make_fragment_B(right_mma_slice)
 
-    left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
-    right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
+    left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
+    right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
 
-    def create_gmem2lds_sources(left_block_view, right_block_view):
+    def create_gmem2reg_sources(left_block_view, right_block_view):
         return (
-            gmem2lds_thread_copy.partition_S(left_block_view),
-            gmem2lds_thread_copy.partition_S(right_block_view),
+            thread_staging_copy.partition_S(left_block_view),
+            thread_staging_copy.partition_S(right_block_view),
         )
 
     # Tuple access keeps FlyDSL from treating copy wrappers as loop-carried state.
-    lds2reg_thread_copies = (lds2reg_left_thread_copy, lds2reg_right_thread_copy)
+    lds2reg_thread_copies = (left_lds2reg_thread_copy, right_lds2reg_thread_copy)
 
     # loop through tile K
     for tile_k in range(k // BLOCK_K):
         left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
         right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
 
-        left_lds_source, right_lds_source = create_gmem2lds_sources(
+        left_global_source, right_global_source = create_gmem2reg_sources(
             left_block_view, right_block_view
         )
         # load block tile to lds
-        fx.copy(copy_128b, left_lds_source, left_fragment)
-        fx.copy(copy_128b, right_lds_source, right_fragment)
-        fx.copy(copy_128b, left_fragment, left_lds_destination)
-        fx.copy(copy_128b, right_fragment, right_lds_destination)
+        fx.copy(copy_128b, left_global_source, left_staging_fragment)
+        fx.copy(copy_128b, right_global_source, right_staging_fragment)
+        fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+        fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
         fx.barrier()
 
         # Consume four distinct K=16 slices before replacing the LDS tile.

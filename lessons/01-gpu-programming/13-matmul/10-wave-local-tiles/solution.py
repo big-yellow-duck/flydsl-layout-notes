@@ -211,34 +211,40 @@ def build(config):
         copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
         gmem_left_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
         gmem_right_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
-        left_copy_threads = fx.make_ordered_layout(
+        left_staging_thread_layout = fx.make_ordered_layout(
             (THREADS_PER_GROUP // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
         )
-        right_copy_threads = fx.make_ordered_layout(
+        right_staging_thread_layout = fx.make_ordered_layout(
             (THREADS_PER_GROUP // (BLOCK_N // 8), BLOCK_N // 8), (1, 0)
         )
-        copy_values = fx.make_ordered_layout((1, 8), (1, 0))
-        left_copy_tile, left_copy_tv = fx.make_layout_tv(left_copy_threads, copy_values)
-        right_copy_tile, right_copy_tv = fx.make_layout_tv(
-            right_copy_threads, copy_values
+        staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
+        left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
+            left_staging_thread_layout, staging_value_layout
         )
-        left_copy_plan = fx.make_tiled_copy(copy_128b, left_copy_tv, left_copy_tile)
-        right_copy_plan = fx.make_tiled_copy(copy_128b, right_copy_tv, right_copy_tile)
-        left_thread_copy = left_copy_plan.get_slice(compute_thread_id)
-        right_thread_copy = right_copy_plan.get_slice(compute_thread_id)
-        gmem2lds_left_destination = left_thread_copy.partition_D(left_lds_view)
-        gmem2lds_right_destination = right_thread_copy.partition_D(right_lds_view)
-        left_fragment = fx.make_fragment_like(gmem2lds_left_destination)
-        right_fragment = fx.make_fragment_like(gmem2lds_right_destination)
+        right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(
+            right_staging_thread_layout, staging_value_layout
+        )
+        left_staging_copy_plan = fx.make_tiled_copy(
+            copy_128b, left_staging_copy_tv, left_staging_copy_tile
+        )
+        right_staging_copy_plan = fx.make_tiled_copy(
+            copy_128b, right_staging_copy_tv, right_staging_copy_tile
+        )
+        left_thread_staging_copy = left_staging_copy_plan.get_slice(compute_thread_id)
+        right_thread_staging_copy = right_staging_copy_plan.get_slice(compute_thread_id)
+        left_lds_destination = left_thread_staging_copy.partition_D(left_lds_view)
+        right_lds_destination = right_thread_staging_copy.partition_D(right_lds_view)
+        left_staging_fragment = fx.make_fragment_like(left_lds_destination)
+        right_staging_fragment = fx.make_fragment_like(right_lds_destination)
 
         # create tiled view ready for mma to consume
         left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
-        right_lds_tranposed_view = fx.make_view(
+        right_lds_transposed_view = fx.make_view(
             fx.get_iter(right_lds_view),
             fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
         )
         right_lds_transposed_tiled = fx.flat_divide(
-            right_lds_tranposed_view, (BLOCK_N, MMA_K)
+            right_lds_transposed_view, (BLOCK_N, MMA_K)
         )
 
         # setup initial views
@@ -260,22 +266,22 @@ def build(config):
 
         # lds to register copies using mma compatible plans
         copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-        lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-        lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+        left_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
+        right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-        lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(compute_thread_id)
-        lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(compute_thread_id)
+        left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(compute_thread_id)
+        right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(compute_thread_id)
 
         left_r_tile = thread_mma.make_fragment_A(left_lds_initial_view)
         right_r_tile = thread_mma.make_fragment_B(right_lds_transposed_initial_view)
 
-        left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
-        right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
+        left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
+        right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
 
-        def create_gmem2lds_sources(left_block_view, right_block_view):
+        def create_gmem2reg_sources(left_block_view, right_block_view):
             return (
-                left_thread_copy.partition_S(left_block_view),
-                right_thread_copy.partition_S(right_block_view),
+                left_thread_staging_copy.partition_S(left_block_view),
+                right_thread_staging_copy.partition_S(right_block_view),
             )
 
         def gmem2reg_load_tile(tile_k):
@@ -283,15 +289,15 @@ def build(config):
             right_block_view = fx.slice(
                 right_tiled_view, (None, None, tile_k, block_col)
             )
-            left_lds_source, right_lds_source = create_gmem2lds_sources(
+            left_global_source, right_global_source = create_gmem2reg_sources(
                 left_block_view, right_block_view
             )
-            fx.copy(gmem_left_load_128b, left_lds_source, left_fragment)
-            fx.copy(gmem_right_load_128b, right_lds_source, right_fragment)
+            fx.copy(gmem_left_load_128b, left_global_source, left_staging_fragment)
+            fx.copy(gmem_right_load_128b, right_global_source, right_staging_fragment)
 
         def reg2lds_copy_tile():
-            fx.copy(copy_128b, left_fragment, gmem2lds_left_destination)
-            fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
+            fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+            fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
             lds_barrier()
 
         def compute_lds():
@@ -300,8 +306,8 @@ def build(config):
                 right_mma_view = fx.slice(
                     right_lds_transposed_tiled, (None, None, 0, inner_k)
                 )
-                left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
-                right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
+                left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
+                right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
                 fx.copy(copy_16b, left_r_source, left_r_destination)
                 fx.copy(copy_16b, right_r_source, right_r_destination)
                 fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)

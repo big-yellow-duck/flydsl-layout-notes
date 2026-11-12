@@ -14,15 +14,15 @@ A and B both use row-major LDS layouts: `(M,K):(64,1)` and `(K,N):(64,1)`. The l
 
 ```python
 copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-gmem2lds_thread_layout = fx.make_ordered_layout((32, 8), (1, 0))
-gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
-gmem2lds_tilemn, gmem2lds_tv_layout = fx.make_layout_tv(
-    gmem2lds_thread_layout, gmem2lds_val_layout
+staging_thread_layout = fx.make_ordered_layout((32, 8), (1, 0))
+staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
+staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
+    staging_thread_layout, staging_value_layout
 )
-gmem2lds_copy_plan = fx.make_tiled_copy(
-    copy_128b, gmem2lds_tv_layout, gmem2lds_tilemn
+staging_copy_plan = fx.make_tiled_copy(
+    copy_128b, staging_copy_tv, staging_copy_tile
 )
-gmem2lds_thread_copy = gmem2lds_copy_plan.get_slice(fx.thread_idx.x)
+thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
 ```
 
 The thread layout distributes 256 threads across 32 rows and eight column chunks. The value layout gives each thread eight adjacent columns. Together they cover **32×64** positions. Partitioning a 64×64 view supplies a second repetition along the row dimension.
@@ -43,14 +43,14 @@ The compute thread layout remains `(16,16):(16,1)`. Thread 9 computes rows 0–3
 The complete [solution](solution.py) names source and destination views before copying:
 
 ```python
-left_lds_source = gmem2lds_thread_copy.partition_S(left_block_view)
-left_lds_destination = gmem2lds_thread_copy.partition_D(left_lds_view)
-left_fragment = fx.make_fragment_like(left_lds_destination)
-fx.copy(copy_128b, left_lds_source, left_fragment)
-fx.copy(copy_128b, left_fragment, left_lds_destination)
+left_global_source = thread_staging_copy.partition_S(left_block_view)
+left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
+left_staging_fragment = fx.make_fragment_like(left_lds_destination)
+fx.copy(copy_128b, left_global_source, left_staging_fragment)
+fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
 ```
 
-These are API fragments; the runnable solution allocates the reusable fragment and partitions the LDS destination outside the K loop. It places source partitioning in `create_gmem2lds_sources`, a tracing-time helper: the installed compiler otherwise attempts to carry the `ThrCopy` wrapper through the runtime loop. The helper selects views without loading values.
+These are API fragments; the runnable solution allocates the reusable fragment and partitions the LDS destination outside the K loop. It places source partitioning in `create_gmem2reg_sources`, a tracing-time helper: the installed compiler otherwise attempts to carry the `ThrCopy` wrapper through the runtime loop. The helper selects views without loading values.
 
 `partition_S` and `partition_D` select matching logical elements under the plan. Global A coordinate `(1,8)` has relative element offset `1*1024+8=1032`; shared A uses `1*64+8=72`. Shared B still uses `1*64+8=72` for its local `(K,N)=(1,8)` coordinate. The selected global view already contains its block and K-stage base. There is no additional base arithmetic in the copies.
 
@@ -88,8 +88,8 @@ The native API fragment selecting each physical thread's operand ownership is:
 ```python
 compute_thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
 thread_coord = fx.idx2crd(fx.thread_idx.x, compute_thread_layout)
-lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(thread_coord[0])
-lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(thread_coord[1])
+left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(thread_coord[0])
+right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(thread_coord[1])
 ```
 
 `get_slice` chooses a logical slot in a copy plan; it does not launch a thread, loop over 0–15, or load data. The row or column coordinate is already in 0–15. Many physical threads intentionally choose the same slot, then load the same shared elements into their own private registers.
@@ -157,9 +157,9 @@ The output plan uses one logical thread with layout `(1,1):(1,1)` and a `(4,4)` 
 
 In [practice.py](practice.py), build four `TiledCopy` plans from the supplied atoms and thread/value layouts:
 
-1. `gmem2lds_copy_plan` for eight-value 128-bit global loads and LDS stores.
-2. `lds2reg_left_copy_plan` for A's four strided rows using 16-bit copies.
-3. `lds2reg_right_copy_plan` for B's four contiguous columns using 64-bit copies.
+1. `staging_copy_plan` for eight-value 128-bit global loads and LDS stores.
+2. `left_lds2reg_copy_plan` for A's four strided rows using 16-bit copies.
+3. `right_lds2reg_copy_plan` for B's four contiguous columns using 64-bit copies.
 4. `reg2gmem_copy_plan` for four BF16 output values per 64-bit row store.
 
 The remaining code partitions each source and destination, moves data, computes, and checks the full output. Compare each plan's logical slots with the supplied layouts and the [worked solution](solution.py).

@@ -245,25 +245,27 @@ def build(config):
         gmem_right_load_128b = fx.make_copy_atom(
             fx.rocdl.BufferCopy128b(RIGHT_CACHE_MODIFIER), fx.BFloat16
         )
-        right_copy_threads = fx.make_ordered_layout(
+        right_staging_thread_layout = fx.make_ordered_layout(
             (THREADS_PER_GROUP // (BLOCK_N // 8), BLOCK_N // 8), (1, 0)
         )
-        copy_values = fx.make_ordered_layout((1, 8), (1, 0))
-        right_copy_tile, right_copy_tv = fx.make_layout_tv(
-            right_copy_threads, copy_values
+        staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
+        right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(
+            right_staging_thread_layout, staging_value_layout
         )
-        right_copy_plan = fx.make_tiled_copy(copy_128b, right_copy_tv, right_copy_tile)
-        right_thread_copy = right_copy_plan.get_slice(compute_thread_id)
-        gmem2lds_right_destination = right_thread_copy.partition_D(right_lds_view)
-        right_fragment = fx.make_fragment_like(gmem2lds_right_destination)
+        right_staging_copy_plan = fx.make_tiled_copy(
+            copy_128b, right_staging_copy_tv, right_staging_copy_tile
+        )
+        right_thread_staging_copy = right_staging_copy_plan.get_slice(compute_thread_id)
+        right_lds_destination = right_thread_staging_copy.partition_D(right_lds_view)
+        right_staging_fragment = fx.make_fragment_like(right_lds_destination)
 
         # Reinterpret B as (N,K) for WMMA without moving its physical data.
-        right_lds_tranposed_view = fx.make_view(
+        right_lds_transposed_view = fx.make_view(
             fx.get_iter(right_lds_view),
             fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
         )
         right_lds_transposed_tiled = fx.flat_divide(
-            right_lds_tranposed_view, (BLOCK_N, MMA_K)
+            right_lds_transposed_view, (BLOCK_N, MMA_K)
         )
 
         # A single K=16 B view determines the operand register shape.
@@ -284,9 +286,9 @@ def build(config):
 
         # B uses the existing MMA-compatible LDS copy plan.
         copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-        lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+        right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-        lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(compute_thread_id)
+        right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(compute_thread_id)
 
         # A has contiguous K: partition global memory with a WMMA A copy plan.
         left_k16_model = fx.slice(
@@ -295,7 +297,7 @@ def build(config):
         left_r_tile = thread_mma.make_fragment_A(left_k16_model)
         right_r_tile = thread_mma.make_fragment_B(right_lds_transposed_initial_view)
 
-        right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
+        right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
 
         left_full_fragment = thread_mma.make_fragment_A(left_global_model)
         left_compute_fragment = fx.make_fragment_like(left_full_fragment)
@@ -314,18 +316,18 @@ def build(config):
         # Clamp this unused model's thread layout in register mode, where A need
         # not satisfy cooperative staging geometry.
         LEFT_COPY_THREADS = THREADS_PER_GROUP if not LEFT_IN_REGISTERS else 32
-        left_stage_thread_layout = fx.make_ordered_layout(
+        left_staging_thread_layout = fx.make_ordered_layout(
             (LEFT_COPY_THREADS // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
         )
-        left_stage_tile, left_stage_tv = fx.make_layout_tv(
-            left_stage_thread_layout, copy_values
+        left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
+            left_staging_thread_layout, staging_value_layout
         )
-        left_stage_plan = fx.make_tiled_copy(
-            copy_128b, left_stage_tv, left_stage_tile
+        left_thread_staging_copy = fx.make_tiled_copy(
+            copy_128b, left_staging_copy_tv, left_staging_copy_tile
         ).get_slice(compute_thread_id)
-        left_stage_destination = left_stage_plan.partition_D(left_lds_view)
-        left_stage_fragment = fx.make_fragment_like(left_stage_destination)
-        left_stage_atom = fx.make_copy_atom(
+        left_lds_destination = left_thread_staging_copy.partition_D(left_lds_view)
+        left_staging_fragment = fx.make_fragment_like(left_lds_destination)
+        left_staging_atom = fx.make_copy_atom(
             fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
         )
         left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
@@ -339,22 +341,24 @@ def build(config):
             right_block_view = fx.slice(
                 right_tiled_view, (None, None, tile_k, block_col)
             )
-            right_lds_source = right_thread_copy.partition_S(right_block_view)
+            right_global_source = right_thread_staging_copy.partition_S(
+                right_block_view
+            )
             left_direct_source = left_direct_plan.partition_S(left_block_view)
-            left_stage_source = left_stage_plan.partition_S(left_block_view)
+            left_global_source = left_thread_staging_copy.partition_S(left_block_view)
             if LEFT_IN_REGISTERS:
                 fx.copy(left_direct_atom, left_direct_source, left_direct_destination)
             else:
-                fx.copy(left_stage_atom, left_stage_source, left_stage_fragment)
-            fx.copy(gmem_right_load_128b, right_lds_source, right_fragment)
+                fx.copy(left_staging_atom, left_global_source, left_staging_fragment)
+            fx.copy(gmem_right_load_128b, right_global_source, right_staging_fragment)
 
         def reg2lds_copy_tile():
             # Advance A privately; publish only B to the shared tile.
             if LEFT_IN_REGISTERS:
                 fx.copy(copy_16b, left_full_fragment, left_compute_fragment)
             else:
-                fx.copy(copy_128b, left_stage_fragment, left_stage_destination)
-            fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
+                fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+            fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
             lds_barrier()
 
         def compute_lds():
@@ -362,7 +366,7 @@ def build(config):
                 right_mma_view = fx.slice(
                     right_lds_transposed_tiled, (None, None, 0, inner_k)
                 )
-                right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
+                right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
                 left_current = fx.slice(
                     left_full_tiled, (None, None, None, 0, 0, inner_k)
                 )

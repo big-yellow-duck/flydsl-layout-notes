@@ -26,11 +26,11 @@ A buffer resource is distinct from staging registers and from an additional LDS 
 ## 2. Retain one shared staging plan
 
 ```python
-gmem2lds_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
-gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
+staging_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
+staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
 ```
 
-The same `gmem2lds_thread_copy` partitions both global sources and both LDS destinations. Each natural copy tile covers 16×64 values, repeating four times down each operand. Thread 17 owns local row 2, columns 8–15, then rows 18, 34, and 50: 32 BF16 elements per operand.
+The same `thread_staging_copy` partitions both global sources and both LDS destinations. Each natural copy tile covers 16×64 values, repeating four times down each operand. Thread 17 owns local row 2, columns 8–15, then rows 18, 34, and 50: 32 BF16 elements per operand.
 
 At block `(x,y)=(1,2)` and K tile 2, its first group reads `A[130,136..143]` and `B[130,72..79]`. Their first global element offsets are 133256 and 133192; byte offsets are twice those values. The trace pattern's first values are -1 and 0. The padded A view maps local `(2,8)` to element offset 152; packed B maps it to 136. Changing the resource representation does not change those logical coordinates or values.
 
@@ -45,12 +45,12 @@ Ownership is supplied by the existing copy plan; the equal-width buffer atom sel
 
 ```python
 # Inside gmem2reg_load_tile: buffer global -> private staging registers.
-fx.copy(gmem_load_128b, left_lds_source, left_fragment)
-fx.copy(gmem_load_128b, right_lds_source, right_fragment)
+fx.copy(gmem_load_128b, left_global_source, left_staging_fragment)
+fx.copy(gmem_load_128b, right_global_source, right_staging_fragment)
 
 # Inside reg2lds_copy_tile: ordinary staging registers -> LDS.
-fx.copy(copy_128b, left_fragment, gmem2lds_left_destination)
-fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
+fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
 fx.barrier()
 ```
 

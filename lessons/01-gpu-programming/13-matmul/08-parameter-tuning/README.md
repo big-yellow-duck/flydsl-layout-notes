@@ -124,8 +124,8 @@ for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
     right_mma_view = fx.slice(
         right_lds_transposed_tiled, (None, None, 0, inner_k)
     )
-    left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
-    right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
+    left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
+    right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
     fx.copy(copy_16b, left_r_source, left_r_destination)
     fx.copy(copy_16b, right_r_source, right_r_destination)
     fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
@@ -138,13 +138,13 @@ A 32-wide LDS stage amortizes global staging and barriers across two WMMA K upda
 Each staging chunk contains eight BF16 values, or 128 bits. A is contiguous along K; B is contiguous along N. Their thread layouts therefore use different extents:
 
 ```python
-left_copy_threads = fx.make_ordered_layout(
+left_staging_thread_layout = fx.make_ordered_layout(
     (THREADS_PER_BLOCK // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
 )
-right_copy_threads = fx.make_ordered_layout(
+right_staging_thread_layout = fx.make_ordered_layout(
     (THREADS_PER_BLOCK // (BLOCK_N // 8), BLOCK_N // 8), (1, 0)
 )
-copy_values = fx.make_ordered_layout((1, 8), (1, 0))
+staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
 ```
 
 Build each plan with `make_layout_tv` and `make_tiled_copy`, then partition its own global and LDS views. For the selected tuple, A's thread layout is `(32,4)` and B's is `(8,16)`. Staging thread 17 loads:
@@ -279,7 +279,7 @@ pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py
 
 ## Practice and run commands
 
-[practice.py](practice.py) supplies the selected family. TODO 1 derives `ACCUMULATOR_VALUES` in `build()` from the M/N repetitions. The conversion loop uses that constant exactly as in the solution. TODO 2 derives `right_copy_threads` from N's extent. Compare with the [worked solution](solution.py).
+[practice.py](practice.py) supplies the selected family. TODO 1 derives `right_staging_thread_layout` from N's extent. TODO 2 derives `ACCUMULATOR_VALUES` inside the kernel from `accumulator.shape`, using `fx.size(accumulator.shape).to_py_value()`. This gives the conversion loop its compile-time bound directly from the fragment. Compare with the [worked solution](solution.py).
 
 Run from the repository root:
 

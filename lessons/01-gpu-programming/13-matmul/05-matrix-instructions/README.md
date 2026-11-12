@@ -21,8 +21,8 @@ With `BLOCK_M = BLOCK_N = BLOCK_K = 64`, each divided view has shape `(64,64,16,
 
 ```python
 copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
-gmem2lds_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
-gmem2lds_val_layout = fx.make_ordered_layout((1, 8), (1, 0))
+staging_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))
+staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
 ```
 
 The thread layout has strides `(8,1)`. Together with eight contiguous values per thread, it covers a 16×64 copy tile that repeats four times along the rows. Thread 17 starts at local row `17//8=2`, columns `(17%8)*8=8` through 15. Its other groups use rows 18, 34, and 50. Each thread stages 32 BF16 elements per operand.
@@ -32,10 +32,10 @@ At block `(x,y)=(1,2)` and `tile_k=2`, thread 17's first group reads A row 130, 
 `make_tiled_copy` builds staging ownership; its thread slice partitions the source and LDS destination views. Copies move each input through a reusable register fragment:
 
 ```python
-fx.copy(copy_128b, left_lds_source, left_fragment)
-fx.copy(copy_128b, right_lds_source, right_fragment)
-fx.copy(copy_128b, left_fragment, left_lds_destination)
-fx.copy(copy_128b, right_fragment, right_lds_destination)
+fx.copy(copy_128b, left_global_source, left_staging_fragment)
+fx.copy(copy_128b, right_global_source, right_staging_fragment)
+fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
 fx.barrier()
 ```
 
@@ -104,12 +104,12 @@ The A/B views have shape `(64,16)` with their respective operand conventions. `m
 
 ```python
 copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
-lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(fx.thread_idx.x)
-lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(fx.thread_idx.x)
-left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
-right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
+left_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
+right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
+right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
 ```
 
 The A/B helpers derive thread/value ownership from `mma`. `retile` creates a copy-compatible alias of an existing register fragment, without another allocation or data transfer. Staging ownership stays independent of WMMA ownership.
@@ -139,7 +139,7 @@ fx.barrier()
 These API fragments use the tuple defined before the outer loop:
 
 ```python
-lds2reg_thread_copies = (lds2reg_left_thread_copy, lds2reg_right_thread_copy)
+lds2reg_thread_copies = (left_lds2reg_thread_copy, right_lds2reg_thread_copy)
 ```
 
 Tuple access avoids FlyDSL 0.4.1 treating method calls on copy wrappers as loop-carried state. The loads and WMMA calls remain inline. `range_constexpr` unrolls the four steps during compilation.
@@ -169,8 +169,8 @@ fx.copy(copy_16b, rmem2gmem_source, rmem2gmem_dest)
 
 In [practice.py](practice.py), fill three copy-plan expressions:
 
-1. `lds2reg_left_copy_plan` with `fx.make_tiled_copy_A(copy_16b, mma)`.
-2. `lds2reg_right_copy_plan` with `fx.make_tiled_copy_B(copy_16b, mma)`.
+1. `left_lds2reg_copy_plan` with `fx.make_tiled_copy_A(copy_16b, mma)`.
+2. `right_lds2reg_copy_plan` with `fx.make_tiled_copy_B(copy_16b, mma)`.
 3. `rmem2gmem_copy_plan` with `fx.make_tiled_copy_C(copy_16b, mma)`.
 
 These helpers derive A, B, and C ownership from the WMMA instruction. The kernel supplies the views, K slicing, staging, launch, and checker. Compare your plans with the [worked solution](solution.py).

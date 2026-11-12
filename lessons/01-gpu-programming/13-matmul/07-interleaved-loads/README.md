@@ -19,7 +19,7 @@ selected global block view → per-thread staging registers → LDS
 
 | Storage | Variables | Contents during steady-state compute |
 | --- | --- | --- |
-| Private global staging registers | `left_fragment`, `right_fragment` | Next global K tile, `t+1` |
+| Private global staging registers | `left_staging_fragment`, `right_staging_fragment` | Next global K tile, `t+1` |
 | Shared LDS buffers | `left_lds_view`, `right_lds_view` | Current K tile, `t` |
 | Private MMA operand registers | `left_r_tile`, `right_r_tile` | One K=16 slice of the current tile |
 | Private FP32 accumulator | `accumulator` | 32 owned output sums across all processed K tiles |
@@ -36,19 +36,19 @@ Three tracing-time helpers name the global-load, LDS-publication, and compute st
 def gmem2reg_load_tile(tile_k):
     left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
     right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
-    left_lds_source, right_lds_source = create_gmem2lds_sources(
+    left_global_source, right_global_source = create_gmem2reg_sources(
         left_block_view, right_block_view
     )
-    fx.copy(copy_128b, left_lds_source, left_fragment)
-    fx.copy(copy_128b, right_lds_source, right_fragment)
+    fx.copy(copy_128b, left_global_source, left_staging_fragment)
+    fx.copy(copy_128b, right_global_source, right_staging_fragment)
 ```
 
 `gmem2reg_load_tile` writes only the calling thread's staging registers. It does not overwrite LDS. Slicing and partitioning select the global addresses; the two `fx.copy` calls load values.
 
 ```python
 def reg2lds_copy_tile():
-    fx.copy(copy_128b, left_fragment, gmem2lds_left_destination)
-    fx.copy(copy_128b, right_fragment, gmem2lds_right_destination)
+    fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+    fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
     fx.barrier()
 
 ```
@@ -59,12 +59,12 @@ Prepare the divided LDS views once, then slice one K=16 region per inner step:
 
 ```python
 left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
-right_lds_tranposed_view = fx.make_view(
+right_lds_transposed_view = fx.make_view(
     fx.get_iter(right_lds_view),
     fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
 )
 right_lds_transposed_tiled = fx.flat_divide(
-    right_lds_tranposed_view, (BLOCK_N, MMA_K)
+    right_lds_transposed_view, (BLOCK_N, MMA_K)
 )
 ```
 
@@ -79,14 +79,14 @@ def compute_lds():
         right_mma_view = fx.slice(
             right_lds_transposed_tiled, (None, None, 0, inner_k)
         )
-        left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
-        right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
+        left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
+        right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
         fx.copy(copy_16b, left_r_source, left_r_destination)
         fx.copy(copy_16b, right_r_source, right_r_destination)
         fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
 ```
 
-The helper uses `lds2reg_left_thread_copy` and `lds2reg_right_thread_copy` directly. It slices the existing views, preserving A's padding and B's `(N,K)` convention, then refills the same operand fragments for four K slices. Each schedule calls this helper instead of repeating the compute block.
+The helper uses `left_lds2reg_thread_copy` and `right_lds2reg_thread_copy` directly. It slices the existing views, preserving A's padding and B's `(N,K)` convention, then refills the same operand fragments for four K slices. Each schedule calls this helper instead of repeating the compute block.
 
 ## 3. Compare serial order with one-tile lookahead
 

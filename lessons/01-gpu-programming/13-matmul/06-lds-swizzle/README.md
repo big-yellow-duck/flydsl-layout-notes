@@ -54,9 +54,9 @@ The storage declaration stays `fx.Array[fx.BFloat16, BLOCK_M * BLOCK_K, 16]`. La
 The existing generic staging plan partitions the swizzled LDS view:
 
 ```python
-left_lds_destination = gmem2lds_thread_copy.partition_D(left_lds_view)
-fx.copy(copy_128b, left_lds_source, left_fragment)
-fx.copy(copy_128b, left_fragment, left_lds_destination)
+left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
+fx.copy(copy_128b, left_global_source, left_staging_fragment)
+fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
 fx.barrier()
 ```
 
