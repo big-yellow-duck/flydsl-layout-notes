@@ -10,16 +10,40 @@ Follow output tile 2. Its matrix rows are 0–15 and columns 128–191. Blocks 8
 
 ## 1. Assign each block an output tile and a K partition
 
-The [solution](solution.py) adds a split coordinate to 08's output-block mapping:
+The [solution](solution.py) includes M grouping and K partitioning in one launch layout. Its axes are `(row within M group, K split, tile column, M group)`, in that fastest-to-slowest order:
 
 ```python
-split_block_layout = fx.make_layout((SPLIT_K, tiles_m * tiles_n), (1, SPLIT_K))
+# Visit neighboring M tiles at the same K split before advancing splits.
+group_width = min(GROUP_M, tiles_m)
+split_block_layout = fx.make_layout(
+    (group_width, SPLIT_K, tiles_n, tiles_m // group_width),
+    (
+        1,
+        group_width,
+        group_width * SPLIT_K,
+        group_width * SPLIT_K * tiles_n,
+    ),
+)
 split_block_coords = fx.idx2crd(fx.block_idx.x, split_block_layout)
-split_id = fx.get_scalar(split_block_coords[0])
-flat_block_id = fx.get_scalar(split_block_coords[1])
+row_in_group = fx.get_scalar(split_block_coords[0])
+split_id = fx.get_scalar(split_block_coords[1])
+block_col = fx.get_scalar(split_block_coords[2])
+group_id = fx.get_scalar(split_block_coords[3])
+block_row = row_in_group + group_id * group_width
+# Workspace IDs follow output coordinates independently of launch order.
+output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
+flat_block_id = fx.get_scalar(
+    fx.crd2idx((block_row, block_col), output_tile_layout)
+)
 ```
 
-The grid is `(tiles_m * tiles_n * SPLIT_K, 1, 1)`. The grouped layout from 07c/08 maps `flat_block_id` to output tile coordinates. `group_m=1` is sufficient for the single tile row in the first skinny example. The split coordinate selects K work, not another output row or column.
+The grid is `(tiles_m * tiles_n * SPLIT_K, 1, 1)`. Neighboring M tiles in a group read the same B tile and the same K partition before the launch order advances to another split. `group_width` clamps `group_m` to the number of tile rows; complete groups are required. With `SPLIT_K=1`, this is the grouped M traversal from 07c/08. With `group_m=1`, split K advances fastest, matching the single-row skinny example below. The split coordinate selects K work, not another output row or column.
+
+![Logical IDs 0 and 1 visit neighboring M rows at column 0 and split 0; IDs 2 and 3 visit those rows at split 1. Columns advance next, followed by the next M group.](../../../../assets/01-gpu-programming/13-matmul/09-split-k/grouped-split-order.svg)
+
+Trace this separate **4×2 output-tile grid**, `group_m=2`, `split_k=2`. IDs 0/1 target rows 0/1 at column 0, split 0; IDs 2/3 keep those rows and advance to split 1. IDs 4–7 repeat the pattern for column 1. ID 8 begins the next M group at row 2. This preserves same-split B reuse across neighboring rows. These are logical launch positions; GPU execution and completion order remain unspecified.
+
+Workspace indexing uses a row-major output tile ID, `block_row * tiles_n + block_col`, independently of launch order. Every split peer for the same output tile therefore shares the same counter region, and distinct output tiles have disjoint partial/counter regions. Later lessons feed their independent-wave `logical_block_id` into this same layout.
 
 For the illustrated **16×64×64 tile**, each partition contains `8192 / (64*4) = 32` K tiles:
 
@@ -36,6 +60,12 @@ initial_tile_k = split_id * tiles_per_split
 | 11 | 2 | 3 | 96–127 | 6144–8191 |
 
 Trace block 10: `initial_tile_k=64` means matrix K index `64*64=4096`. `gmem2reg_load_tile` slices the full A/B tiled views at that K-tile coordinate; the sliced view carries its base offset. The prologue loads tile 64, steady state prefetches tiles 65–95, and the drain computes tile 95 exactly once. No block reads another partition's K range.
+
+The focused native check records the actual mapping from temporary copies of the lesson kernels, then verifies grouped launch order, full GEMM output, sentinels, and repeated workspace use:
+
+```bash
+pixi run python tools/check_split_k_grouping.py
+```
 
 ## 2. Publish FP32 partials to a workspace
 

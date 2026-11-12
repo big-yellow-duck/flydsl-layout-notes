@@ -4,6 +4,8 @@ A physical block can contain two waves without making them cooperate on one matr
 
 This lesson changes wave ownership only. It keeps the ordinary B cache policy, a rolled K loop, and full-workgroup handoff barriers. [10a](../10a-synchronization-scope/README.md) will narrow those barriers after the independent storage is established.
 
+The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+
 ## Follow physical block 2
 
 Use `(M,N,K)=(16,4096,8192)`, row-major BF16 A/B/C, and FP32 accumulation. Each wave32 computes a 16×64 output tile using 16-wide K chunks. `wave_groups=2` puts two such waves in each physical block. With `split_k=1`, 64 logical output tiles fit into 32 physical blocks of 64 threads.

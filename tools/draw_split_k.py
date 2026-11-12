@@ -15,6 +15,41 @@ def describe(diagram, description):
     diagram.svg.insert(2, f'<desc id="desc">{escape(description)}</desc>')
 
 
+def grouped_split_order():
+    d = Diagram(670, "09 - Group M before advancing K splits")
+    describe(
+        d,
+        "A four by two output tile grid with group_m two and split_k two visits adjacent M rows at the same split, then advances K split, column, and M group.",
+    )
+    d.text(32, 67, "Output grid: 4 rows x 2 columns; group_m=2; split_k=2.", 21)
+    d.text(
+        32,
+        107,
+        "Fastest to slowest: row within group -> K split -> column -> M group.",
+        19,
+    )
+    visits = [
+        (row, col, split)
+        for first in (0, 2)
+        for col in (0, 1)
+        for split in (0, 1)
+        for row in (first, first + 1)
+    ]
+    for logical_id, (row, col, split) in enumerate(visits):
+        x = 32 + (logical_id % 4) * 230
+        y = 158 + (logical_id // 4) * 110
+        d.box(x, y, 213, 86, BLUE if split == 0 else TEAL)
+        d.text(x + 10, y + 12, f"ID {logical_id}: row {row}, col {col}", 18)
+        d.text(x + 10, y + 46, f"K split {split}; tile ID {row * 2 + col}", 18)
+    d.text(
+        32,
+        609,
+        "Tile IDs index workspace in row-major order; launch order is grouped.",
+        19,
+    )
+    d.save(f"{BASE}/grouped-split-order")
+
+
 def main():
     d = Diagram(830, "09 - Give a skinny output more blocks along K")
     describe(
@@ -41,7 +76,7 @@ def main():
     d.text(
         32,
         292,
-        "Physical ID = tile_id * 4 + split_id. All four blocks target the same tile.",
+        "Here group_m=1: physical ID = tile_id * 4 + split_id.",
         20,
     )
     colors = (BLUE, TEAL, GOLD, PURPLE)
@@ -153,6 +188,7 @@ def main():
         19,
     )
     d.save(f"{BASE}/last-arrival")
+    grouped_split_order()
 
 
 if __name__ == "__main__":

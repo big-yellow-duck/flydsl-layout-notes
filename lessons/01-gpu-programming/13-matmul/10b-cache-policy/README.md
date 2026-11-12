@@ -2,6 +2,8 @@
 
 A buffer load can carry a cache-policy hint without changing its addresses or ownership. This lesson varies that hint for B while retaining [10a's synchronization](../10a-synchronization-scope/README.md), the same coalesced global copy plan, and the rolled K loop. The caches still choose their contents in hardware.
 
+The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+
 ## Keep the transfer the same
 
 Use `(16,4096,8192)` with two independent 16×64×16 wave tiles per block. Each wave has 32 threads. Its packed B tile contains `16*64=1024` BF16 values. Dividing those values across 32 staging threads gives **32 BF16 values per thread**.

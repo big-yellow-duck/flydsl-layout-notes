@@ -204,20 +204,28 @@ def build(config):
         # Keep the grouped strategy; express block selection with native layouts.
         tiles_m = m // BLOCK_M
         tiles_n = n // BLOCK_N
-        split_block_layout = fx.make_layout((SPLIT_K, tiles_m * tiles_n), (1, SPLIT_K))
-        split_block_coords = fx.idx2crd(logical_block_id, split_block_layout)
-        split_id = fx.get_scalar(split_block_coords[0])
-        flat_block_id = fx.get_scalar(split_block_coords[1])
+        # Visit neighboring M tiles at the same K split before advancing splits.
         group_width = min(GROUP_M, tiles_m)
-        block_tile_order = fx.make_layout(
-            (group_width, tiles_n, tiles_m // group_width),
-            (tiles_n, 1, group_width * tiles_n),
+        split_block_layout = fx.make_layout(
+            (group_width, SPLIT_K, tiles_n, tiles_m // group_width),
+            (
+                1,
+                group_width,
+                group_width * SPLIT_K,
+                group_width * SPLIT_K * tiles_n,
+            ),
         )
-        output_tile_offset = fx.crd2idx(flat_block_id, block_tile_order)
+        split_block_coords = fx.idx2crd(logical_block_id, split_block_layout)
+        row_in_group = fx.get_scalar(split_block_coords[0])
+        split_id = fx.get_scalar(split_block_coords[1])
+        block_col = fx.get_scalar(split_block_coords[2])
+        group_id = fx.get_scalar(split_block_coords[3])
+        block_row = row_in_group + group_id * group_width
+        # Workspace IDs follow output coordinates independently of launch order.
         output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
-        output_tile_coords = fx.idx2crd(output_tile_offset, output_tile_layout)
-        block_row = fx.get_scalar(output_tile_coords[0])
-        block_col = fx.get_scalar(output_tile_coords[1])
+        flat_block_id = fx.get_scalar(
+            fx.crd2idx((block_row, block_col), output_tile_layout)
+        )
 
         # 2. Group neighboring blocks along M to share B tiles in cache.
         left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))

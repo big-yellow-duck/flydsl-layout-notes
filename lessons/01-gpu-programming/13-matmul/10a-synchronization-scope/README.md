@@ -2,6 +2,8 @@
 
 The two waves in [lesson 10](../10-wave-local-tiles/README.md) use disjoint LDS regions. They still rendezvous at full-workgroup barriers. This lesson asks which threads actually exchange data, and which memory needs ordering at each handoff. It keeps the same tiles, ordinary cache policy, rolled K loop, and single LDS stage.
 
+The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+
 ## Two independent choices
 
 Use the same `(16,4096,8192)` workload: two independent wave32 groups in a physical block, each computing 16×64 outputs with 16-wide K chunks. Block 2 selects columns 256–319 and 320–383. Its two A/B regions occupy 5632 LDS bytes altogether.

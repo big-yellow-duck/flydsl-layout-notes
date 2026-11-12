@@ -4,6 +4,8 @@ A and B need not pass through the same storage. For skinny `C=A@B`, A has only 1
 
 This lesson measures that choice. It retains row-major BF16 inputs/output, FP32 accumulation, one-dimensional physical block IDs, prefetch, and stage 09's single-kernel split-K finalizer. All waves load and compute using the [10c prefetch schedule](../10c-k-unrolling/README.md). This lesson changes the operand route while retaining that schedule. Read [10](../10-wave-local-tiles/README.md) for the independent-wave mapping and [stage 05](../05-matrix-instructions/README.md) for WMMA ownership.
 
+The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+
 ## Why the course keeps prefetch
 
 The main path follows **09 → 10 → 10a → 10b → 10c → 12**. Every wave loads its future operands and computes its current tile. Dedicated loader waves, ready/free semaphore handoffs, polling sleeps, and signal-mode tuning are confined to the [wave-specialization research archive](../../../../experiments/wave-specialization/README.md).

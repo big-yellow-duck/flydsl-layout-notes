@@ -2,6 +2,8 @@
 
 Loop unrolling exposes several consecutive K iterations to the compiler. It can reduce loop overhead and change instruction scheduling and register lifetimes. This lesson varies `k_unroll` while retaining [10b's B cache policy](../10b-cache-policy/README.md), independent-wave mapping, and LDS-only handoffs. It keeps one current LDS tile and one logical next-tile staging fragment.
 
+The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+
 ## Count pipeline steps before unrolling
 
 The default workload is `(16,4096,8192)` with `BLOCK_K=16`, two independent waves per block, and `split_k=1`. For a small trace of exactly the same tile path, reduce K to 96. Each wave then consumes six K tiles. Set A's tile tags to `[1,2,4,8,16,32]` and B to 1. Every output must be `16*(1+2+4+8+16+32)=1008`.
