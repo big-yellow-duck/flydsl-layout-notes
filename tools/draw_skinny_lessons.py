@@ -1,7 +1,7 @@
 """Reproduce the focused 10–10c SVG/PNG figures (requires Pillow)."""
 
 from draw_lesson_visuals import BLUE, GOLD, GRAY, TEAL, Diagram
-from draw_wave_tiles import describe, down_arrow, wave_tiles
+from draw_wave_tiles import describe, down_arrow, wave_grid_2d, wave_tiles
 
 BASE = "01-gpu-programming/13-matmul"
 
@@ -184,6 +184,7 @@ def unrolling():
 
 def main():
     wave_tiles()
+    wave_grid_2d()
     synchronization()
     cache_policy()
     unrolling()

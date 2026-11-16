@@ -1,0 +1,592 @@
+{
+  "lesson": "10a-synchronization-scope",
+  "shape_MNK": [
+    16,
+    1024,
+    8192
+  ],
+  "scope": "Held-out comparison of promoted configuration versus the previous stage configuration; all other configuration choices are locked.",
+  "source_sha256": "debbf1f10e7dc5d91817e1f60008050aea7f75056ac5a51ec957925281e1a4b5",
+  "configurations": {
+    "stage": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 32,
+      "waves_m": 1,
+      "waves_n": 2,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups_m": 1,
+      "wave_groups_n": 1,
+      "sync_mode": "lds-subgroup"
+    },
+    "promoted": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 32,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups_m": 1,
+      "wave_groups_n": 2,
+      "sync_mode": "lds-subgroup"
+    }
+  },
+  "excluded": {},
+  "validation": {
+    "stage": {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": "10a_m16n64k32_w1x2_sk4_wg1x1_synclds-subgroup",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32,
+            64,
+            96,
+            128
+          ],
+          "sum_before_bf16": 320
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96,
+            192,
+            288,
+            384
+          ],
+          "sum_before_bf16": 960
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224,
+            448,
+            672,
+            896
+          ],
+          "sum_before_bf16": 2240
+        }
+      ]
+    },
+    "promoted": {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": "10a_m16n64k32_w1x1_sk4_wg1x2_synclds-subgroup",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32,
+            64,
+            96,
+            128
+          ],
+          "sum_before_bf16": 320
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96,
+            192,
+            288,
+            384
+          ],
+          "sum_before_bf16": 960
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224,
+            448,
+            672,
+            896
+          ],
+          "sum_before_bf16": 2240
+        }
+      ]
+    }
+  },
+  "runs": [
+    {
+      "lesson": "10a",
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "promoted": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 2,
+          "sync_mode": "lds-subgroup"
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:47:58.206509+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          16,
+          1024,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "4e7567857a88bbb977ac990855c633c8d2b02692dfc4864b54f7f651d07101ab",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "4e7567857a88bbb977ac990855c633c8d2b02692dfc4864b54f7f651d07101ab"
+      },
+      "kernel_ms": 0.11360360076650977,
+      "torch_ms": 0.039237900637090206,
+      "paired_ratio": 2.8403582840579022,
+      "median_ms": {
+        "stage": 0.11360360076650977,
+        "promoted": 0.10792789980769157,
+        "torch": 0.039237900637090206
+      },
+      "paired_ratios": {
+        "promoted": 1.025382936525575,
+        "torch": 2.8403582840579022
+      },
+      "samples_ms": {
+        "stage": [
+          0.1253052963875234,
+          0.10818280279636383,
+          0.114577601198107,
+          0.11360360076650977,
+          0.10774789843708277,
+          0.1114496961236,
+          0.11426659766584635
+        ],
+        "promoted": [
+          0.10817369911819696,
+          0.10609090095385909,
+          0.10669979965314269,
+          0.11416460620239377,
+          0.10792789980769157,
+          0.10869080433622003,
+          0.10772390523925424
+        ],
+        "torch": [
+          0.049380597192794085,
+          0.03938280278816819,
+          0.03931679530069232,
+          0.038448895793408155,
+          0.03826189786195755,
+          0.039237900637090206,
+          0.038952892646193504
+        ]
+      },
+      "orders": [
+        [
+          "stage",
+          "torch",
+          "promoted"
+        ],
+        [
+          "promoted",
+          "torch",
+          "stage"
+        ],
+        [
+          "torch",
+          "stage",
+          "promoted"
+        ],
+        [
+          "torch",
+          "promoted",
+          "stage"
+        ],
+        [
+          "torch",
+          "promoted",
+          "stage"
+        ],
+        [
+          "stage",
+          "torch",
+          "promoted"
+        ],
+        [
+          "torch",
+          "stage",
+          "promoted"
+        ]
+      ],
+      "timing": "direct-host",
+      "graph_metadata": {},
+      "batches": 7,
+      "repeats": 10,
+      "seed": 2026111601,
+      "right_staging_BF16_values_per_thread": 32,
+      "lds_bytes": 5376,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    },
+    {
+      "lesson": "10a",
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "promoted": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 2,
+          "sync_mode": "lds-subgroup"
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:47:58.350338+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          16,
+          1024,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "4e7567857a88bbb977ac990855c633c8d2b02692dfc4864b54f7f651d07101ab",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "4e7567857a88bbb977ac990855c633c8d2b02692dfc4864b54f7f651d07101ab"
+      },
+      "kernel_ms": 0.10945179965347052,
+      "torch_ms": 0.039100798312574625,
+      "paired_ratio": 2.799419967802538,
+      "median_ms": {
+        "stage": 0.10945179965347052,
+        "promoted": 0.10694579686969519,
+        "torch": 0.039100798312574625
+      },
+      "paired_ratios": {
+        "promoted": 1.0328487378037456,
+        "torch": 2.799419967802538
+      },
+      "samples_ms": {
+        "stage": [
+          0.11083169374614954,
+          0.10945179965347052,
+          0.10707380715757608,
+          0.10940880747511983,
+          0.11358760530129075,
+          0.11335170129314065,
+          0.10911270510405302
+        ],
+        "promoted": [
+          0.10730680078268051,
+          0.10694579686969519,
+          0.10670580668374896,
+          0.10410189861431718,
+          0.10482189245522022,
+          0.10733678936958313,
+          0.10806280188262463
+        ],
+        "torch": [
+          0.039100798312574625,
+          0.039400800596922636,
+          0.038549897726625204,
+          0.0392038025893271,
+          0.03908280050382018,
+          0.03918479196727276,
+          0.03897689748555422
+        ]
+      },
+      "orders": [
+        [
+          "stage",
+          "promoted",
+          "torch"
+        ],
+        [
+          "stage",
+          "promoted",
+          "torch"
+        ],
+        [
+          "torch",
+          "stage",
+          "promoted"
+        ],
+        [
+          "promoted",
+          "torch",
+          "stage"
+        ],
+        [
+          "stage",
+          "promoted",
+          "torch"
+        ],
+        [
+          "promoted",
+          "stage",
+          "torch"
+        ],
+        [
+          "stage",
+          "torch",
+          "promoted"
+        ]
+      ],
+      "timing": "direct-host",
+      "graph_metadata": {},
+      "batches": 7,
+      "repeats": 10,
+      "seed": 2026111602,
+      "right_staging_BF16_values_per_thread": 32,
+      "lds_bytes": 5376,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    },
+    {
+      "lesson": "10a",
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "promoted": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 2,
+          "sync_mode": "lds-subgroup"
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:47:58.495398+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          16,
+          1024,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "4e7567857a88bbb977ac990855c633c8d2b02692dfc4864b54f7f651d07101ab",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "4e7567857a88bbb977ac990855c633c8d2b02692dfc4864b54f7f651d07101ab"
+      },
+      "kernel_ms": 0.10752180824056268,
+      "torch_ms": 0.03938879817724228,
+      "paired_ratio": 2.7108913750650494,
+      "median_ms": {
+        "stage": 0.10752180824056268,
+        "promoted": 0.10826180223375559,
+        "torch": 0.03938879817724228
+      },
+      "paired_ratios": {
+        "promoted": 0.9931647730046546,
+        "torch": 2.7108913750650494
+      },
+      "samples_ms": {
+        "stage": [
+          0.10605480056256056,
+          0.1119326101616025,
+          0.1058519002981484,
+          0.10752180824056268,
+          0.10579979280009866,
+          0.1080977963283658,
+          0.10840380564332008
+        ],
+        "promoted": [
+          0.11081869015470147,
+          0.10669589973986149,
+          0.10920880595222116,
+          0.10826180223375559,
+          0.11325669474899769,
+          0.10586190037429333,
+          0.10737680131569505
+        ],
+        "torch": [
+          0.05997830303385854,
+          0.03938879817724228,
+          0.03973180428147316,
+          0.0396628980524838,
+          0.039185897912830114,
+          0.038235902320593596,
+          0.039076898247003555
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "promoted",
+          "stage"
+        ],
+        [
+          "torch",
+          "promoted",
+          "stage"
+        ],
+        [
+          "torch",
+          "promoted",
+          "stage"
+        ],
+        [
+          "stage",
+          "promoted",
+          "torch"
+        ],
+        [
+          "promoted",
+          "stage",
+          "torch"
+        ],
+        [
+          "torch",
+          "promoted",
+          "stage"
+        ],
+        [
+          "torch",
+          "promoted",
+          "stage"
+        ]
+      ],
+      "timing": "direct-host",
+      "graph_metadata": {},
+      "batches": 7,
+      "repeats": 10,
+      "seed": 2026111603,
+      "right_staging_BF16_values_per_thread": 32,
+      "lds_bytes": 5376,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    }
+  ],
+  "median_ms": {
+    "stage": 0.10945179965347052,
+    "promoted": 0.10792789980769157,
+    "torch": 0.039237900637090206
+  },
+  "winner": "promoted",
+  "selection_policy": "Retain the original configuration unless a candidate reduces median time by at least 1%; verify promoted selections on held-out seeds.",
+  "selected_key": "promoted",
+  "selected_configuration": {
+    "block_m": 16,
+    "block_n": 64,
+    "block_k": 32,
+    "waves_m": 1,
+    "waves_n": 1,
+    "group_m": 1,
+    "split_k": 4,
+    "wave_groups_m": 1,
+    "wave_groups_n": 2,
+    "sync_mode": "lds-subgroup"
+  }
+}

@@ -1,5 +1,9 @@
 # Focused skinny-prefetch measurements
 
+These are historical 2026-11-07 captures of the scalar wave-group mapping.
+The current kernels use explicit 2D physical-block/wave views; see the
+[2026-11-16 sweep and validation](../../10-wave-local-tiles/results/20261116-2d-wave-groups/README.md).
+
 Lessons [10](../../10-wave-local-tiles/README.md), [10a](../../10a-synchronization-scope/README.md), [10b](../../10b-cache-policy/README.md), and [10c](../README.md) isolate four decisions from the [original combined experiment](../../../../../experiments/wave-local-prefetch/README.md). All retain BF16 row-major inputs/output, FP32 accumulation, prefetch, and the same single-kernel split-K finalizer. Lesson 10c preserves the original native builder exactly.
 
 Tests ran on Radeon 8060S (`gfx1151`), FlyDSL 0.4.1, Torch 2.13.0+rocm10.0.0, and reported HIP 7.15.26333. Hardware validation on gfx1152 remains pending.

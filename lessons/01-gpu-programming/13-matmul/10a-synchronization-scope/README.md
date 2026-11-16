@@ -2,7 +2,7 @@
 
 The two waves in [lesson 10](../10-wave-local-tiles/README.md) use disjoint LDS regions. They still rendezvous at full-workgroup barriers. This lesson asks which threads actually exchange data, and which memory needs ordering at each handoff. It keeps the same tiles, ordinary cache policy, rolled K loop, and single LDS stage.
 
-The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). A physical block owns `BLOCK_M*WAVE_GROUPS_M` rows and `BLOCK_N*WAVE_GROUPS_N` columns. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
 ## Two independent choices
 
@@ -28,7 +28,7 @@ fx.barrier(address_spaces=lds_address_spaces, scope=barrier_scope)
 
 `address_spaces` selects **LDS memory ordering**. `scope` selects **the participating threads**. The word `workgroup` inside the address-space attribute identifies shared storage; it does not force a workgroup execution rendezvous. The [MLIR GPU barrier contract](https://mlir.llvm.org/docs/Dialects/GPU/#gpubarrier-gpubarrierop) defines these two choices; the executable API is checked against installed FlyDSL 0.4.1.
 
-For the wide configuration, each group is exactly one wave. Its own threads publish and consume its LDS tile, so subgroup scope is sufficient. On the two narrow workloads, one output tile is shared by two cooperating waves. They exchange A/B values through the same LDS region and must retain workgroup scope. The config validator allows multiple independent groups only when each contains exactly one wave.
+For the wide configuration, each group is exactly one wave. Its own threads publish and consume its LDS tile, so subgroup scope is sufficient. A configuration with `waves_m*waves_n>1` shares one compute tile between cooperating waves. They exchange A/B values through the same LDS region and must retain workgroup scope. The config validator allows multiple independent groups only when each contains exactly one wave. The group shape can be `(1,1)`, `(1,2)`, `(2,1)`, or `(2,2)`; subgroup scope remains sufficient for every private one-wave tile in the latter three arrangements.
 
 ## Preserve both handoffs
 
@@ -95,6 +95,6 @@ pixi run gpu-check
 
 The unfinished starter reports `Practice not finished:`; the [worked solution](solution.py) reports `Exercise passed:` before its controlled timing table. Add `--shape 32 1024 8192` to select a narrow workload. Benchmarks use validated 32-node graph replay and synchronized host timing; `--timing direct-host` measures ordinary dispatch separately. Use fresh output paths for instruction captures.
 
-See the [focused sequence's validation and controlled measurements](../10c-k-unrolling/results/README.md). These are gfx1151 observations with FlyDSL 0.4.1, not a guaranteed speedup on every shape or GPU.
+See the [2D wave-group sweep](../10-wave-local-tiles/results/20261116-2d-wave-groups/README.md) and the [focused sequence's historical validation and controlled measurements](../10c-k-unrolling/results/README.md). These are gfx1151 observations with FlyDSL 0.4.1, not a guaranteed speedup on every shape or GPU.
 
 [Previous: independent wave tiles](../10-wave-local-tiles/README.md) · [Matmul series](../README.md) · [Next: B cache policy](../10b-cache-policy/README.md)

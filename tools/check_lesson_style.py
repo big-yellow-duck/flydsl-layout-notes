@@ -144,9 +144,14 @@ def public_api_checks():
         kwargs = {}
         if operation == "matmul_bf16":
             config = next(iter(module.get("CONFIGS_BY_SHAPE", {}).values()), None)
-            m = config.block_m if config else module.get("BLOCK_M", 16)
+            m = (
+                config.block_m * getattr(config, "wave_groups_m", 1)
+                if config
+                else module.get("BLOCK_M", 16)
+            )
             n = (
-                config.block_n * getattr(config, "wave_groups", 1)
+                config.block_n
+                * getattr(config, "wave_groups_n", getattr(config, "wave_groups", 1))
                 if config
                 else module.get("BLOCK_N", 16)
             )

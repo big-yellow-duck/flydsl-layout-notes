@@ -92,7 +92,9 @@ def worker(args):
     tune["inputs"].__globals__.update(SHAPE=shape, MODULE=module, BUILD=kernel_source)
     config = module["CONFIGS_BY_SHAPE"][shape]
     if args.config_json:
-        config = module["Config"](**json.loads(args.config_json))
+        config = getattr(
+            module["Config"], "from_dict", lambda values: module["Config"](**values)
+        )(json.loads(args.config_json))
     elif args.config:
         values = list(map(int, args.config.split(",")))
         config = module["Config"](*values[:5], group_m=1, split_k=values[5])

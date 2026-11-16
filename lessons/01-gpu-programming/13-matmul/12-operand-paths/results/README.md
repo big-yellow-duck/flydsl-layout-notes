@@ -1,5 +1,15 @@
 # Operand paths versus tuned prefetch
 
+The current 2D wave-group kernels and their full arrangement sweep are documented
+in [the 2026-11-16 results](../../10-wave-local-tiles/results/20261116-2d-wave-groups/README.md).
+Earlier raw timings below retain their original kernel hashes.
+
+The [2026-11-13 wave-local tile comparison](wave-tiles.md) validates the wave arrangement separately: packed independent tiles improve wide graph replay time by about 3.8% over single-wave blocks, while cooperating waves remain faster for the narrow shapes.
+
+The [square-shape tuning study](square-shapes.md) adds M=N=K=1024 and 2048 with explicit tuned configurations. The 1024³ graph result is near Torch parity; 2048³ is about 1.25× faster than Torch in graph replay and also wins ordinary dispatch.
+
+The [small-M tuning study](small-m-shapes.md) adds M=1,2,4,8 at N=K=1024 and 2048 with native partial-row support. Tuned graph replay is about 1.53–1.59× faster than Torch across these eight shapes; Torch wins ordinary Python calls.
+
 The active comparison uses **operand paths**, **independently tuned 10c prefetch**, **same-geometry prefetch**, and **GPU Torch**. All native waves load and compute. Dedicated loader waves and ready/free handoffs remain in the research archive; [lesson 12 explains the measured choice](../README.md#why-the-course-keeps-prefetch).
 
 The 2026-11-07 course-path validation uses fresh seeds `2026112901–03`, with three rounds per seed, seven shuffled paired batches per round and twenty replays per batch. Tests ran on Radeon 8060S (`gfx1151`), FlyDSL 0.4.1, Torch 2.13.0+rocm10.0.0 and reported HIP 7.15.26333. Inputs/output remain contiguous row-major BF16 with FP32 accumulation. Warm buffers, preallocated output/workspace, and one kernel per GEMM are shared contracts; allocation, initialization and the CPU reference are outside timing.

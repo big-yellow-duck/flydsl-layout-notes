@@ -1,0 +1,204 @@
+# Excerpts from installed ROCprofiler SDK config.yaml
+# SHA256 dd2fa922ed07954f8f7b24dbc8f3ca814d21ab9e20ee9ba4603e5ce17db81de3
+metrics:
+    - name: ALUStalledByLDS
+      description: 'The percentage of GPUTime ALU units are stalled by the LDS input queue being full
+        or the output queue being not ready. If there are LDS bank conflicts, reduce them. Otherwise,
+        try reducing the number of LDS accesses if possible. Value range: 0% (optimal) to 100% (bad).'
+      properties: []
+      definitions:
+        - architectures:
+            - gfx10
+            - gfx1010
+            - gfx1030
+            - gfx1031
+            - gfx1032
+            - gfx11
+            - gfx1100
+            - gfx1101
+            - gfx1102
+            - gfx1103
+            - gfx9
+            - gfx906
+            - gfx908
+            - gfx90a
+            - gfx1150
+            - gfx1151
+            - gfx1152
+          expression:
+            400*reduce(SQ_WAIT_INST_LDS,sum)/reduce(SQ_WAVES,sum)/reduce(GRBM_GUI_ACTIVE,max)
+    - name: LDSBankConflict
+      description: 'The percentage of GPUTime LDS is stalled by bank conflicts. Value range: 0% (optimal)
+        to 100% (bad).'
+      properties: []
+      definitions:
+        - architectures:
+            - gfx10
+            - gfx1010
+            - gfx1030
+            - gfx1031
+            - gfx1032
+            - gfx11
+            - gfx1100
+            - gfx1101
+            - gfx1102
+            - gfx1103
+            - gfx1150
+            - gfx1151
+            - gfx1152
+            - gfx1153
+            - gfx12
+            - gfx1200
+            - gfx1201
+          expression: 100*reduce(SQC_LDS_BANK_CONFLICT,sum)/reduce(SQC_LDS_IDX_ACTIVE,sum)
+        - architectures:
+            - gfx9
+            - gfx900
+            - gfx906
+            - gfx908
+            - gfx90a
+            - gfx942
+            - gfx950
+          expression: 100*reduce(SQ_LDS_BANK_CONFLICT,sum)/reduce(GRBM_GUI_ACTIVE,max)/CU_NUM
+    - name: MeanOccupancyPerActiveCU
+      description: Mean occupancy per active compute unit.
+      properties: []
+      definitions:
+        - architectures:
+            - gfx11
+            - gfx1100
+            - gfx1101
+            - gfx1102
+            - gfx1103
+            - gfx1150
+            - gfx1151
+            - gfx1152
+            - gfx1153
+            - gfx12
+            - gfx1200
+            - gfx1201
+          expression: reduce(SQ_WAVE_CYCLES,sum)/reduce(SQ_BUSY_CYCLES,sum)
+        - architectures:
+            - gfx90a
+            - gfx940
+            - gfx941
+            - gfx942
+            - gfx950
+          expression: reduce(accumulate(SQ_LEVEL_WAVES, LOW_RES),sum)/reduce(SQ_BUSY_CU_CYCLES,sum)
+    - name: OccupancyPercent
+      description: GPU Occupancy as % of maximum.
+      properties: []
+      definitions:
+        - architectures:
+            - gfx10
+            - gfx1010
+            - gfx1030
+            - gfx1031
+            - gfx1032
+            - gfx11
+            - gfx1100
+            - gfx1101
+            - gfx1102
+            - gfx1103
+            - gfx1150
+            - gfx1151
+            - gfx1152
+            - gfx1153
+            - gfx12
+            - gfx1200
+            - gfx1201
+          expression: 100*reduce(SQ_WAVE_CYCLES,sum)/reduce(GRBM_GUI_ACTIVE,max)/CU_NUM/32
+        - architectures:
+            - gfx90a
+            - gfx940
+            - gfx941
+            - gfx942
+            - gfx950
+          expression: 400*reduce(SQ_WAVE_CYCLES,sum)/reduce(GRBM_GUI_ACTIVE,max)/CU_NUM/32
+    - name: SQ_WAIT_CNT_LGKM
+      description: "Number of clock cycles spent waiting for LGKM counter. In units of cycles. {nondeterministic,
+        C1}"
+      properties: []
+      definitions:
+        - architectures:
+            - gfx1150
+            - gfx1151
+            - gfx1152
+            - gfx1153
+          block: SQ
+          event: 38
+    - name: SQ_WAIT_CNT_VMVS
+      description: "Number of clock cycles spent waiting for VM or VS counter. In units of cycles. {nondeterministic,
+        C1}"
+      properties: []
+      definitions:
+        - architectures:
+            - gfx1150
+            - gfx1151
+            - gfx1152
+            - gfx1153
+          block: SQ
+          event: 37
+    - name: SQ_WAVE_CYCLES
+      description: The cycles spent executing waves in the CUs. This value is reported per-SE
+        (aggregates of SIMD values) and is nondeterministic. Units are in quad-cycles (4 cycles).
+        Useful for determining how much time is spent executing wave code vs overhead/waiting. Low
+        cycle count relative to actual number of cycles processed by the CU can indicate that the CU
+        is stalling or is overloaded.
+      properties: []
+      definitions:
+        - architectures:
+            - gfx10
+            - gfx1010
+            - gfx1030
+            - gfx1031
+            - gfx1032
+          block: SQ
+          event: 26
+        - architectures:
+            - gfx90a
+          block: SQ
+          event: 74
+        - architectures:
+            - gfx908
+          block: SQ
+          event: 47
+        - architectures:
+            - gfx940
+            - gfx941
+            - gfx942
+          block: SQ
+          event: 79
+        - architectures:
+            - gfx11
+            - gfx1100
+            - gfx1101
+            - gfx1102
+            - gfx1103
+            - gfx1150
+            - gfx1151
+            - gfx1152
+            - gfx1153
+            - gfx12
+            - gfx1200
+            - gfx1201
+          block: SQ
+          event: 24
+        - architectures:
+            - gfx950
+          block: SQ
+          event: 95
+        - architectures:
+            - gfx1250
+          block: SQ
+          event: 32
+    - name: SQ_WAIT_BARRIER
+      description: ''
+      properties: []
+      definitions:
+        - architectures:
+            - gfx1150
+            - gfx1151
+            - gfx1152
+          block: SQ
+          event: 42

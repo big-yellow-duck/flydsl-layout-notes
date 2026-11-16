@@ -1,0 +1,1315 @@
+{
+  "shape_MNK": [
+    16,
+    4096,
+    8192
+  ],
+  "source_sha256": {
+    "solution.py": "df0e921e7c0767e35bf1b258b74033463ebfd4399e21720454bb9ab3b16cefd0",
+    "measure.py": "7298e1faae43ed71be0f90f6ac4d11d4e229f3cef3ddcb379ea81bb889fb279e"
+  },
+  "scope": "Same lesson-10a kernel, ordinary cache policy, rolled prefetched K loop, split_k=1. Intended LDS subgroup synchronization for independent waves, LDS workgroup synchronization for cooperating waves; explicit default-workgroup control. Vary ownership, N extent and K staging extent.",
+  "excluded": {
+    "cooperative_n64_k16": "Every cooperative staging thread must own complete chunks",
+    "cooperative_n128_k16": "Every cooperative staging thread must own complete chunks"
+  },
+  "resources": {
+    "single_n64_k16": {
+      "configuration": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups": 1,
+        "sync_mode": "lds-subgroup"
+      },
+      "threads_per_block": 32,
+      "physical_blocks": 64,
+      "lds_bytes_per_block": 2816,
+      "logical_A_staging_BF16_per_thread": 8,
+      "logical_B_staging_BF16_per_thread": 32,
+      "accumulator_FP32_per_thread": 32
+    },
+    "packed_n64_k16": {
+      "configuration": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups": 2,
+        "sync_mode": "lds-subgroup"
+      },
+      "threads_per_block": 64,
+      "physical_blocks": 32,
+      "lds_bytes_per_block": 5632,
+      "logical_A_staging_BF16_per_thread": 8,
+      "logical_B_staging_BF16_per_thread": 32,
+      "accumulator_FP32_per_thread": 32
+    },
+    "cooperative_n64_k32": {
+      "configuration": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups": 1,
+        "sync_mode": "lds-subgroup"
+      },
+      "threads_per_block": 64,
+      "physical_blocks": 64,
+      "lds_bytes_per_block": 5376,
+      "logical_A_staging_BF16_per_thread": 8,
+      "logical_B_staging_BF16_per_thread": 32,
+      "accumulator_FP32_per_thread": 16
+    },
+    "cooperative_n128_k32": {
+      "configuration": {
+        "block_m": 16,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups": 1,
+        "sync_mode": "lds-subgroup"
+      },
+      "threads_per_block": 64,
+      "physical_blocks": 32,
+      "lds_bytes_per_block": 9472,
+      "logical_A_staging_BF16_per_thread": 8,
+      "logical_B_staging_BF16_per_thread": 64,
+      "accumulator_FP32_per_thread": 32
+    },
+    "packed_n64_k32": {
+      "configuration": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups": 2,
+        "sync_mode": "lds-subgroup"
+      },
+      "threads_per_block": 64,
+      "physical_blocks": 32,
+      "lds_bytes_per_block": 10752,
+      "logical_A_staging_BF16_per_thread": 16,
+      "logical_B_staging_BF16_per_thread": 64,
+      "accumulator_FP32_per_thread": 32
+    },
+    "packed_n64_k16_workgroup": {
+      "configuration": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups": 2,
+        "sync_mode": "workgroup"
+      },
+      "threads_per_block": 64,
+      "physical_blocks": 32,
+      "lds_bytes_per_block": 5632,
+      "logical_A_staging_BF16_per_thread": 8,
+      "logical_B_staging_BF16_per_thread": 32,
+      "accumulator_FP32_per_thread": 32
+    }
+  },
+  "validation": {
+    "single_n64_k16": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "10a_m16n64k16_w1x1_sk1_wg1_synclds-subgroup",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16
+          ],
+          "sum_before_bf16": 16
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48
+          ],
+          "sum_before_bf16": 48
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112
+          ],
+          "sum_before_bf16": 112
+        }
+      ]
+    },
+    "packed_n64_k16": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "10a_m16n64k16_w1x1_sk1_wg2_synclds-subgroup",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16
+          ],
+          "sum_before_bf16": 16
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48
+          ],
+          "sum_before_bf16": 48
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112
+          ],
+          "sum_before_bf16": 112
+        }
+      ]
+    },
+    "cooperative_n64_k32": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "10a_m16n64k32_w1x2_sk1_wg1_synclds-subgroup",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32
+          ],
+          "sum_before_bf16": 32
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96
+          ],
+          "sum_before_bf16": 96
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224
+          ],
+          "sum_before_bf16": 224
+        }
+      ]
+    },
+    "cooperative_n128_k32": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "10a_m16n128k32_w1x2_sk1_wg1_synclds-subgroup",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32
+          ],
+          "sum_before_bf16": 32
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96
+          ],
+          "sum_before_bf16": 96
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224
+          ],
+          "sum_before_bf16": 224
+        }
+      ]
+    },
+    "packed_n64_k32": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "10a_m16n64k32_w1x1_sk1_wg2_synclds-subgroup",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32
+          ],
+          "sum_before_bf16": 32
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96
+          ],
+          "sum_before_bf16": 96
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224
+          ],
+          "sum_before_bf16": 224
+        }
+      ]
+    },
+    "packed_n64_k16_workgroup": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "10a_m16n64k16_w1x1_sk1_wg2_syncworkgroup",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16
+          ],
+          "sum_before_bf16": 16
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48
+          ],
+          "sum_before_bf16": 48
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112
+          ],
+          "sum_before_bf16": 112
+        }
+      ]
+    }
+  },
+  "runs": [
+    {
+      "lesson": "10a",
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "lds-subgroup"
+        },
+        "single_n64_k16": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "cooperative_n64_k32": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "cooperative_n128_k32": {
+          "block_m": 16,
+          "block_n": 128,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "packed_n64_k32": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "lds-subgroup"
+        },
+        "packed_n64_k16_workgroup": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "workgroup"
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:18:20.030334+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          16,
+          4096,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "14c47f188eb6578198484b7e64e506b275e7f7cb810442b1dde8f19138ca89be",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "14c47f188eb6578198484b7e64e506b275e7f7cb810442b1dde8f19138ca89be"
+      },
+      "kernel_ms": 0.28812169693992473,
+      "torch_ms": 0.2900438579672482,
+      "paired_ratio": 0.9910435308048575,
+      "median_ms": {
+        "stage": 0.28812169693992473,
+        "single_n64_k16": 0.29343355308810715,
+        "cooperative_n64_k32": 0.3391728687347495,
+        "cooperative_n128_k32": 0.3963813547670725,
+        "packed_n64_k32": 0.3239737608964788,
+        "packed_n64_k16_workgroup": 0.3522483031701995,
+        "torch": 0.2900438579672482
+      },
+      "paired_ratios": {
+        "single_n64_k16": 0.9820697312026871,
+        "cooperative_n64_k32": 0.8500372755062094,
+        "cooperative_n128_k32": 0.7273540437701276,
+        "packed_n64_k32": 0.889916456404125,
+        "packed_n64_k16_workgroup": 0.8187273578311903,
+        "torch": 0.9910435308048575
+      },
+      "samples_ms": {
+        "stage": [
+          0.2865360562282149,
+          0.2883095812649117,
+          0.2867194249120075,
+          0.28962115156900836,
+          0.287459545324964,
+          0.2931892311607953,
+          0.28812169693992473
+        ],
+        "single_n64_k16": [
+          0.2932557155872928,
+          0.29343355308810715,
+          0.29337875785131473,
+          0.2942253422588692,
+          0.2936271421276615,
+          0.29345302191359224,
+          0.2933821171609452
+        ],
+        "cooperative_n64_k32": [
+          0.33982180157181574,
+          0.3391728687347495,
+          0.33923866249097046,
+          0.33839914067357313,
+          0.3384106234079809,
+          0.339680634533579,
+          0.3377593797267764
+        ],
+        "cooperative_n128_k32": [
+          0.3958082454118994,
+          0.3963813547670725,
+          0.396585113958281,
+          0.39694250936008757,
+          0.39646258592256345,
+          0.3958923218306154,
+          0.3959264937293483
+        ],
+        "packed_n64_k32": [
+          0.32417252186860424,
+          0.3239737608964788,
+          0.32436340625281446,
+          0.3245051984777092,
+          0.3232217359254719,
+          0.3238069532017107,
+          0.323370248406718
+        ],
+        "packed_n64_k16_workgroup": [
+          0.35208252811571583,
+          0.3522483031701995,
+          0.35295889210829046,
+          0.35259908909210935,
+          0.35110533754050266,
+          0.35248370168119436,
+          0.3518322702802834
+        ],
+        "torch": [
+          0.29015897980571026,
+          0.2899325016187504,
+          0.2897900687457877,
+          0.2900438579672482,
+          0.29005743581365095,
+          0.28972108757443493,
+          0.2913392874688725
+        ]
+      },
+      "orders": [
+        [
+          "cooperative_n128_k32",
+          "stage",
+          "packed_n64_k16_workgroup",
+          "packed_n64_k32",
+          "single_n64_k16",
+          "torch",
+          "cooperative_n64_k32"
+        ],
+        [
+          "cooperative_n128_k32",
+          "cooperative_n64_k32",
+          "stage",
+          "packed_n64_k32",
+          "packed_n64_k16_workgroup",
+          "single_n64_k16",
+          "torch"
+        ],
+        [
+          "single_n64_k16",
+          "torch",
+          "packed_n64_k32",
+          "cooperative_n128_k32",
+          "stage",
+          "cooperative_n64_k32",
+          "packed_n64_k16_workgroup"
+        ],
+        [
+          "packed_n64_k32",
+          "cooperative_n128_k32",
+          "packed_n64_k16_workgroup",
+          "torch",
+          "stage",
+          "single_n64_k16",
+          "cooperative_n64_k32"
+        ],
+        [
+          "stage",
+          "packed_n64_k32",
+          "cooperative_n128_k32",
+          "torch",
+          "packed_n64_k16_workgroup",
+          "cooperative_n64_k32",
+          "single_n64_k16"
+        ],
+        [
+          "single_n64_k16",
+          "stage",
+          "packed_n64_k32",
+          "torch",
+          "cooperative_n128_k32",
+          "cooperative_n64_k32",
+          "packed_n64_k16_workgroup"
+        ],
+        [
+          "single_n64_k16",
+          "stage",
+          "packed_n64_k16_workgroup",
+          "cooperative_n128_k32",
+          "torch",
+          "packed_n64_k32",
+          "cooperative_n64_k32"
+        ]
+      ],
+      "timing": "graph-host",
+      "graph_metadata": {
+        "stage": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "single_n64_k16": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "cooperative_n64_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "cooperative_n128_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "packed_n64_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "packed_n64_k16_workgroup": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      },
+      "batches": 7,
+      "repeats": 20,
+      "seed": 13,
+      "right_staging_BF16_values_per_thread": 32,
+      "lds_bytes": 5632,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    },
+    {
+      "lesson": "10a",
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "lds-subgroup"
+        },
+        "single_n64_k16": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "cooperative_n64_k32": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "cooperative_n128_k32": {
+          "block_m": 16,
+          "block_n": 128,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "packed_n64_k32": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "lds-subgroup"
+        },
+        "packed_n64_k16_workgroup": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "workgroup"
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:18:31.873535+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          16,
+          4096,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "14c47f188eb6578198484b7e64e506b275e7f7cb810442b1dde8f19138ca89be",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "14c47f188eb6578198484b7e64e506b275e7f7cb810442b1dde8f19138ca89be"
+      },
+      "kernel_ms": 0.2876453514545574,
+      "torch_ms": 0.2896859468819457,
+      "paired_ratio": 0.9930203185015564,
+      "median_ms": {
+        "stage": 0.2876453514545574,
+        "single_n64_k16": 0.29366240469244076,
+        "cooperative_n64_k32": 0.3388559718587203,
+        "cooperative_n128_k32": 0.396178171831707,
+        "packed_n64_k32": 0.32411442953161895,
+        "packed_n64_k16_workgroup": 0.3539545170497149,
+        "torch": 0.2896859468819457
+      },
+      "paired_ratios": {
+        "single_n64_k16": 0.9795103045478867,
+        "cooperative_n64_k32": 0.8471118486835895,
+        "cooperative_n128_k32": 0.7273084028036652,
+        "packed_n64_k32": 0.8871526168351066,
+        "packed_n64_k16_workgroup": 0.8128750387844665,
+        "torch": 0.9930203185015564
+      },
+      "samples_ms": {
+        "stage": [
+          0.2876453514545574,
+          0.28908379208587576,
+          0.2874000467272708,
+          0.28644548128795577,
+          0.2884151108446531,
+          0.28666664693446364,
+          0.2898979719248018
+        ],
+        "single_n64_k16": [
+          0.29366240469244076,
+          0.2934893640485825,
+          0.29457137807185063,
+          0.29363525009102887,
+          0.2937242625193903,
+          0.29351052035053726,
+          0.2940225202110014
+        ],
+        "cooperative_n64_k32": [
+          0.3388559718587203,
+          0.3375666046849801,
+          0.34064094852510607,
+          0.3398186297999928,
+          0.34101820310752373,
+          0.33840471878647804,
+          0.3384427796845557
+        ],
+        "cooperative_n128_k32": [
+          0.3954929577957955,
+          0.3963151688367361,
+          0.3969735702412436,
+          0.3959385234338697,
+          0.39655031887377845,
+          0.39596919377800077,
+          0.396178171831707
+        ],
+        "packed_n64_k32": [
+          0.3239388093788875,
+          0.3246442265663063,
+          0.3240885858758702,
+          0.32411442953161895,
+          0.3251020234529278,
+          0.3254309984185966,
+          0.32391785625804914
+        ],
+        "packed_n64_k16_workgroup": [
+          0.3541244499501772,
+          0.35202570143155754,
+          0.35355993604753166,
+          0.3533619264999288,
+          0.3539619547154871,
+          0.3544302375303232,
+          0.3539545170497149
+        ],
+        "torch": [
+          0.28966713580302894,
+          0.28966908757865895,
+          0.2896593687182758,
+          0.28975067816645605,
+          0.29010095004196046,
+          0.28999095302424394,
+          0.2896859468819457
+        ]
+      },
+      "orders": [
+        [
+          "cooperative_n128_k32",
+          "single_n64_k16",
+          "packed_n64_k16_workgroup",
+          "torch",
+          "cooperative_n64_k32",
+          "stage",
+          "packed_n64_k32"
+        ],
+        [
+          "cooperative_n64_k32",
+          "single_n64_k16",
+          "packed_n64_k16_workgroup",
+          "packed_n64_k32",
+          "stage",
+          "torch",
+          "cooperative_n128_k32"
+        ],
+        [
+          "cooperative_n128_k32",
+          "packed_n64_k32",
+          "torch",
+          "stage",
+          "cooperative_n64_k32",
+          "single_n64_k16",
+          "packed_n64_k16_workgroup"
+        ],
+        [
+          "cooperative_n64_k32",
+          "stage",
+          "packed_n64_k16_workgroup",
+          "single_n64_k16",
+          "cooperative_n128_k32",
+          "torch",
+          "packed_n64_k32"
+        ],
+        [
+          "stage",
+          "packed_n64_k32",
+          "cooperative_n64_k32",
+          "torch",
+          "packed_n64_k16_workgroup",
+          "cooperative_n128_k32",
+          "single_n64_k16"
+        ],
+        [
+          "stage",
+          "packed_n64_k16_workgroup",
+          "cooperative_n128_k32",
+          "single_n64_k16",
+          "packed_n64_k32",
+          "torch",
+          "cooperative_n64_k32"
+        ],
+        [
+          "stage",
+          "packed_n64_k16_workgroup",
+          "cooperative_n128_k32",
+          "torch",
+          "cooperative_n64_k32",
+          "single_n64_k16",
+          "packed_n64_k32"
+        ]
+      ],
+      "timing": "graph-host",
+      "graph_metadata": {
+        "stage": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "single_n64_k16": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "cooperative_n64_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "cooperative_n128_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "packed_n64_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "packed_n64_k16_workgroup": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      },
+      "batches": 7,
+      "repeats": 20,
+      "seed": 29,
+      "right_staging_BF16_values_per_thread": 32,
+      "lds_bytes": 5632,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    },
+    {
+      "lesson": "10a",
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "lds-subgroup"
+        },
+        "single_n64_k16": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "cooperative_n64_k32": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "cooperative_n128_k32": {
+          "block_m": 16,
+          "block_n": 128,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "sync_mode": "lds-subgroup"
+        },
+        "packed_n64_k32": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "lds-subgroup"
+        },
+        "packed_n64_k16_workgroup": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "sync_mode": "workgroup"
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:18:43.718757+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          16,
+          4096,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "14c47f188eb6578198484b7e64e506b275e7f7cb810442b1dde8f19138ca89be",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "14c47f188eb6578198484b7e64e506b275e7f7cb810442b1dde8f19138ca89be"
+      },
+      "kernel_ms": 0.2880354029912269,
+      "torch_ms": 0.28979122507735156,
+      "paired_ratio": 0.994166780938235,
+      "median_ms": {
+        "stage": 0.2880354029912269,
+        "single_n64_k16": 0.2936229842816829,
+        "cooperative_n64_k32": 0.3391374468264985,
+        "cooperative_n128_k32": 0.3958381828851998,
+        "packed_n64_k32": 0.32424433120468166,
+        "packed_n64_k16_workgroup": 0.3537064312695293,
+        "torch": 0.28979122507735156
+      },
+      "paired_ratios": {
+        "single_n64_k16": 0.9786450011539739,
+        "cooperative_n64_k32": 0.846433374948235,
+        "cooperative_n128_k32": 0.7283117335182006,
+        "packed_n64_k32": 0.8885649965097326,
+        "packed_n64_k16_workgroup": 0.8148514439618264,
+        "torch": 0.994166780938235
+      },
+      "samples_ms": {
+        "stage": [
+          0.2880354029912269,
+          0.2870401967811631,
+          0.2881439453631174,
+          0.28855921409558505,
+          0.2868761717763846,
+          0.28688343591056764,
+          0.29365546888584504
+        ],
+        "single_n64_k16": [
+          0.2933563047918142,
+          0.29330369688977953,
+          0.2936229842816829,
+          0.2948961657239124,
+          0.29381787026068196,
+          0.2933703515736852,
+          0.29412143921945244
+        ],
+        "cooperative_n64_k32": [
+          0.337434154789662,
+          0.3391374468264985,
+          0.34099198437615996,
+          0.34127796097891405,
+          0.3388875014934456,
+          0.33893209365487564,
+          0.339659899873368
+        ],
+        "cooperative_n128_k32": [
+          0.39525268439319916,
+          0.39825179846957326,
+          0.39522771712654503,
+          0.3962028906244086,
+          0.3958381828851998,
+          0.3964683985032025,
+          0.3949640218706918
+        ],
+        "packed_n64_k32": [
+          0.32489340628671926,
+          0.32303792959282873,
+          0.3238710298319347,
+          0.32418664541182807,
+          0.324267440555559,
+          0.32424433120468166,
+          0.32508355634490727
+        ],
+        "packed_n64_k16_workgroup": [
+          0.3522955983498832,
+          0.351350298296893,
+          0.3537064312695293,
+          0.3541249343470554,
+          0.35357826400286285,
+          0.35488659850670956,
+          0.3546710420778254
+        ],
+        "torch": [
+          0.28962201104150154,
+          0.28979122507735156,
+          0.2898346141591901,
+          0.28959688752365764,
+          0.29125425935490057,
+          0.28961804218852194,
+          0.2906365891249152
+        ]
+      },
+      "orders": [
+        [
+          "packed_n64_k16_workgroup",
+          "single_n64_k16",
+          "torch",
+          "packed_n64_k32",
+          "cooperative_n128_k32",
+          "stage",
+          "cooperative_n64_k32"
+        ],
+        [
+          "single_n64_k16",
+          "stage",
+          "torch",
+          "packed_n64_k16_workgroup",
+          "cooperative_n128_k32",
+          "packed_n64_k32",
+          "cooperative_n64_k32"
+        ],
+        [
+          "cooperative_n64_k32",
+          "single_n64_k16",
+          "packed_n64_k16_workgroup",
+          "packed_n64_k32",
+          "stage",
+          "cooperative_n128_k32",
+          "torch"
+        ],
+        [
+          "packed_n64_k16_workgroup",
+          "cooperative_n64_k32",
+          "single_n64_k16",
+          "stage",
+          "packed_n64_k32",
+          "cooperative_n128_k32",
+          "torch"
+        ],
+        [
+          "cooperative_n128_k32",
+          "stage",
+          "packed_n64_k16_workgroup",
+          "cooperative_n64_k32",
+          "packed_n64_k32",
+          "torch",
+          "single_n64_k16"
+        ],
+        [
+          "torch",
+          "single_n64_k16",
+          "cooperative_n128_k32",
+          "packed_n64_k16_workgroup",
+          "cooperative_n64_k32",
+          "packed_n64_k32",
+          "stage"
+        ],
+        [
+          "cooperative_n128_k32",
+          "stage",
+          "cooperative_n64_k32",
+          "packed_n64_k16_workgroup",
+          "single_n64_k16",
+          "torch",
+          "packed_n64_k32"
+        ]
+      ],
+      "timing": "graph-host",
+      "graph_metadata": {
+        "stage": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "single_n64_k16": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "cooperative_n64_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "cooperative_n128_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "packed_n64_k32": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "packed_n64_k16_workgroup": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      },
+      "batches": 7,
+      "repeats": 20,
+      "seed": 47,
+      "right_staging_BF16_values_per_thread": 32,
+      "lds_bytes": 5632,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    }
+  ]
+}

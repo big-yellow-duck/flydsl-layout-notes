@@ -2,7 +2,7 @@
 
 A buffer load can carry a cache-policy hint without changing its addresses or ownership. This lesson varies that hint for B while retaining [10a's synchronization](../10a-synchronization-scope/README.md), the same coalesced global copy plan, and the rolled K loop. The caches still choose their contents in hardware.
 
-The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). A physical block owns `BLOCK_M*WAVE_GROUPS_M` rows and `BLOCK_N*WAVE_GROUPS_N` columns. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
 ## Keep the transfer the same
 
@@ -75,6 +75,6 @@ pixi run gpu-check
 
 The unfinished starter reports `Practice not finished:`; the [worked solution](solution.py) reports `Exercise passed:` before its controlled timing table. Add `--shape 32 1024 8192` to select a narrow workload. Benchmarks use validated 32-node graph replay and synchronized host timing; `--timing direct-host` measures ordinary dispatch separately. Use fresh output paths for instruction captures.
 
-See the [focused sequence's validation and controlled measurements](../10c-k-unrolling/results/README.md). These are gfx1151 observations with FlyDSL 0.4.1, not a guaranteed speedup on every shape or GPU.
+See the [2D wave-group sweep](../10-wave-local-tiles/results/20261116-2d-wave-groups/README.md) and the [focused sequence's historical validation and controlled measurements](../10c-k-unrolling/results/README.md). These are gfx1151 observations with FlyDSL 0.4.1, not a guaranteed speedup on every shape or GPU.
 
 [Previous: synchronization scope](../10a-synchronization-scope/README.md) · [Matmul series](../README.md) · [Next: K-loop unrolling](../10c-k-unrolling/README.md)

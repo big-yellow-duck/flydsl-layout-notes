@@ -104,7 +104,7 @@ def measure(launches, data, batches=7, repeats=20, order_seed=0, timing="graph-h
 
 def controls(shape, config):
     key = "x".join(map(str, shape))
-    tuned = PREFETCH["Config"](**PREFETCH_SELECTION["shapes"][key])
+    tuned = PREFETCH["Config"].from_dict(PREFETCH_SELECTION["shapes"][key])
     launches = {
         "prefetch": partial(PREFETCH["matmul_bf16"], config=tuned),
         "torch": COMMON["torch_launch"],
@@ -245,7 +245,7 @@ def main():
         parser.error("Use a fresh output path")
     shape = tuple(args.shape)
     config = (
-        MODULE["Config"](**json.loads(args.config))
+        MODULE["Config"].from_dict(json.loads(args.config))
         if args.config
         else MODULE["CONFIGS_BY_SHAPE"][shape]
     )

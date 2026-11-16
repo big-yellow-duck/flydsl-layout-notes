@@ -1,0 +1,254 @@
+{
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-13T09:57:57.770150+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      1024,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "d1ec07d8cd2bd95c134180f0dd239d011a15604aeddc0d75776e63527b673930",
+    "source_sha256": {
+      "solution.py": "7deec53a3196d3bab6211a623a83e2cc57e350ca85b86054c4cc5049eee7b2bd",
+      "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+    }
+  },
+  "solution_sha256": "85d032ee3d4c91862c1d9d9435147bb83a82cc717c32393840128f6842406219",
+  "scope": "Locked lesson-12 tiles, split-K, operand route, cache and unroll; vary wave ownership only. Packing also changes barrier scope in the current kernel.",
+  "runs": [
+    {
+      "shape_MNK": [
+        1024,
+        1024,
+        1024
+      ],
+      "seed": 101,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 128,
+          "block_n": 128,
+          "block_k": 32,
+          "waves_m": 2,
+          "waves_n": 2,
+          "group_m": 4,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 0,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.07123067662178073,
+        "torch": 0.07310310465982184
+      },
+      "paired_ratios": {
+        "torch": [
+          0.9904469836999888,
+          1.0001377042513435,
+          0.9758142822360988,
+          0.9760637857303487,
+          0.9728832694738409,
+          0.959053478400436,
+          0.974645721542827
+        ]
+      },
+      "ratio_to_torch": 0.9758142822360988,
+      "samples_ms": {
+        "operand_paths": [
+          0.07250677645060932,
+          0.07342262488236884,
+          0.07161132034525508,
+          0.07123067662178073,
+          0.07112078747013584,
+          0.06969114201638149,
+          0.069922153124935
+        ],
+        "torch": [
+          0.0732061156668351,
+          0.07341251566685969,
+          0.07338621871895157,
+          0.07297748124983627,
+          0.07310310465982184,
+          0.07266658594744513,
+          0.07174109687184682
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "operand_paths",
+          "torch"
+        ],
+        [
+          "operand_paths",
+          "torch"
+        ],
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "operand_paths",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "shape_MNK": [
+        2048,
+        2048,
+        2048
+      ],
+      "seed": 101,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 64,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 4,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 1,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.4258506281985319,
+        "torch": 0.533956523577217
+      },
+      "paired_ratios": {
+        "torch": [
+          0.7736806279102338,
+          0.7994936306982748,
+          0.8026695252882758,
+          0.7993160921278776,
+          0.7936309241129441,
+          0.7997710853134253,
+          0.7966053955120986
+        ]
+      },
+      "ratio_to_torch": 0.7993160921278776,
+      "samples_ms": {
+        "operand_paths": [
+          0.4351212250185199,
+          0.42742456407722784,
+          0.428750618812046,
+          0.42492726406635484,
+          0.42376440924272174,
+          0.4258506281985319,
+          0.42406196262163576
+        ],
+        "torch": [
+          0.5624041876217234,
+          0.534619098471012,
+          0.5341558453437756,
+          0.5316135484463302,
+          0.533956523577217,
+          0.5324656467564637,
+          0.5323362922354136
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "operand_paths",
+          "torch"
+        ],
+        [
+          "operand_paths",
+          "torch"
+        ],
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "torch",
+          "operand_paths"
+        ],
+        [
+          "operand_paths",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    }
+  ]
+}

@@ -24,7 +24,7 @@ def main():
     module = runpy.run_path(str(HERE / "solution.py"))
     shape = tuple(args.shape)
     config = (
-        module["Config"](**json.loads(args.config))
+        module["Config"].from_dict(json.loads(args.config))
         if args.config
         else module["CONFIGS_BY_SHAPE"][shape]
     )

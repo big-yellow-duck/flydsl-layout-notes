@@ -1,0 +1,226 @@
+{
+  "lesson": "10c",
+  "shape_MNK": [
+    16,
+    4096,
+    8192
+  ],
+  "configurations": {
+    "stage": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 16,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 1,
+      "wave_groups_m": 1,
+      "wave_groups_n": 2,
+      "k_unroll": 4,
+      "right_cache_modifier": 2
+    },
+    "unroll_1": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 16,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 1,
+      "wave_groups_m": 1,
+      "wave_groups_n": 2,
+      "k_unroll": 1,
+      "right_cache_modifier": 2
+    },
+    "unroll_2": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 16,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 1,
+      "wave_groups_m": 1,
+      "wave_groups_n": 2,
+      "k_unroll": 2,
+      "right_cache_modifier": 2
+    },
+    "unroll_8": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 16,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 1,
+      "wave_groups_m": 1,
+      "wave_groups_n": 2,
+      "k_unroll": 8,
+      "right_cache_modifier": 2
+    }
+  },
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-16T09:51:19.144180+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      4096,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1",
+    "source_sha256": {
+      "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+      "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+    },
+    "native_factory_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1"
+  },
+  "kernel_ms": 0.27312394149703323,
+  "torch_ms": 0.2901525781453529,
+  "paired_ratio": 0.941176408358408,
+  "median_ms": {
+    "stage": 0.27312394149703323,
+    "unroll_1": 0.279316023352294,
+    "unroll_2": 0.275467698884313,
+    "unroll_8": 0.2738803668762557,
+    "torch": 0.2901525781453529
+  },
+  "paired_ratios": {
+    "unroll_1": 0.9778312687509129,
+    "unroll_2": 0.991646613812104,
+    "unroll_8": 0.9972247799522461,
+    "torch": 0.941176408358408
+  },
+  "samples_ms": {
+    "stage": [
+      0.27312394149703323,
+      0.27308476137477555,
+      0.2729729258135194,
+      0.2736417773121502,
+      0.273147691586928
+    ],
+    "unroll_1": [
+      0.279316023352294,
+      0.28290896079852246,
+      0.2784799180517439,
+      0.2801201017064159,
+      0.27785419160863967
+    ],
+    "unroll_2": [
+      0.2786028790069395,
+      0.27538515996639035,
+      0.27467201925901463,
+      0.275467698884313,
+      0.2757761676548398
+    ],
+    "unroll_8": [
+      0.27669723067447194,
+      0.27957230486208573,
+      0.27373259399610106,
+      0.27349385163688567,
+      0.2738803668762557
+    ],
+    "torch": [
+      0.2940762892649218,
+      0.2901525781453529,
+      0.2904967850554385,
+      0.2899882069868909,
+      0.2899704336414288
+    ]
+  },
+  "orders": [
+    [
+      "unroll_1",
+      "stage",
+      "unroll_8",
+      "torch",
+      "unroll_2"
+    ],
+    [
+      "unroll_8",
+      "unroll_2",
+      "stage",
+      "torch",
+      "unroll_1"
+    ],
+    [
+      "torch",
+      "unroll_8",
+      "unroll_2",
+      "stage",
+      "unroll_1"
+    ],
+    [
+      "torch",
+      "unroll_8",
+      "unroll_1",
+      "stage",
+      "unroll_2"
+    ],
+    [
+      "unroll_2",
+      "unroll_8",
+      "unroll_1",
+      "stage",
+      "torch"
+    ]
+  ],
+  "timing": "graph-host",
+  "graph_metadata": {
+    "stage": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "workspace_initialization_nodes": 0,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    },
+    "unroll_1": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "workspace_initialization_nodes": 0,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    },
+    "unroll_2": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "workspace_initialization_nodes": 0,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    },
+    "unroll_8": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "workspace_initialization_nodes": 0,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    },
+    "torch": {
+      "nodes": 32,
+      "kernel_nodes": 32,
+      "matmuls_per_replay": 32,
+      "mutated_input_replay": "passed",
+      "nan_output_and_sentinels": "passed"
+    }
+  },
+  "batches": 5,
+  "repeats": 8,
+  "seed": 13,
+  "right_staging_BF16_values_per_thread": 32,
+  "lds_bytes": 5632,
+  "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation.",
+  "source_sha256": "c672ee85e7bce3698f429062c6ec3ca7b8b73d76f375838ee51ee2cc2e25bda4"
+}

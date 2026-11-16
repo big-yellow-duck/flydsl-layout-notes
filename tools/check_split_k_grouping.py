@@ -40,7 +40,7 @@ def instrument(source, independent_waves):
             for target in node.targets
         )
     )
-    logical_id = "logical_block_id" if independent_waves else "fx.block_idx.x"
+    logical_id = "launch_coordinate" if independent_waves else "fx.block_idx.x"
     local_thread = "compute_thread_id" if independent_waves else "fx.thread_idx.x"
     recording = f"""
     # Extra test-only storage follows the production partial workspace.
@@ -72,6 +72,8 @@ def check(module, config):
         "GROUP_M": "group_m",
         "SPLIT_K": "split_k",
         "WAVE_GROUPS": "wave_groups",
+        "WAVE_GROUPS_M": "wave_groups_m",
+        "WAVE_GROUPS_N": "wave_groups_n",
         "SYNC_MODE": "sync_mode",
         "K_UNROLL": "k_unroll",
         "RIGHT_CACHE_MODIFIER": "right_cache_modifier",
@@ -105,15 +107,22 @@ def check(module, config):
     b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)
     a, b = a_cpu.cuda(), b_cpu.cuda()
     reference = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
-    width = min(config.group_m, tiles_m)
-    # Independent specification: rows sharing B's K slice are consecutive.
+    gm, gn = getattr(config, "wave_groups_m", 1), getattr(config, "wave_groups_n", 1)
+    physical_m, physical_n = tiles_m // gm, tiles_n // gn
+    width = min(config.group_m, physical_m)
+    # Independent specification: grouped physical blocks, then wave rows/columns.
     expected = torch.tensor(
         [
             (row, col, split, row * tiles_n + col)
-            for first_row in range(0, tiles_m, width)
-            for col in range(tiles_n)
+            for first_row in range(0, physical_m, width)
+            for physical_col in range(physical_n)
             for split in range(config.split_k)
-            for row in range(first_row, first_row + width)
+            for physical_row in range(first_row, first_row + width)
+            for wave_row in range(gm)
+            for wave_col in range(gn)
+            for row, col in [
+                (physical_row * gm + wave_row, physical_col * gn + wave_col)
+            ]
         ],
         dtype=torch.float32,
     )
@@ -148,12 +157,12 @@ def main():
             temp.flush()
             module = runpy.run_path(temp.name)
             supported = {field.name for field in fields(module["Config"])}
-            for group_m, split_k, wave_groups in (
-                (1, 2, 1),
-                (2, 1, 1),
-                (2, 2, 1),
-                (2, 4, 2),
-                (8, 2, 2),
+            for group_m, split_k, wave_groups_m, wave_groups_n in (
+                (1, 2, 1, 1),
+                (2, 1, 1, 1),
+                (2, 2, 1, 2),
+                (2, 4, 2, 1),
+                (8, 2, 2, 2),
             ):
                 kwargs = {
                     "block_m": 16,
@@ -164,8 +173,9 @@ def main():
                     "group_m": group_m,
                     "split_k": split_k,
                 }
-                if "wave_groups" in supported:
-                    kwargs["wave_groups"] = wave_groups
+                if "wave_groups_m" in supported:
+                    kwargs["wave_groups_m"] = wave_groups_m
+                    kwargs["wave_groups_n"] = wave_groups_n
                 if "k_unroll" in supported:
                     kwargs["k_unroll"] = 2
                 modes = (False, True) if "left_in_registers" in supported else (None,)

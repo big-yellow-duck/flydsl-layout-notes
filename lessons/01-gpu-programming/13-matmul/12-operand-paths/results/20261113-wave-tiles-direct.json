@@ -1,0 +1,1641 @@
+{
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-13T09:48:57.796971+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      1024,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "d1ec07d8cd2bd95c134180f0dd239d011a15604aeddc0d75776e63527b673930",
+    "source_sha256": {
+      "solution.py": "7deec53a3196d3bab6211a623a83e2cc57e350ca85b86054c4cc5049eee7b2bd",
+      "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+    }
+  },
+  "solution_sha256": "85d032ee3d4c91862c1d9d9435147bb83a82cc717c32393840128f6842406219",
+  "scope": "Locked lesson-12 tiles, split-K, operand route, cache and unroll; vary wave ownership only. Packing also changes barrier scope in the current kernel.",
+  "runs": [
+    {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "seed": 13,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "single_wave": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "packed_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 2,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "cooperating_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.11449205339886248,
+        "single_wave": 0.1133331039454788,
+        "packed_waves": 0.1142505498137325,
+        "cooperating_waves": 0.11292059789411724
+      },
+      "paired_ratios": {
+        "single_wave": [
+          1.0312113386696793,
+          0.9787663424809203,
+          0.9932552192735054,
+          0.986118876087446,
+          1.0102260452863023,
+          1.0151231036499233,
+          0.9846328626262919
+        ],
+        "packed_waves": [
+          1.015845482035815,
+          0.9670977345195475,
+          1.002732948040972,
+          0.9960624214597404,
+          1.0021138067652515,
+          0.9900421975261863,
+          0.990170389678568
+        ],
+        "cooperating_waves": [
+          1.0041337060717226,
+          0.9813845104078025,
+          0.995713780034043,
+          1.0586549776549574,
+          0.9927425305525862,
+          1.024875168232319,
+          0.9981840348615135
+        ]
+      },
+      "ratio_to_single_wave": 0.9932552192735054,
+      "ratio_to_packed_waves": 0.9960624214597404,
+      "ratio_to_cooperating_waves": 0.9981840348615135,
+      "samples_ms": {
+        "operand_paths": [
+          0.11125615565106273,
+          0.10841325274668634,
+          0.11243659537285566,
+          0.11571755167096853,
+          0.11449205339886248,
+          0.11756399762816727,
+          0.11488154996186495
+        ],
+        "single_wave": [
+          0.107888801721856,
+          0.11076520313508809,
+          0.11320010526105762,
+          0.11734645231626928,
+          0.1133331039454788,
+          0.1158125523943454,
+          0.11667450307868421
+        ],
+        "packed_waves": [
+          0.10952074662782252,
+          0.1121016510296613,
+          0.11213014950044453,
+          0.11617499985732138,
+          0.1142505498137325,
+          0.11874645133502781,
+          0.11602200102061033
+        ],
+        "cooperating_waves": [
+          0.11079814867116511,
+          0.11046970030292869,
+          0.11292059789411724,
+          0.10930619901046157,
+          0.11532905045896769,
+          0.11471055331639946,
+          0.11509055038914084
+        ]
+      },
+      "orders": [
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "single_wave",
+          "packed_waves"
+        ],
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "cooperating_waves",
+          "packed_waves",
+          "operand_paths",
+          "single_wave"
+        ],
+        [
+          "cooperating_waves",
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "single_wave",
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "seed": 29,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "single_wave": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "packed_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 2,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "cooperating_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.10985324624925852,
+        "single_wave": 0.11062920093536377,
+        "packed_waves": 0.1086007512640208,
+        "cooperating_waves": 0.11128564947284758
+      },
+      "paired_ratios": {
+        "single_wave": [
+          0.9676674803151654,
+          1.0032084685892082,
+          0.9733666784128963,
+          1.0140003875698629,
+          0.992931543989681,
+          0.9957641980880858,
+          1.0144989595988716
+        ],
+        "packed_waves": [
+          1.0025215936536527,
+          1.0273432583368822,
+          0.9984391771937745,
+          1.016614944835695,
+          0.9781989386545329,
+          1.0278580206173797,
+          0.9852516432786147
+        ],
+        "cooperating_waves": [
+          0.9728201367382042,
+          1.0113538627177314,
+          0.9930265012356895,
+          1.0116726072635378,
+          0.9760879717463005,
+          0.995283364038525,
+          0.9871285899810599
+        ]
+      },
+      "ratio_to_single_wave": 0.9957641980880858,
+      "ratio_to_packed_waves": 1.0025215936536527,
+      "ratio_to_cooperating_waves": 0.9930265012356895,
+      "samples_ms": {
+        "operand_paths": [
+          0.1083387469407171,
+          0.1109841512516141,
+          0.10843124473467469,
+          0.11059220414608717,
+          0.10900769848376513,
+          0.11131214560009539,
+          0.10985324624925852
+        ],
+        "single_wave": [
+          0.11195865226909518,
+          0.11062920093536377,
+          0.11139814741909504,
+          0.10906524839811027,
+          0.10978369973599911,
+          0.11178564745932817,
+          0.1082832517568022
+        ],
+        "packed_waves": [
+          0.1080662477761507,
+          0.10803025215864182,
+          0.1086007512640208,
+          0.10878475150093436,
+          0.11143714655190706,
+          0.10829525417648256,
+          0.11149765341542661
+        ],
+        "cooperating_waves": [
+          0.11136565008200705,
+          0.10973819880746305,
+          0.1091926998924464,
+          0.1093161990866065,
+          0.11167814955115318,
+          0.11183965252712369,
+          0.11128564947284758
+        ]
+      },
+      "orders": [
+        [
+          "cooperating_waves",
+          "packed_waves",
+          "single_wave",
+          "operand_paths"
+        ],
+        [
+          "cooperating_waves",
+          "single_wave",
+          "packed_waves",
+          "operand_paths"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "single_wave",
+          "cooperating_waves"
+        ],
+        [
+          "packed_waves",
+          "single_wave",
+          "cooperating_waves",
+          "operand_paths"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "cooperating_waves",
+          "single_wave"
+        ],
+        [
+          "operand_paths",
+          "packed_waves",
+          "single_wave",
+          "cooperating_waves"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "cooperating_waves",
+          "single_wave"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "seed": 47,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "single_wave": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "packed_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 2,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "cooperating_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.10804025223478675,
+        "single_wave": 0.10903124930337071,
+        "packed_waves": 0.10762580204755068,
+        "cooperating_waves": 0.10847774683497846
+      },
+      "paired_ratios": {
+        "single_wave": [
+          0.9756099374191398,
+          0.9973707051807448,
+          0.9730494624381507,
+          0.984257491876067,
+          1.0036596653936785,
+          1.0136460966624044,
+          0.9902901414307824
+        ],
+        "packed_waves": [
+          0.9937666558417485,
+          0.996800785557624,
+          0.985756170966619,
+          1.0036825839364325,
+          0.994655724859617,
+          1.0169175895524734,
+          1.0047397533611184
+        ],
+        "cooperating_waves": [
+          0.9847577608862841,
+          1.0160175884294391,
+          0.9778071001700296,
+          0.9910488838068214,
+          0.9962704484189447,
+          0.9874758255078885,
+          0.9393415750373031
+        ]
+      },
+      "ratio_to_single_wave": 0.9902901414307824,
+      "ratio_to_packed_waves": 0.996800785557624,
+      "ratio_to_cooperating_waves": 0.9874758255078885,
+      "samples_ms": {
+        "operand_paths": [
+          0.10617880034260452,
+          0.10998669895343482,
+          0.10609279852360487,
+          0.10750674991868436,
+          0.10804025223478675,
+          0.10900369961746037,
+          0.10831124964170158
+        ],
+        "single_wave": [
+          0.10883325012400746,
+          0.11027664877474308,
+          0.10903124930337071,
+          0.10922624496743083,
+          0.1076463027857244,
+          0.10753624956123531,
+          0.10937324841506779
+        ],
+        "packed_waves": [
+          0.10684480075724423,
+          0.11033969931304455,
+          0.10762580204755068,
+          0.10711229988373816,
+          0.10862075141631067,
+          0.1071902981493622,
+          0.10780030279420316
+        ],
+        "cooperating_waves": [
+          0.10782225290313363,
+          0.10825275094248354,
+          0.10850074468180537,
+          0.10847774683497846,
+          0.10844470234587789,
+          0.11038619559258223,
+          0.1153054996393621
+        ]
+      },
+      "orders": [
+        [
+          "cooperating_waves",
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "operand_paths",
+          "single_wave",
+          "packed_waves",
+          "cooperating_waves"
+        ],
+        [
+          "operand_paths",
+          "single_wave",
+          "cooperating_waves",
+          "packed_waves"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves",
+          "cooperating_waves"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves",
+          "cooperating_waves"
+        ],
+        [
+          "packed_waves",
+          "single_wave",
+          "cooperating_waves",
+          "operand_paths"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves",
+          "cooperating_waves"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "seed": 13,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "single_wave": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "packed_waves": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 2,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "cooperating_waves": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.10858324822038412,
+        "single_wave": 0.1099211978726089,
+        "packed_waves": 0.10974470060318708,
+        "cooperating_waves": 0.10876774904318154
+      },
+      "paired_ratios": {
+        "single_wave": [
+          0.9890968205621445,
+          0.9691679007564782,
+          0.9788749613068866,
+          0.995818468936555,
+          0.9867206588212054,
+          0.9752514229002075,
+          1.0042913272804805
+        ],
+        "packed_waves": [
+          0.9894167793395098,
+          0.9804174766388671,
+          0.9581679096144037,
+          0.986916005935654,
+          0.9927452363175595,
+          0.9887070150095698,
+          1.0094278208916387
+        ],
+        "cooperating_waves": [
+          0.9797089085296173,
+          0.9911549121371697,
+          0.9982675494271755,
+          0.9668242115611535,
+          1.0008178246602553,
+          0.9879279616114254,
+          1.0097403036113721
+        ]
+      },
+      "ratio_to_single_wave": 0.9867206588212054,
+      "ratio_to_packed_waves": 0.9887070150095698,
+      "ratio_to_cooperating_waves": 0.9911549121371697,
+      "samples_ms": {
+        "operand_paths": [
+          0.10858324822038412,
+          0.10561429662629962,
+          0.10775474947877228,
+          0.10884419898502529,
+          0.1088567019905895,
+          0.10720080463215709,
+          0.11091764899902046
+        ],
+        "single_wave": [
+          0.10978020145557821,
+          0.10897419997490942,
+          0.11008019791916013,
+          0.10930124553851783,
+          0.1103217015042901,
+          0.1099211978726089,
+          0.11044369894079864
+        ],
+        "packed_waves": [
+          0.10974470060318708,
+          0.10772380046546459,
+          0.11245915084145963,
+          0.1102871960029006,
+          0.1096522028092295,
+          0.1084252493456006,
+          0.10988170397467911
+        ],
+        "cooperating_waves": [
+          0.11083215358667076,
+          0.10655680089257658,
+          0.10794175323098898,
+          0.11257909936830401,
+          0.10876774904318154,
+          0.1085107505787164,
+          0.10984769905917346
+        ]
+      },
+      "orders": [
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "single_wave",
+          "packed_waves"
+        ],
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "cooperating_waves",
+          "packed_waves",
+          "operand_paths",
+          "single_wave"
+        ],
+        [
+          "cooperating_waves",
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "single_wave",
+          "cooperating_waves",
+          "operand_paths",
+          "packed_waves"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "seed": 29,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "single_wave": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "packed_waves": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 2,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "cooperating_waves": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.10950574651360512,
+        "single_wave": 0.10884875082410872,
+        "packed_waves": 0.10933419689536095,
+        "cooperating_waves": 0.10993669857271016
+      },
+      "paired_ratios": {
+        "single_wave": [
+          1.0124326242577295,
+          1.001120147939065,
+          1.00715589795044,
+          1.020358922753184,
+          0.9863416759763158,
+          0.9837136982354808,
+          0.9943458509493519
+        ],
+        "packed_waves": [
+          1.00918411979334,
+          1.0131930348127332,
+          1.0007452017893568,
+          1.0194219199686871,
+          0.9883161840030801,
+          0.9912645719674306,
+          0.9922582962168243
+        ],
+        "cooperating_waves": [
+          1.001473607666572,
+          0.9965679111580066,
+          1.0245739452352078,
+          1.023388820535532,
+          0.9774223411463131,
+          0.9916406983800089,
+          0.9694663314211828
+        ]
+      },
+      "ratio_to_single_wave": 1.001120147939065,
+      "ratio_to_packed_waves": 1.0007452017893568,
+      "ratio_to_cooperating_waves": 0.9965679111580066,
+      "samples_ms": {
+        "operand_paths": [
+          0.11009870213456452,
+          0.11077664676122367,
+          0.10950574651360512,
+          0.11045614955946803,
+          0.10933069861494005,
+          0.10847775265574455,
+          0.10823330376297235
+        ],
+        "single_wave": [
+          0.10874669533222914,
+          0.11065269936807454,
+          0.10872770217247307,
+          0.10825225035659969,
+          0.11084465077146888,
+          0.11027370346710086,
+          0.10884875082410872
+        ],
+        "packed_waves": [
+          0.10909674456343055,
+          0.10933419689536095,
+          0.10942420340143144,
+          0.10835175053216517,
+          0.11062319972552359,
+          0.10943370289169252,
+          0.10907775140367448
+        ],
+        "cooperating_waves": [
+          0.10993669857271016,
+          0.11115815141238272,
+          0.10687930043786764,
+          0.10793175315484405,
+          0.11185614857822657,
+          0.10939219500869513,
+          0.1116421481128782
+        ]
+      },
+      "orders": [
+        [
+          "cooperating_waves",
+          "packed_waves",
+          "single_wave",
+          "operand_paths"
+        ],
+        [
+          "cooperating_waves",
+          "single_wave",
+          "packed_waves",
+          "operand_paths"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "single_wave",
+          "cooperating_waves"
+        ],
+        [
+          "packed_waves",
+          "single_wave",
+          "cooperating_waves",
+          "operand_paths"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "cooperating_waves",
+          "single_wave"
+        ],
+        [
+          "operand_paths",
+          "packed_waves",
+          "single_wave",
+          "cooperating_waves"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "cooperating_waves",
+          "single_wave"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "seed": 47,
+      "excluded_configurations": {},
+      "configurations": {
+        "operand_paths": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "single_wave": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "packed_waves": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 2,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        },
+        "cooperating_waves": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 32,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups": 1,
+          "k_unroll": 8,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": true
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.10802475153468549,
+        "single_wave": 0.10958120110444725,
+        "packed_waves": 0.10927519761025906,
+        "cooperating_waves": 0.10905719827860594
+      },
+      "paired_ratios": {
+        "single_wave": [
+          0.9853028002778002,
+          0.9855637526841998,
+          0.9809623589978116,
+          0.9802803657746743,
+          0.9795469163507514,
+          0.9822837450063993,
+          1.004067165852533
+        ],
+        "packed_waves": [
+          0.944430650996786,
+          0.9890324261512052,
+          0.9885569085856664,
+          0.9837946821033083,
+          0.9869107904377029,
+          0.9864098826157757,
+          1.0125717594905048
+        ],
+        "cooperating_waves": [
+          0.9595794896369954,
+          0.9777009073723628,
+          0.9932967960610909,
+          0.9556022448125733,
+          0.9944727413702651,
+          0.9982267145762764,
+          1.0073356026328941
+        ]
+      },
+      "ratio_to_single_wave": 0.9822837450063993,
+      "ratio_to_packed_waves": 0.9869107904377029,
+      "ratio_to_cooperating_waves": 0.9932967960610909,
+      "samples_ms": {
+        "operand_paths": [
+          0.10723075247369707,
+          0.1078977482393384,
+          0.10802475153468549,
+          0.10742029990069568,
+          0.10804274934343994,
+          0.10836225119419396,
+          0.10985719854943454
+        ],
+        "single_wave": [
+          0.10883025242947042,
+          0.10947820264846087,
+          0.11012119939550757,
+          0.10958120110444725,
+          0.1102986978366971,
+          0.11031664907932281,
+          0.10941220098175108
+        ],
+        "packed_waves": [
+          0.11354010202921927,
+          0.10909424745477736,
+          0.10927519761025906,
+          0.10918975458480418,
+          0.10947569971904159,
+          0.10985519620589912,
+          0.10849324753507972
+        ],
+        "cooperating_waves": [
+          0.11174764949828386,
+          0.11035864590667188,
+          0.10875375010073185,
+          0.11241110041737556,
+          0.10864324867725372,
+          0.10855474974960089,
+          0.10905719827860594
+        ]
+      },
+      "orders": [
+        [
+          "cooperating_waves",
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "operand_paths",
+          "single_wave",
+          "packed_waves",
+          "cooperating_waves"
+        ],
+        [
+          "operand_paths",
+          "single_wave",
+          "cooperating_waves",
+          "packed_waves"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves",
+          "cooperating_waves"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves",
+          "cooperating_waves"
+        ],
+        [
+          "packed_waves",
+          "single_wave",
+          "cooperating_waves",
+          "operand_paths"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves",
+          "cooperating_waves"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "seed": 13,
+      "excluded_configurations": {
+        "cooperating_waves": "Every cooperative staging thread must own complete chunks"
+      },
+      "configurations": {
+        "operand_paths": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        },
+        "single_wave": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        },
+        "packed_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.2823105489369482,
+        "single_wave": 0.29157575336284935,
+        "packed_waves": 0.2818150504026562
+      },
+      "paired_ratios": {
+        "single_wave": [
+          0.9799258951459121,
+          0.983557860108862,
+          0.9681791023788011,
+          0.9804402308360703,
+          0.9564787815385724,
+          0.9608959723263001,
+          0.9704803437772238
+        ],
+        "packed_waves": [
+          1.0041217279466492,
+          1.0068261787984856,
+          1.0017121185079385,
+          1.0142691178480663,
+          0.9736660808438685,
+          0.9894060597928291,
+          1.006856381178705
+        ]
+      },
+      "ratio_to_single_wave": 0.9704803437772238,
+      "ratio_to_packed_waves": 1.0041217279466492,
+      "samples_ms": {
+        "operand_paths": [
+          0.2894168486818671,
+          0.2904108026996255,
+          0.2822975511662662,
+          0.2858073974493891,
+          0.2812895516399294,
+          0.27863465365953743,
+          0.2823105489369482
+        ],
+        "single_wave": [
+          0.29534564819186926,
+          0.29526560101658106,
+          0.29157575336284935,
+          0.2915092511102557,
+          0.29408864793367684,
+          0.28997379704378545,
+          0.2908977505285293
+        ],
+        "packed_waves": [
+          0.2882288477849215,
+          0.2884418470785022,
+          0.2818150504026562,
+          0.28178655193187296,
+          0.2888973511289805,
+          0.2816180989611894,
+          0.2803881012368947
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "single_wave",
+          "packed_waves",
+          "operand_paths"
+        ],
+        [
+          "single_wave",
+          "packed_waves",
+          "operand_paths"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "seed": 29,
+      "excluded_configurations": {
+        "cooperating_waves": "Every cooperative staging thread must own complete chunks"
+      },
+      "configurations": {
+        "operand_paths": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        },
+        "single_wave": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        },
+        "packed_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.2823285467457026,
+        "single_wave": 0.2912012510932982,
+        "packed_waves": 0.28179355431348085
+      },
+      "paired_ratios": {
+        "single_wave": [
+          0.9769495458744458,
+          0.96971216585276,
+          0.970548009616663,
+          0.9733311322282208,
+          0.9514643133586551,
+          0.9648420422300358,
+          0.9582570310534538
+        ],
+        "packed_waves": [
+          1.003467722785433,
+          0.9952868632375497,
+          1.007714674474576,
+          1.0095565842402128,
+          0.9755711853251922,
+          1.0028485908176534,
+          0.9983792160121279
+        ]
+      },
+      "ratio_to_single_wave": 0.96971216585276,
+      "ratio_to_packed_waves": 1.0028485908176534,
+      "samples_ms": {
+        "operand_paths": [
+          0.2841509529389441,
+          0.2823285467457026,
+          0.2839674998540431,
+          0.28426695498637855,
+          0.2788220997899771,
+          0.2807616023346782,
+          0.27904564631171525
+        ],
+        "single_wave": [
+          0.2908552996814251,
+          0.2911467512603849,
+          0.29258470167405903,
+          0.2920557511970401,
+          0.29304525232873857,
+          0.29099229723215103,
+          0.2912012510932982
+        ],
+        "packed_waves": [
+          0.2831690013408661,
+          0.2836655010469258,
+          0.28179355431348085,
+          0.2815760497469455,
+          0.285803951555863,
+          0.27996409917250276,
+          0.2794986532535404
+        ]
+      },
+      "orders": [
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ],
+        [
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "packed_waves",
+          "single_wave",
+          "operand_paths"
+        ],
+        [
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "single_wave",
+          "packed_waves",
+          "operand_paths"
+        ],
+        [
+          "packed_waves",
+          "single_wave",
+          "operand_paths"
+        ],
+        [
+          "single_wave",
+          "operand_paths",
+          "packed_waves"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "seed": 47,
+      "excluded_configurations": {
+        "cooperating_waves": "Every cooperative staging thread must own complete chunks"
+      },
+      "configurations": {
+        "operand_paths": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        },
+        "single_wave": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 1,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        },
+        "packed_waves": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 16,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 1,
+          "wave_groups": 2,
+          "k_unroll": 4,
+          "right_cache_modifier": 2,
+          "left_cache_modifier": 0,
+          "left_in_registers": false
+        }
+      },
+      "median_ms": {
+        "operand_paths": 0.2827120537403971,
+        "single_wave": 0.29078329680487514,
+        "packed_waves": 0.28286100132390857
+      },
+      "paired_ratios": {
+        "single_wave": [
+          0.9758874198201666,
+          0.9691205507634542,
+          0.9678634567892473,
+          0.9728201955852952,
+          0.9691569616697002,
+          0.967079952527867,
+          0.9694299945612346
+        ],
+        "packed_waves": [
+          1.002041644073534,
+          0.9994674701048777,
+          0.9985143147107194,
+          1.0014968771139854,
+          1.0058512768156875,
+          1.0039333998603157,
+          0.9960920446170974
+        ]
+      },
+      "ratio_to_single_wave": 0.9691569616697002,
+      "ratio_to_packed_waves": 1.0014968771139854,
+      "samples_ms": {
+        "operand_paths": [
+          0.28343850281089544,
+          0.2834054990671575,
+          0.2826125011779368,
+          0.2827120537403971,
+          0.2838119980879128,
+          0.2807450538966805,
+          0.28189404984004796
+        ],
+        "single_wave": [
+          0.290441804099828,
+          0.29243575409054756,
+          0.29199625132605433,
+          0.2906107984017581,
+          0.29284420306794345,
+          0.29030180303379893,
+          0.29078329680487514
+        ],
+        "packed_waves": [
+          0.28286100132390857,
+          0.2835565013810992,
+          0.2830329991411418,
+          0.28228950104676187,
+          0.2821609959937632,
+          0.2796450979076326,
+          0.2830000012181699
+        ]
+      },
+      "orders": [
+        [
+          "packed_waves",
+          "operand_paths",
+          "single_wave"
+        ],
+        [
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "operand_paths",
+          "single_wave",
+          "packed_waves"
+        ],
+        [
+          "operand_paths",
+          "packed_waves",
+          "single_wave"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "single_wave"
+        ],
+        [
+          "packed_waves",
+          "operand_paths",
+          "single_wave"
+        ],
+        [
+          "single_wave",
+          "packed_waves",
+          "operand_paths"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 20,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    }
+  ]
+}

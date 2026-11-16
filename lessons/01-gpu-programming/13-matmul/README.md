@@ -97,7 +97,9 @@ After 09, follow **10 → 10a → 10b → 10c → 12**. [10](10-wave-local-tiles
 
 [12](12-operand-paths/README.md) then derives direct global-to-register A copies from WMMA ownership, preserving B's coalesced staging path. It compares against tuned 10c and same-geometry prefetch on all three skinny workloads. Every wave loads and computes, and each GEMM remains one kernel.
 
-The [original combined experiment](../../../experiments/wave-local-prefetch/README.md) preserves the profiling/search evidence that motivated these steps. Its native builder is retained in 10c. [Dedicated loader waves and semaphore handoffs](../../../experiments/wave-specialization/README.md) remain research; [12 explains why prefetch was retained](12-operand-paths/README.md#why-the-course-keeps-prefetch). Neither is a main-path prerequisite. Stage numbering is preserved, so the path skips 11.
+The [original combined experiment](../../../experiments/wave-local-prefetch/README.md) preserves the profiling/search evidence that motivated these steps. Its prefetched arithmetic continues in 10c with the explicit 2D physical-block/wave views introduced in 10. [Dedicated loader waves and semaphore handoffs](../../../experiments/wave-specialization/README.md) remain research; [12 explains why prefetch was retained](12-operand-paths/README.md#why-the-course-keeps-prefetch). Neither is a main-path prerequisite. Stage numbering is preserved, so the path skips 11.
+
+The [2D wave-group sweep](10-wave-local-tiles/results/20261116-2d-wave-groups/README.md) covers all four `(1..2,1..2)` arrangements through lesson 12, with physical block views sliced into private wave tiles and `group_m` ordering physical block rows.
 
 ## Scope and next experiments
 

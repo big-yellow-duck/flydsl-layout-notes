@@ -75,3 +75,5 @@ Stages 10–10c each include one SVG/PNG pair: `wave-tiles`, `synchronization-sc
 The original combined-wave and specialized-wave figures live with their [research archives](../experiments/README.md), outside the main course assets. Their generators are in the corresponding experiment directories.
 
 Stage 12 includes `operand-paths` and `operand-trace` SVG/PNG pairs. They show the private A register path, coalesced B staging through LDS, and exact global/LDS element offsets for native compute thread 3. Regenerate with `python3 tools/draw_operand_paths.py`; `ownership.py` checks every illustrated ownership mapping.
+
+Stage 10 also includes `wave-grid-2d.svg` and its PNG: a 32×128 physical output region is sliced into four independent 16×64 wave tiles. Regenerate with `python3 tools/draw_wave_tiles.py` or the skinny-lesson generator.

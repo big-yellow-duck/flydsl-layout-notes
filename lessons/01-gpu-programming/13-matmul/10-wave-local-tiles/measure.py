@@ -16,11 +16,21 @@ COURSE = Path(__file__).resolve().parent.parent
 COMMON = runpy.run_path(str(COURSE / "09-split-k/tune.py"))
 
 
-def variants(module, config, stage):
+def variants(module, config, stage, shape=(16, 4096, 8192)):
     if stage == "10":
-        if config.wave_groups == 1:
+        if config.compute_threads != 32:
             return {}
-        return {"single_wave_blocks": replace(config, wave_groups=1)}
+        choices = {}
+        for gm in (1, 2):
+            for gn in (1, 2):
+                candidate = replace(config, wave_groups_m=gm, wave_groups_n=gn)
+                try:
+                    module["validate_config"](candidate, shape)
+                except ValueError:
+                    continue
+                if candidate != config:
+                    choices[f"groups_{gm}x{gn}"] = candidate
+        return choices
     if stage == "10a":
         return {
             mode: replace(config, sync_mode=mode)
@@ -72,7 +82,7 @@ def compare(
     data = COMMON["inputs"](seed)
     trace = COMMON["inputs"](0, True)
     launcher = matmul or module["matmul_bf16"]
-    configs = {"stage": config, **variants(module, config, stage)}
+    configs = {"stage": config, **variants(module, config, stage, shape)}
     launches = {
         name: partial(launcher, config=choice) for name, choice in configs.items()
     }

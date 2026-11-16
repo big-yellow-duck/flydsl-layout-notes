@@ -2,7 +2,7 @@
 
 Loop unrolling exposes several consecutive K iterations to the compiler. It can reduce loop overhead and change instruction scheduling and register lifetimes. This lesson varies `k_unroll` while retaining [10b's B cache policy](../10b-cache-policy/README.md), independent-wave mapping, and LDS-only handoffs. It keeps one current LDS tile and one logical next-tile staging fragment.
 
-The launch retains [09's grouped split-K traversal](../09-split-k/README.md#1-assign-each-block-an-output-tile-and-a-k-partition): row within M group first, then K split, tile column, and M group. The layout decodes `logical_block_id` after independent-wave assignment. Workspace tile IDs remain row-major and independent of launch order. The locked skinny configurations use `group_m=1`; the same mapping supports complete larger M groups.
+The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). A physical block owns `BLOCK_M*WAVE_GROUPS_M` rows and `BLOCK_N*WAVE_GROUPS_N` columns. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
 ## Count pipeline steps before unrolling
 
@@ -53,7 +53,7 @@ For the 16×64×16 one-wave tile, B staging remains `16*64/32=32` BF16 values pe
 
 The compiler sees a longer instruction region and may overlap lifetimes or choose different scheduling. Physical VGPR use can therefore change. Count it in the generated resource report; multiplying eight BF16 values per copy instruction by the unroll factor does not predict register allocation. The inspector reports logical staging size, VGPR count, LDS bytes, and scratch separately.
 
-The default wide selection uses unroll 4. Both narrow selections use unroll 2. The native builder is preserved from the [original combined prefetch experiment](../../../../experiments/wave-local-prefetch/README.md); lessons 10–10b expose its earlier decisions separately. This makes 10c the tuned prefetch control for [operand paths](../12-operand-paths/README.md).
+The default wide selection uses unroll 4. Both narrow selections use unroll 2. The prefetched arithmetic follows the [original combined experiment](../../../../experiments/wave-local-prefetch/README.md), with the explicit 2D block/wave mapping introduced in lesson 10; lessons 10–10b expose its earlier decisions separately. This makes 10c the tuned prefetch control for [operand paths](../12-operand-paths/README.md).
 
 The benchmark compares factors 1,2,4,8 with all other parameters fixed. The config also accepts 16 for further exploration. No performance assertion is part of correctness.
 
@@ -92,6 +92,6 @@ pixi run gpu-check
 
 The unfinished starter reports `Practice not finished:`; the [worked solution](solution.py) reports `Exercise passed:` before its controlled timing table. Add `--shape 32 1024 8192` to select a narrow workload. Benchmarks use validated 32-node graph replay and synchronized host timing; `--timing direct-host` measures ordinary dispatch separately. Use fresh output paths for instruction captures.
 
-See the [focused sequence's validation and controlled measurements](../10c-k-unrolling/results/README.md). These are gfx1151 observations with FlyDSL 0.4.1, not a guaranteed speedup on every shape or GPU.
+See the [2D wave-group sweep](../10-wave-local-tiles/results/20261116-2d-wave-groups/README.md) and the [focused sequence's historical validation and controlled measurements](../10c-k-unrolling/results/README.md). These are gfx1151 observations with FlyDSL 0.4.1, not a guaranteed speedup on every shape or GPU.
 
 [Previous: B cache policy](../10b-cache-policy/README.md) · [Matmul series](../README.md) · [Next: operand-specific paths](../12-operand-paths/README.md)

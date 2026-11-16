@@ -24,13 +24,26 @@ class Config:
     waves_n: int = 2
     group_m: int = 1
     split_k: int = 4
-    wave_groups: int = 1
+    wave_groups_m: int = 1
+    wave_groups_n: int = 1
     k_unroll: int = 1
     right_cache_modifier: int = 0
 
     @property
     def name(self):
-        return f"10c_m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_sk{self.split_k}_wg{self.wave_groups}_u{self.k_unroll}_bc{self.right_cache_modifier}"
+        return f"10c_m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_sk{self.split_k}_wg{self.wave_groups_m}x{self.wave_groups_n}_u{self.k_unroll}_bc{self.right_cache_modifier}"
+
+    @property
+    def wave_groups(self):
+        return self.wave_groups_m * self.wave_groups_n
+
+    @classmethod
+    def from_dict(cls, values):
+        """Read current configurations and archived scalar N-group selections."""
+        values = dict(values)
+        if "wave_groups" in values:
+            values["wave_groups_n"] = values.pop("wave_groups")
+        return cls(**values)
 
     @property
     def compute_threads(self):
@@ -77,17 +90,22 @@ def validate_config(config, shape=(16, 1024, 8192)):
         raise ValueError("Use one, two, four, or eight wave32 groups")
     if bm % (16 * config.waves_m) or bn % (16 * config.waves_n) or bk % 16:
         raise ValueError("Block tile must contain whole WMMA groups and K fragments")
-    if config.wave_groups not in (1, 2, 4, 8):
-        raise ValueError("wave_groups must be 1, 2, 4, or 8")
+    if any(
+        value not in (1, 2) for value in (config.wave_groups_m, config.wave_groups_n)
+    ):
+        raise ValueError("Each wave-group dimension must be 1 or 2")
     if config.wave_groups > 1 and config.compute_threads != 32:
         raise ValueError("Independent groups each contain exactly one wave32")
     if config.k_unroll not in (1, 2, 4, 8, 16):
         raise ValueError("k_unroll must be 1, 2, 4, 8, or 16")
     if config.right_cache_modifier not in (0, 2):
         raise ValueError("Use the measured gfx11 B cache modifiers 0 or 2")
-    logical_blocks = (shape[0] // bm) * (shape[1] // bn) * config.split_k
-    if logical_blocks % config.wave_groups:
-        raise ValueError("Logical blocks must form complete independent wave groups")
+    physical_m = bm * config.wave_groups_m
+    physical_n = bn * config.wave_groups_n
+    if shape[1] % physical_n:
+        raise ValueError("N must contain complete physical block tiles")
+    if shape[0] % physical_m:
+        raise ValueError("M must contain complete physical block tiles")
     for rows, columns in ((bm, bk), (bk, bn)):
         chunks = columns // 8
         if (
@@ -102,23 +120,12 @@ def validate_config(config, shape=(16, 1024, 8192)):
             )
     if config.group_m < 1:
         raise ValueError("group_m must be positive")
-    tile_rows = shape[0] // bm
+    tile_rows = shape[0] // physical_m
     if tile_rows % min(config.group_m, tile_rows):
-        raise ValueError("group_m must form complete output tile row groups")
+        raise ValueError("group_m must form complete physical block row groups")
     if config.lds_bytes > 65536:
         raise ValueError("LDS allocation exceeds this lesson's 64 KiB limit")
     return config
-
-
-@lru_cache(None)
-def _shared_storage_type(BLOCK_M, BLOCK_N, BLOCK_K, WAVE_GROUPS):
-    @fx.struct
-    class SharedStorage:
-        # Retain stage 06's measured padded A layout and packed B layout.
-        left: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_M * (BLOCK_K + 8), 16]
-        right: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_K * BLOCK_N, 16]
-
-    return SharedStorage
 
 
 @flyc.kernel
@@ -137,18 +144,21 @@ def _matmul_bf16(
     BLOCK_K: fx.Constexpr,
     WAVES_M: fx.Constexpr,
     WAVES_N: fx.Constexpr,
-    WAVE_GROUPS: fx.Constexpr,
+    WAVE_GROUPS_M: fx.Constexpr,
+    WAVE_GROUPS_N: fx.Constexpr,
     K_UNROLL: fx.Constexpr,
     RIGHT_CACHE_MODIFIER: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
 ):
     MMA_M, MMA_N, MMA_K = 16, 16, 16
+    WAVE_GROUPS = WAVE_GROUPS_M * WAVE_GROUPS_N
+    PHYSICAL_M = BLOCK_M * WAVE_GROUPS_M
+    PHYSICAL_N = BLOCK_N * WAVE_GROUPS_N
     THREADS_PER_GROUP = 32 * WAVES_M * WAVES_N
-    SharedStorage = _shared_storage_type(BLOCK_M, BLOCK_N, BLOCK_K, WAVE_GROUPS)
     wave_group = fx.thread_idx.x // THREADS_PER_GROUP
     compute_thread_id = fx.thread_idx.x % THREADS_PER_GROUP
-    logical_block_id = fx.block_idx.x * WAVE_GROUPS + wave_group
+    launch_coordinate = fx.block_idx.x * WAVE_GROUPS + wave_group
     lds_address_spaces = ir.ArrayAttr.get(
         [ir.Attribute.parse("#gpu.address_space<workgroup>")]
     )
@@ -176,52 +186,85 @@ def _matmul_bf16(
         fx.get_iter(out_buffer),
         fx.make_layout((m, n), (n, 1)),
     )
-    # Keep the grouped strategy; express block selection with native layouts.
-    tiles_m = m // BLOCK_M
-    tiles_n = n // BLOCK_N
-    # Visit neighboring M tiles at the same K split before advancing splits.
-    group_width = min(GROUP_M, tiles_m)
+    # Decode wave coordinates inside the physical block, then grouped block order.
+    physical_tiles_m = m // PHYSICAL_M
+    physical_tiles_n = n // PHYSICAL_N
+    tiles_m = physical_tiles_m * WAVE_GROUPS_M
+    tiles_n = physical_tiles_n * WAVE_GROUPS_N
+    group_width = min(GROUP_M, physical_tiles_m)
     split_block_layout = fx.make_layout(
-        (group_width, SPLIT_K, tiles_n, tiles_m // group_width),
         (
-            1,
+            WAVE_GROUPS_M,
+            WAVE_GROUPS_N,
             group_width,
-            group_width * SPLIT_K,
-            group_width * SPLIT_K * tiles_n,
+            SPLIT_K,
+            physical_tiles_n,
+            physical_tiles_m // group_width,
+        ),
+        (
+            WAVE_GROUPS_N,
+            1,
+            WAVE_GROUPS,
+            WAVE_GROUPS * group_width,
+            WAVE_GROUPS * group_width * SPLIT_K,
+            WAVE_GROUPS * group_width * SPLIT_K * physical_tiles_n,
         ),
     )
-    split_block_coords = fx.idx2crd(logical_block_id, split_block_layout)
-    row_in_group = fx.get_scalar(split_block_coords[0])
-    split_id = fx.get_scalar(split_block_coords[1])
-    block_col = fx.get_scalar(split_block_coords[2])
-    group_id = fx.get_scalar(split_block_coords[3])
-    block_row = row_in_group + group_id * group_width
+    split_block_coords = fx.idx2crd(launch_coordinate, split_block_layout)
+    wave_row = fx.get_scalar(split_block_coords[0])
+    wave_col = fx.get_scalar(split_block_coords[1])
+    row_in_group = fx.get_scalar(split_block_coords[2])
+    split_id = fx.get_scalar(split_block_coords[3])
+    physical_block_col = fx.get_scalar(split_block_coords[4])
+    group_id = fx.get_scalar(split_block_coords[5])
+    physical_block_row = row_in_group + group_id * group_width
+    block_row = physical_block_row * WAVE_GROUPS_M + wave_row
+    block_col = physical_block_col * WAVE_GROUPS_N + wave_col
     # Workspace IDs follow output coordinates independently of launch order.
     output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
     flat_block_id = fx.get_scalar(
         fx.crd2idx((block_row, block_col), output_tile_layout)
     )
 
-    # 2. Group neighboring blocks along M to share B tiles in cache.
+    # 2. Select the physical C region, then each wave tile; A/B use wave coordinates.
     left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
     right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
-    out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
-    out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+    out_tiled_view = fx.flat_divide(out_global_view, (PHYSICAL_M, PHYSICAL_N))
+    out_block_view = fx.slice(
+        out_tiled_view, (None, None, physical_block_row, physical_block_col)
+    )
+    out_wave_tiles = fx.flat_divide(out_block_view, (BLOCK_M, BLOCK_N))
+    out_wave_view = fx.slice(out_wave_tiles, (None, None, wave_row, wave_col))
 
     # 3. Keep one padded A tile and one packed B tile in LDS.
-    lds = fx.SharedAllocator().allocate(SharedStorage).peek()
-    left_lds_view = lds.left.view(fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1)))
-    right_lds_view = lds.right.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))
+    @fx.struct
+    class SharedStorage:
+        # Retain stage 06's measured padded A layout and packed B layout.
+        left: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_M * (BLOCK_K + 8), 16]
+        right: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_K * BLOCK_N, 16]
 
-    # Each independent group has disjoint LDS storage for its own tile.
-    left_lds_view = fx.make_view(
-        fx.get_iter(left_lds_view) + wave_group * BLOCK_M * (BLOCK_K + 8),
-        left_lds_view.layout,
+    lds = fx.SharedAllocator().allocate(SharedStorage).peek()
+    left_lds_all = lds.left.view(
+        fx.make_layout(
+            (WAVE_GROUPS_M, WAVE_GROUPS_N, BLOCK_M, BLOCK_K),
+            (
+                WAVE_GROUPS_N * BLOCK_M * (BLOCK_K + 8),
+                BLOCK_M * (BLOCK_K + 8),
+                BLOCK_K + 8,
+                1,
+            ),
+        )
     )
-    right_lds_view = fx.make_view(
-        fx.get_iter(right_lds_view) + wave_group * BLOCK_K * BLOCK_N,
-        right_lds_view.layout,
+    right_lds_all = lds.right.view(
+        fx.make_layout(
+            (WAVE_GROUPS_M, WAVE_GROUPS_N, BLOCK_K, BLOCK_N),
+            (WAVE_GROUPS_N * BLOCK_K * BLOCK_N, BLOCK_K * BLOCK_N, BLOCK_N, 1),
+        )
     )
+
+    # Slice both group axes to select this group's disjoint LDS tiles.
+    left_lds_view = fx.slice(left_lds_all, (wave_row, wave_col, None, None))
+    right_lds_view = fx.slice(right_lds_all, (wave_row, wave_col, None, None))
 
     # 4. Derive each operand's staging geometry from its contiguous extent.
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
@@ -279,7 +322,7 @@ def _matmul_bf16(
     )
 
     thread_mma = mma.thr_slice(compute_thread_id)
-    accumulator = thread_mma.make_fragment_C(out_block_view)
+    accumulator = thread_mma.make_fragment_C(out_wave_view)
     ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
     accumulator.fill(0)
 
@@ -369,7 +412,7 @@ def _matmul_bf16(
         reg2gmem_copy_plan = fx.make_tiled_copy_C(gmem_store_16b, mma)
         reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(compute_thread_id)
         reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
-        reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
+        reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_wave_view)
         fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
 
     if SPLIT_K == 1:
@@ -444,12 +487,16 @@ def _launch_matmul_bf16(
     BLOCK_K: fx.Constexpr,
     WAVES_M: fx.Constexpr,
     WAVES_N: fx.Constexpr,
-    WAVE_GROUPS: fx.Constexpr,
+    WAVE_GROUPS_M: fx.Constexpr,
+    WAVE_GROUPS_N: fx.Constexpr,
     K_UNROLL: fx.Constexpr,
     RIGHT_CACHE_MODIFIER: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
 ):
+    WAVE_GROUPS = WAVE_GROUPS_M * WAVE_GROUPS_N
+    PHYSICAL_M = BLOCK_M * WAVE_GROUPS_M
+    PHYSICAL_N = BLOCK_N * WAVE_GROUPS_N
     THREADS_PER_GROUP = 32 * WAVES_M * WAVES_N
     THREADS_PER_BLOCK = THREADS_PER_GROUP * WAVE_GROUPS
     _matmul_bf16(
@@ -466,13 +513,14 @@ def _launch_matmul_bf16(
         BLOCK_K=BLOCK_K,
         WAVES_M=WAVES_M,
         WAVES_N=WAVES_N,
-        WAVE_GROUPS=WAVE_GROUPS,
+        WAVE_GROUPS_M=WAVE_GROUPS_M,
+        WAVE_GROUPS_N=WAVE_GROUPS_N,
         K_UNROLL=K_UNROLL,
         RIGHT_CACHE_MODIFIER=RIGHT_CACHE_MODIFIER,
         GROUP_M=GROUP_M,
         SPLIT_K=SPLIT_K,
     ).launch(
-        grid=(m // BLOCK_M * (n // BLOCK_N) * SPLIT_K // WAVE_GROUPS, 1, 1),
+        grid=(m // PHYSICAL_M * (n // PHYSICAL_N) * SPLIT_K, 1, 1),
         block=(THREADS_PER_BLOCK, 1, 1),
         stream=stream,
     )
@@ -481,13 +529,43 @@ def _launch_matmul_bf16(
 SHAPES = ((16, 1024, 8192), (32, 1024, 8192), (16, 4096, 8192))
 CONFIGS_BY_SHAPE = {
     (16, 1024, 8192): Config(
-        16, 64, 32, 1, 2, split_k=4, right_cache_modifier=2, k_unroll=2
-    ),
-    (32, 1024, 8192): Config(
-        32, 64, 64, 1, 2, split_k=4, right_cache_modifier=2, k_unroll=2
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        group_m=1,
+        split_k=4,
+        wave_groups_m=1,
+        wave_groups_n=1,
+        k_unroll=2,
+        right_cache_modifier=2,
     ),
     (16, 4096, 8192): Config(
-        16, 64, 16, 1, 1, split_k=1, wave_groups=2, right_cache_modifier=2, k_unroll=4
+        block_m=16,
+        block_n=64,
+        block_k=16,
+        waves_m=1,
+        waves_n=1,
+        group_m=1,
+        split_k=1,
+        wave_groups_m=1,
+        wave_groups_n=2,
+        k_unroll=4,
+        right_cache_modifier=2,
+    ),
+    (32, 1024, 8192): Config(
+        block_m=32,
+        block_n=64,
+        block_k=64,
+        waves_m=1,
+        waves_n=2,
+        group_m=1,
+        split_k=4,
+        wave_groups_m=1,
+        wave_groups_n=1,
+        k_unroll=2,
+        right_cache_modifier=2,
     ),
 }
 
@@ -651,7 +729,8 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
             BLOCK_K=config.block_k,
             WAVES_M=config.waves_m,
             WAVES_N=config.waves_n,
-            WAVE_GROUPS=config.wave_groups,
+            WAVE_GROUPS_M=config.wave_groups_m,
+            WAVE_GROUPS_N=config.wave_groups_n,
             K_UNROLL=config.k_unroll,
             RIGHT_CACHE_MODIFIER=config.right_cache_modifier,
             GROUP_M=config.group_m,
@@ -668,7 +747,10 @@ def check_boundaries(config):
     for tiles_per_split in sorted(
         {1, 2, 3, config.k_unroll, config.k_unroll + 1, config.k_unroll + 2}
     ):
-        m, n = config.block_m, config.block_n * config.wave_groups
+        m, n = (
+            config.block_m * config.wave_groups_m,
+            config.block_n * config.wave_groups_n,
+        )
         k = config.block_k * config.split_k * tiles_per_split
         tile_ids = torch.arange(k) // config.block_k
         split_ids = tile_ids // tiles_per_split

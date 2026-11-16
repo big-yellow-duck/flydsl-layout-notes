@@ -4,7 +4,7 @@ import argparse
 import json
 import runpy
 from dataclasses import dataclass
-from functools import lru_cache, partial
+from functools import partial
 from pathlib import Path
 
 import flydsl.compiler as flyc
@@ -72,17 +72,6 @@ def validate_config(config, shape=(1024, 1024, 1024)):
     return config
 
 
-@lru_cache(None)
-def _shared_storage_type(BLOCK_M, BLOCK_N, BLOCK_K):
-    @fx.struct
-    class SharedStorage:
-        # Retain stage 06's measured padded A layout and packed B layout.
-        left: fx.Array[fx.BFloat16, BLOCK_M * (BLOCK_K + 8), 16]
-        right: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
-
-    return SharedStorage
-
-
 @flyc.kernel
 def _matmul_bf16(
     left: fx.Tensor,
@@ -101,7 +90,6 @@ def _matmul_bf16(
 ):
     MMA_M, MMA_N, MMA_K = 16, 16, 16
     THREADS_PER_BLOCK = 32 * WAVES_M * WAVES_N
-    SharedStorage = _shared_storage_type(BLOCK_M, BLOCK_N, BLOCK_K)
     left_buffer = fx.rocdl.make_buffer_tensor(left)
     right_buffer = fx.rocdl.make_buffer_tensor(right)
     out_buffer = fx.rocdl.make_buffer_tensor(out)
@@ -139,6 +127,12 @@ def _matmul_bf16(
     out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
 
     # 3. Keep one padded A tile and one packed B tile in LDS.
+    @fx.struct
+    class SharedStorage:
+        # Retain stage 06's measured padded A layout and packed B layout.
+        left: fx.Array[fx.BFloat16, BLOCK_M * (BLOCK_K + 8), 16]
+        right: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
+
     lds = fx.SharedAllocator().allocate(SharedStorage).peek()
     left_lds_view = lds.left.view(fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1)))
     right_lds_view = lds.right.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))

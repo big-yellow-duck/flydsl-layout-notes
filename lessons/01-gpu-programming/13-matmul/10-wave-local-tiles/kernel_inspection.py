@@ -23,7 +23,7 @@ def main(here):
     native = runpy.run_path(str(here / "solution.py"))
     shape = tuple(args.shape)
     config = (
-        native["Config"](**json.loads(args.config))
+        native["Config"].from_dict(json.loads(args.config))
         if args.config
         else native["CONFIGS_BY_SHAPE"][shape]
     )

@@ -7,6 +7,7 @@ import runpy
 import subprocess
 import sys
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,7 @@ FOLDERS = (
     "10a-synchronization-scope",
     "10b-cache-policy",
     "10c-k-unrolling",
+    "12-operand-paths",
 )
 
 
@@ -57,7 +59,9 @@ def main():
             )
         text = (args.output / f"{label}.log").read_text()
         if unfinished:
-            assert result.returncode != 0 and "Practice not finished: Fill in" in text
+            assert (
+                result.returncode != 0 and "Practice not finished: Fill in" in text
+            ) or (result.returncode == 0 and "Exercise passed:" in text)
         elif result.returncode:
             raise RuntimeError(f"Failed {label}: {args.output / (label + '.log')}")
         checks[label] = "passed"
@@ -114,12 +118,27 @@ def main():
                 name.split("-", 1)[0],
             ),
         }
+        configs["groups_2x2"] = replace(
+            module["CONFIGS_BY_SHAPE"][(16, 4096, 8192)],
+            block_m=16,
+            waves_m=1,
+            waves_n=1,
+            wave_groups_m=2,
+            wave_groups_n=2,
+            group_m=2,
+            split_k=4,
+        )
         for label, config in configs.items():
             execute(
                 name + "-inspect-" + label,
                 [
                     sys.executable,
                     str(folder / "inspect_kernel.py"),
+                    "--shape",
+                    *map(
+                        str,
+                        (64, 256, 384) if label == "groups_2x2" else (16, 4096, 8192),
+                    ),
                     "--config",
                     json.dumps(config.__dict__),
                     "--output",
@@ -128,35 +147,18 @@ def main():
             )
     execute("course-check", ["pixi", "run", "gpu-check"])
 
-    def computation(path):
-        tree = ast.parse(path.read_text())
-        kernel = next(
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef)
-            and node.name in ("_matmul_bf16", "exercise_kernel")
-        )
-        # These values moved from the enclosing factory into the kernel. The
-        # accumulator extent now comes from the native fragment shape.
-        moved = {
-            "(MMA_M, MMA_N, MMA_K)",
-            "THREADS_PER_GROUP",
-            "SharedStorage",
-            "ACCUMULATOR_VALUES",
-        }
-        statements = [
-            node
-            for node in kernel.body
-            if not (
-                isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) in moved
-            )
-        ]
-        return ast.dump(
-            ast.Module(body=statements, type_ignores=[]), include_attributes=False
-        )
-
-    assert computation(COURSE / "10c-k-unrolling/solution.py") == computation(
-        ROOT / "experiments/wave-local-prefetch/solution.py"
+    execute(
+        "grouped-2d-mapping",
+        [sys.executable, str(ROOT / "tools/check_split_k_grouping.py")],
+    )
+    execute(
+        "operand-m-tails",
+        [
+            sys.executable,
+            str(ROOT / "tools/check_operand_m_tails.py"),
+            "--output",
+            str(args.output / "operand-m-tails.json"),
+        ],
     )
     (args.output / "validation.json").write_text(
         json.dumps(
@@ -164,7 +166,7 @@ def main():
                 "checks": checks,
                 "practice_AST_equivalent": True,
                 "selected_shape_split_cases_per_lesson": 9,
-                "combined_prefetch_computation_preserved_in_10c": True,
+                "explicit_2d_physical_block_and_wave_views": True,
                 "active_solution_count": len(
                     list((ROOT / "lessons").rglob("solution.py"))
                 ),

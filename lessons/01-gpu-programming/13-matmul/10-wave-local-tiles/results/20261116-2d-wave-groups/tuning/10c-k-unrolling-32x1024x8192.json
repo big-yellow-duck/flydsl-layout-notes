@@ -1,0 +1,1260 @@
+{
+  "lesson": "10c-k-unrolling",
+  "shape_MNK": [
+    32,
+    1024,
+    8192
+  ],
+  "scope": "Sweep all four 2D wave-group shapes using a common independent 16-row tile and one wave per tile; retain the existing K chunk, split-K, cache policy and unroll. Include original selected configuration as stage. Invalid physical tile shapes are recorded, never remapped across K splits.",
+  "source_sha256": "95a08954df30b376c9afba87d45144f988332583427a3f7b84d192976bc46836",
+  "configurations": {
+    "stage": {
+      "block_m": 32,
+      "block_n": 64,
+      "block_k": 64,
+      "waves_m": 1,
+      "waves_n": 2,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups_m": 1,
+      "wave_groups_n": 1,
+      "k_unroll": 2,
+      "right_cache_modifier": 2
+    },
+    "groups_1x1": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 64,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups_m": 1,
+      "wave_groups_n": 1,
+      "k_unroll": 2,
+      "right_cache_modifier": 2
+    },
+    "groups_1x2": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 64,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups_m": 1,
+      "wave_groups_n": 2,
+      "k_unroll": 2,
+      "right_cache_modifier": 2
+    },
+    "groups_2x1": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 64,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups_m": 2,
+      "wave_groups_n": 1,
+      "k_unroll": 2,
+      "right_cache_modifier": 2
+    },
+    "groups_2x2": {
+      "block_m": 16,
+      "block_n": 64,
+      "block_k": 64,
+      "waves_m": 1,
+      "waves_n": 1,
+      "group_m": 1,
+      "split_k": 4,
+      "wave_groups_m": 2,
+      "wave_groups_n": 2,
+      "k_unroll": 2,
+      "right_cache_modifier": 2
+    }
+  },
+  "excluded": {},
+  "validation": {
+    "stage": {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "config": "10c_m32n64k64_w1x2_sk4_wg1x1_u2_bc2",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            64,
+            128,
+            192,
+            256
+          ],
+          "sum_before_bf16": 640
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            192,
+            384,
+            576,
+            768
+          ],
+          "sum_before_bf16": 1920
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            448,
+            896,
+            1344,
+            1792
+          ],
+          "sum_before_bf16": 4480
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            960,
+            1920,
+            2880,
+            3840
+          ],
+          "sum_before_bf16": 9600
+        }
+      ]
+    },
+    "groups_1x1": {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "config": "10c_m16n64k64_w1x1_sk4_wg1x1_u2_bc2",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            64,
+            128,
+            192,
+            256
+          ],
+          "sum_before_bf16": 640
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            192,
+            384,
+            576,
+            768
+          ],
+          "sum_before_bf16": 1920
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            448,
+            896,
+            1344,
+            1792
+          ],
+          "sum_before_bf16": 4480
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            960,
+            1920,
+            2880,
+            3840
+          ],
+          "sum_before_bf16": 9600
+        }
+      ]
+    },
+    "groups_1x2": {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "config": "10c_m16n64k64_w1x1_sk4_wg1x2_u2_bc2",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            64,
+            128,
+            192,
+            256
+          ],
+          "sum_before_bf16": 640
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            192,
+            384,
+            576,
+            768
+          ],
+          "sum_before_bf16": 1920
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            448,
+            896,
+            1344,
+            1792
+          ],
+          "sum_before_bf16": 4480
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            960,
+            1920,
+            2880,
+            3840
+          ],
+          "sum_before_bf16": 9600
+        }
+      ]
+    },
+    "groups_2x1": {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "config": "10c_m16n64k64_w1x1_sk4_wg2x1_u2_bc2",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            64,
+            128,
+            192,
+            256
+          ],
+          "sum_before_bf16": 640
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            192,
+            384,
+            576,
+            768
+          ],
+          "sum_before_bf16": 1920
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            448,
+            896,
+            1344,
+            1792
+          ],
+          "sum_before_bf16": 4480
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            960,
+            1920,
+            2880,
+            3840
+          ],
+          "sum_before_bf16": 9600
+        }
+      ]
+    },
+    "groups_2x2": {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "config": "10c_m16n64k64_w1x1_sk4_wg2x2_u2_bc2",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            64,
+            128,
+            192,
+            256
+          ],
+          "sum_before_bf16": 640
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            192,
+            384,
+            576,
+            768
+          ],
+          "sum_before_bf16": 1920
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            448,
+            896,
+            1344,
+            1792
+          ],
+          "sum_before_bf16": 4480
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            960,
+            1920,
+            2880,
+            3840
+          ],
+          "sum_before_bf16": 9600
+        }
+      ]
+    }
+  },
+  "runs": [
+    {
+      "lesson": "10c",
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_1x1": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_1x2": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 2,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_2x1": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 2,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_2x2": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 2,
+          "wave_groups_n": 2,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:42:32.609295+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          32,
+          1024,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1"
+      },
+      "kernel_ms": 0.028401003146427684,
+      "torch_ms": 0.0649813562631607,
+      "paired_ratio": 0.43758084228614996,
+      "median_ms": {
+        "stage": 0.028401003146427684,
+        "groups_1x1": 0.053085053150425665,
+        "groups_1x2": 0.04079632490174845,
+        "groups_2x1": 0.037234212504699826,
+        "groups_2x2": 0.0385810748412041,
+        "torch": 0.0649813562631607
+      },
+      "paired_ratios": {
+        "groups_1x1": 0.5298986469251113,
+        "groups_1x2": 0.6969625252077967,
+        "groups_2x1": 0.7635552767444445,
+        "groups_2x2": 0.7353407063875004,
+        "torch": 0.43758084228614996
+      },
+      "samples_ms": {
+        "stage": [
+          0.02816241540131159,
+          0.028401003146427684,
+          0.02810598125506658,
+          0.028271037444937974,
+          0.02843459660653025,
+          0.029022703165537678,
+          0.02858727821148932
+        ],
+        "groups_1x1": [
+          0.05283215323288459,
+          0.052755374781554565,
+          0.053085053150425665,
+          0.05300840020936448,
+          0.053660443882108666,
+          0.05501015293702949,
+          0.05508715003088582
+        ],
+        "groups_1x2": [
+          0.040319806430488825,
+          0.04093309980817139,
+          0.040713106500334106,
+          0.04056832804053556,
+          0.04079788450326305,
+          0.041561709440429695,
+          0.04079632490174845
+        ],
+        "groups_2x1": [
+          0.036926093889633194,
+          0.03718049374583643,
+          0.03734861238626763,
+          0.037025528217782266,
+          0.037234212504699826,
+          0.03782025341934059,
+          0.037830722067155875
+        ],
+        "groups_2x2": [
+          0.03875854054058436,
+          0.0385810748412041,
+          0.03835933130176272,
+          0.03844617494905833,
+          0.03840754980046768,
+          0.039237524833879434,
+          0.03920155613741372
+        ],
+        "torch": [
+          0.06488607832579874,
+          0.06489751540357247,
+          0.06494926237792242,
+          0.06503104050352704,
+          0.0649813562631607,
+          0.06531200306199025,
+          0.06531869075843133
+        ]
+      },
+      "orders": [
+        [
+          "groups_2x1",
+          "stage",
+          "groups_2x2",
+          "groups_1x1",
+          "torch",
+          "groups_1x2"
+        ],
+        [
+          "groups_2x1",
+          "stage",
+          "groups_1x2",
+          "groups_2x2",
+          "groups_1x1",
+          "torch"
+        ],
+        [
+          "groups_2x2",
+          "groups_2x1",
+          "groups_1x2",
+          "torch",
+          "stage",
+          "groups_1x1"
+        ],
+        [
+          "groups_2x2",
+          "torch",
+          "groups_1x2",
+          "groups_1x1",
+          "groups_2x1",
+          "stage"
+        ],
+        [
+          "groups_2x1",
+          "torch",
+          "groups_2x2",
+          "stage",
+          "groups_1x1",
+          "groups_1x2"
+        ],
+        [
+          "stage",
+          "groups_1x2",
+          "groups_2x2",
+          "groups_1x1",
+          "groups_2x1",
+          "torch"
+        ],
+        [
+          "stage",
+          "torch",
+          "groups_1x2",
+          "groups_2x2",
+          "groups_2x1",
+          "groups_1x1"
+        ]
+      ],
+      "timing": "graph-host",
+      "graph_metadata": {
+        "stage": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_1x1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_1x2": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_2x1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_2x2": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      },
+      "batches": 7,
+      "repeats": 10,
+      "seed": 13,
+      "right_staging_BF16_values_per_thread": 64,
+      "lds_bytes": 12800,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    },
+    {
+      "lesson": "10c",
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_1x1": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_1x2": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 2,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_2x1": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 2,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_2x2": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 2,
+          "wave_groups_n": 2,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:42:33.943754+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          32,
+          1024,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1"
+      },
+      "kernel_ms": 0.028155106338090263,
+      "torch_ms": 0.06493385626527015,
+      "paired_ratio": 0.4327603182011668,
+      "median_ms": {
+        "stage": 0.028155106338090263,
+        "groups_1x1": 0.05256769363768399,
+        "groups_1x2": 0.040898849692894146,
+        "groups_2x1": 0.03699877815961372,
+        "groups_2x2": 0.03870269974868279,
+        "torch": 0.06493385626527015
+      },
+      "paired_ratios": {
+        "groups_1x1": 0.5339124051980161,
+        "groups_1x2": 0.6921143476094505,
+        "groups_2x1": 0.7592792391248998,
+        "groups_2x2": 0.7307083400750143,
+        "torch": 0.4327603182011668
+      },
+      "samples_ms": {
+        "stage": [
+          0.028674524946836755,
+          0.028897737502120435,
+          0.028155106338090263,
+          0.027937265622313134,
+          0.028562497027451172,
+          0.027844018768519163,
+          0.028066543745808303
+        ],
+        "groups_1x1": [
+          0.05221054670982994,
+          0.0524943843629444,
+          0.05293180911394302,
+          0.052448540736804716,
+          0.053309296708903275,
+          0.05282974707370158,
+          0.05256769363768399
+        ],
+        "groups_1x2": [
+          0.04089647518412676,
+          0.04048414702992886,
+          0.041173062709276564,
+          0.04101575286767911,
+          0.04126846542931162,
+          0.040898849692894146,
+          0.040421737503493205
+        ],
+        "groups_2x1": [
+          0.03694809383887332,
+          0.0371509937394876,
+          0.03724939342646394,
+          0.03699877815961372,
+          0.03745607791643124,
+          0.03687006246764213,
+          0.03696471903822385
+        ],
+        "groups_2x2": [
+          0.039000781180220656,
+          0.03886775302817114,
+          0.03862366538669448,
+          0.03870269974868279,
+          0.03878803763655014,
+          0.03847004700219259,
+          0.03841004981950391
+        ],
+        "torch": [
+          0.06488614053523634,
+          0.06493385626527015,
+          0.06505935307359323,
+          0.06501557181763928,
+          0.06490539053629618,
+          0.06493120308732614,
+          0.06495685629488435
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "groups_1x1",
+          "groups_2x1",
+          "groups_1x2",
+          "stage",
+          "groups_2x2"
+        ],
+        [
+          "torch",
+          "groups_2x1",
+          "groups_1x1",
+          "groups_1x2",
+          "groups_2x2",
+          "stage"
+        ],
+        [
+          "groups_1x2",
+          "groups_2x1",
+          "groups_1x1",
+          "groups_2x2",
+          "torch",
+          "stage"
+        ],
+        [
+          "groups_2x2",
+          "torch",
+          "groups_1x1",
+          "groups_2x1",
+          "stage",
+          "groups_1x2"
+        ],
+        [
+          "groups_2x2",
+          "groups_1x2",
+          "stage",
+          "groups_2x1",
+          "groups_1x1",
+          "torch"
+        ],
+        [
+          "stage",
+          "groups_2x2",
+          "groups_1x2",
+          "groups_1x1",
+          "torch",
+          "groups_2x1"
+        ],
+        [
+          "stage",
+          "groups_2x2",
+          "groups_2x1",
+          "groups_1x1",
+          "torch",
+          "groups_1x2"
+        ]
+      ],
+      "timing": "graph-host",
+      "graph_metadata": {
+        "stage": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_1x1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_1x2": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_2x1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_2x2": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      },
+      "batches": 7,
+      "repeats": 10,
+      "seed": 29,
+      "right_staging_BF16_values_per_thread": 64,
+      "lds_bytes": 12800,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    },
+    {
+      "lesson": "10c",
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "configurations": {
+        "stage": {
+          "block_m": 32,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 2,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_1x1": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_1x2": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 1,
+          "wave_groups_n": 2,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_2x1": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 2,
+          "wave_groups_n": 1,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        },
+        "groups_2x2": {
+          "block_m": 16,
+          "block_n": 64,
+          "block_k": 64,
+          "waves_m": 1,
+          "waves_n": 1,
+          "group_m": 1,
+          "split_k": 4,
+          "wave_groups_m": 2,
+          "wave_groups_n": 2,
+          "k_unroll": 2,
+          "right_cache_modifier": 2
+        }
+      },
+      "environment": {
+        "hostname": "fedora",
+        "timestamp_utc": "2026-11-16T09:42:35.390416+00:00",
+        "gpu": "AMD Radeon 8060S Graphics",
+        "architecture": "gfx1151",
+        "flydsl": "0.4.1",
+        "torch": "2.13.0+rocm10.1.0",
+        "hip": "7.16.26385",
+        "kernel": "7.2.13-200.fc44.x86_64",
+        "shape_MNK": [
+          32,
+          1024,
+          8192
+        ],
+        "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+        "output": "same preallocated GPU output and trailing sentinels for both implementations",
+        "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+        "cpu_reference_threads": 1,
+        "kernel_build_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1",
+        "source_sha256": {
+          "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+          "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+        },
+        "native_factory_sha256": "b12289019972a3dc0199fb97565d7a36b50f41ff24b80e4b6779d4b1b85232e1"
+      },
+      "kernel_ms": 0.027854331347043626,
+      "torch_ms": 0.06490407504315954,
+      "paired_ratio": 0.42900163799757884,
+      "median_ms": {
+        "stage": 0.027854331347043626,
+        "groups_1x1": 0.05280365330690984,
+        "groups_1x2": 0.0404168626118917,
+        "groups_2x1": 0.036989715954405256,
+        "groups_2x2": 0.03813755938608665,
+        "torch": 0.06490407504315954
+      },
+      "paired_ratios": {
+        "groups_1x1": 0.5292847789409777,
+        "groups_1x2": 0.6900576198085887,
+        "groups_2x1": 0.7524376833491716,
+        "groups_2x2": 0.7300241419721241,
+        "torch": 0.42900163799757884
+      },
+      "samples_ms": {
+        "stage": [
+          0.027998387304251082,
+          0.027986609347863123,
+          0.027842987401527353,
+          0.027854331347043626,
+          0.027824490825878456,
+          0.027832456180476584,
+          0.02786823461065069
+        ],
+        "groups_1x1": [
+          0.052777500241063535,
+          0.052803965445491485,
+          0.0525572249898687,
+          0.05308461586537305,
+          0.053117084462428465,
+          0.05280365330690984,
+          0.052652628073701635
+        ],
+        "groups_1x2": [
+          0.04090207185072359,
+          0.04050533098052256,
+          0.0404168626118917,
+          0.040260181049234234,
+          0.040685824933461845,
+          0.04033352488477249,
+          0.04029549709230196
+        ],
+        "groups_2x1": [
+          0.03677928434626665,
+          0.03681400339701213,
+          0.03705227827595081,
+          0.037024434277554974,
+          0.037057368899695575,
+          0.036989715954405256,
+          0.03691003112180624
+        ],
+        "groups_2x2": [
+          0.03807280918408651,
+          0.03833655318885576,
+          0.0383450500521576,
+          0.03817736869677901,
+          0.03799456244450994,
+          0.03813755938608665,
+          0.038046218833187595
+        ],
+        "torch": [
+          0.0648430814180756,
+          0.06494104345620144,
+          0.06489429651992396,
+          0.06494276567536872,
+          0.06489501538453624,
+          0.06490407504315954,
+          0.06496067180705722
+        ]
+      },
+      "orders": [
+        [
+          "groups_2x2",
+          "groups_1x1",
+          "torch",
+          "groups_2x1",
+          "stage",
+          "groups_1x2"
+        ],
+        [
+          "stage",
+          "groups_1x1",
+          "groups_2x1",
+          "torch",
+          "groups_1x2",
+          "groups_2x2"
+        ],
+        [
+          "groups_1x2",
+          "torch",
+          "groups_1x1",
+          "stage",
+          "groups_2x2",
+          "groups_2x1"
+        ],
+        [
+          "groups_2x1",
+          "groups_2x2",
+          "groups_1x1",
+          "groups_1x2",
+          "torch",
+          "stage"
+        ],
+        [
+          "groups_1x1",
+          "torch",
+          "stage",
+          "groups_2x1",
+          "groups_2x2",
+          "groups_1x2"
+        ],
+        [
+          "groups_2x1",
+          "stage",
+          "groups_1x1",
+          "groups_1x2",
+          "torch",
+          "groups_2x2"
+        ],
+        [
+          "torch",
+          "groups_1x1",
+          "groups_2x1",
+          "groups_1x2",
+          "groups_2x2",
+          "stage"
+        ]
+      ],
+      "timing": "graph-host",
+      "graph_metadata": {
+        "stage": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_1x1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_1x2": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_2x1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "groups_2x2": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      },
+      "batches": 7,
+      "repeats": 10,
+      "seed": 47,
+      "right_staging_BF16_values_per_thread": 64,
+      "lds_bytes": 12800,
+      "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation."
+    }
+  ],
+  "median_ms": {
+    "stage": 0.028155106338090263,
+    "groups_1x1": 0.05280365330690984,
+    "groups_1x2": 0.04079632490174845,
+    "groups_2x1": 0.03699877815961372,
+    "groups_2x2": 0.0385810748412041,
+    "torch": 0.06493385626527015
+  },
+  "winner": "stage",
+  "selected_configuration": {
+    "block_m": 32,
+    "block_n": 64,
+    "block_k": 64,
+    "waves_m": 1,
+    "waves_n": 2,
+    "group_m": 1,
+    "split_k": 4,
+    "wave_groups_m": 1,
+    "wave_groups_n": 1,
+    "k_unroll": 2,
+    "right_cache_modifier": 2
+  },
+  "selection_policy": "Retain the original configuration unless a candidate reduces median time by at least 1%; verify promoted selections on held-out seeds.",
+  "selected_key": "stage"
+}
