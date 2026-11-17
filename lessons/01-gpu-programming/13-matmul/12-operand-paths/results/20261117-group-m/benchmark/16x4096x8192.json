@@ -1,0 +1,8033 @@
+{
+  "shape_MNK": [
+    16,
+    4096,
+    8192
+  ],
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-17T03:27:11.462747+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      4096,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "cdc6a93f88bf33a3db60fce3942c39d0e0162f79ff951f386236a39fd759c996",
+    "source_sha256": {
+      "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+      "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+    }
+  },
+  "L2_bytes_reported_by_HIP": 2097152,
+  "source_sha256": {
+    "tools/benchmark_group_m.py": "e1980fb7a4cb8b186a941a49349ca28853da9c4b85e4a3cb65993faab0d145d7",
+    "lessons/01-gpu-programming/13-matmul/12-operand-paths/solution.py": "a0611170b01fbc77b142c1c402b27de27c2796d39a634fef580105974bbc7d28",
+    "lessons/01-gpu-programming/13-matmul/12-operand-paths/tune.py": "e6f0a9842aa3582b4060d40a2c2539a469415a669c7312cad77fc3065b946f25",
+    "lessons/01-gpu-programming/13-matmul/09-split-k/tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+  },
+  "scope": "Same unmodified lesson-12 kernel. Tune independent-wave geometry on seed 13, with matched group_m sweeps for every wave-group layout. Lock selections before held-out seeds. Warm reused input buffers; synchronized host timing, allocations/compilation/reference excluded. No claim of exhaustive tuning or measured cache hits from timing.",
+  "training": [
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 2816,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2860199589728533
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2860199589728533,
+          0.2856953748657058,
+          0.286800666799536
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 2048,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.28830592782469466
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28830592782469466,
+          0.2881193759094458,
+          0.2890241351754715
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5376,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.3332994468413138
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3342052611211936,
+          0.33324195828754455,
+          0.3332994468413138
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.3373915205884259
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3373915205884259,
+          0.3380185723168931,
+          0.336322281024574
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 10496,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.5405097181210294
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.5405097181210294,
+          0.5416042707414211,
+          0.5399265101004858
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.46530346905152936
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.46530346905152936,
+          0.4655545005031551,
+          0.46416172820803087
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 1,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 2816,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2872007607948035
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.287192000541836,
+          0.28757625962801586,
+          0.2872007607948035
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 2816,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2856571457717412
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28546986504807137,
+          0.2858286146268559,
+          0.2856571457717412
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 2816,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2866768130237081
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2866768130237081,
+          0.2864726460150753,
+          0.28698232320797007
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 2,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 128,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 524288,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 2816,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            1,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            1,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            1,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            1,
+            7
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.3004519069994179
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.30082794789147255,
+          0.3004519069994179,
+          0.30002661515027285
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 256,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 262144,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 2816,
+        "threads_per_block": 32,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            3,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            2,
+            1
+          ],
+          [
+            0,
+            3,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            2,
+            2
+          ],
+          [
+            0,
+            3,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            2,
+            3
+          ],
+          [
+            0,
+            3,
+            3
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.33527960476931185
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.33527960476931185,
+          0.3353892922556649,
+          0.3350684576920078
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5632,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.27699043736599077
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.27699043736599077,
+          0.2759631776522535,
+          0.27822155122218345
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.279700978959833
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2790646467474289,
+          0.279700978959833,
+          0.2797031678104152
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 10752,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2976219899816594
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2976219899816594,
+          0.29697056258252513,
+          0.3003397299229012
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.3002633748110384
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3021245720447041,
+          0.3002633748110384,
+          0.29949464684856747
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 20992,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.4963090832461603
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.4988288019376341,
+          0.4963090832461603,
+          0.49560306312438723
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 16384,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.3650775518811618
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3650775518811618,
+          0.3650602605678917,
+          0.36517077023745514
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 1,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5632,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2850605002701438
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2835972081811633,
+          0.2856740308440446,
+          0.2850605002701438
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5632,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.27937609411310405
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28018252123729326,
+          0.27937609411310405,
+          0.2791627703118138
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5632,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.27755270881849964
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2791019372428612,
+          0.27755270881849964,
+          0.27657587512900744
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 2,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5632,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            1,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            1,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            1,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            1,
+            7
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.30222195831205073
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.30222195831205073,
+          0.3026883023267146,
+          0.30043212488332455
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          16,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 128,
+        "M_span_per_traversal_group": 16,
+        "unique_B_bytes_per_column_and_split": 524288,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5632,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            3,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            2,
+            1
+          ],
+          [
+            0,
+            3,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            2,
+            2
+          ],
+          [
+            0,
+            3,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            2,
+            3
+          ],
+          [
+            0,
+            3,
+            3
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.33613321890394826
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.33621457259869203,
+          0.33311800022299093,
+          0.33613321890394826
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 5632,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2869976354607691
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2869976354607691,
+          0.2868805519635013,
+          0.2881434265873395
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.28571745739706483
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28571745739706483,
+          0.28550611386890523,
+          0.2861096351504481
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 10752,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.32963654181609553
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3293469684043278,
+          0.32963654181609553,
+          0.33128983341157436
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.3295606038591359
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3295606038591359,
+          0.3291744797024876,
+          0.3317865824404483
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 20992,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.5401937911907831
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.540746697273183,
+          0.5393142285659754,
+          0.5401937911907831
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 16384,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.45721506224557135
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.456165625413026,
+          0.4605997492035385,
+          0.45721506224557135
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 1,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.4036352390054769
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.40397752066686127,
+          0.4032299366372172,
+          0.4036352390054769
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.28770647865409654
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28747159376507625,
+          0.28770647865409654,
+          0.28821010467557545
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.28586758344317786
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2854873758527295,
+          0.28586758344317786,
+          0.2860642392382336
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 2,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 128,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 524288,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            1,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            1,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            1,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            1,
+            7
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.30783347877635
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3082874269845585,
+          0.30783347877635,
+          0.307730656156006
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          64
+        ],
+        "physical_rows": 1,
+        "physical_columns": 64,
+        "effective_group_m": 1,
+        "physical_blocks": 256,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 262144,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 4096,
+        "threads_per_block": 64,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            3,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            2,
+            1
+          ],
+          [
+            0,
+            3,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            2,
+            2
+          ],
+          [
+            0,
+            3,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            2,
+            3
+          ],
+          [
+            0,
+            3,
+            3
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.3532392814425596
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3527381462239039,
+          0.35367614570229006,
+          0.3532392814425596
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 11264,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.28557404099653166
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2866063029311287,
+          0.28557404099653166,
+          0.28339630201420124
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2820497708550344
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28122803147804615,
+          0.2820879065742095,
+          0.2820497708550344
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 21504,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.35517578119955334
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.35714312495353323,
+          0.35517578119955334,
+          0.35475444747135043
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 16384,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.35428737464826554
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.35428737464826554,
+          0.3531796974129975,
+          0.35436706214871566
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 41984,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.40295381283309933
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.40295381283309933,
+          0.40248434379464015,
+          0.4039560844830703
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 32768,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.40922154100068536
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.409701843940032,
+          0.40922154100068536,
+          0.40823584276949987
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 1,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.284295333888925
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.2844980311541197,
+          0.284295333888925,
+          0.282030604770019
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.2870516048763723
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28765315558606136,
+          0.2861655933277992,
+          0.2870516048763723
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 32,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 2097152,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            0,
+            8
+          ],
+          [
+            0,
+            0,
+            9
+          ],
+          [
+            0,
+            0,
+            10
+          ],
+          [
+            0,
+            0,
+            11
+          ],
+          [
+            0,
+            0,
+            12
+          ],
+          [
+            0,
+            0,
+            13
+          ],
+          [
+            0,
+            0,
+            14
+          ],
+          [
+            0,
+            0,
+            15
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.28131062572356313
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.28114094796668115,
+          0.28314734421049553,
+          0.28131062572356313
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 2,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 64,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 1048576,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            0,
+            4
+          ],
+          [
+            0,
+            1,
+            4
+          ],
+          [
+            0,
+            0,
+            5
+          ],
+          [
+            0,
+            1,
+            5
+          ],
+          [
+            0,
+            0,
+            6
+          ],
+          [
+            0,
+            1,
+            6
+          ],
+          [
+            0,
+            0,
+            7
+          ],
+          [
+            0,
+            1,
+            7
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.34433475957484916
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.34466954214925255,
+          0.34284032274930115,
+          0.34433475957484916
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "geometry": {
+        "physical_tile_MN": [
+          32,
+          128
+        ],
+        "physical_rows": 1,
+        "physical_columns": 32,
+        "effective_group_m": 1,
+        "physical_blocks": 128,
+        "M_span_per_traversal_group": 32,
+        "unique_B_bytes_per_column_and_split": 524288,
+        "B_matrix_bytes": 67108864,
+        "lds_bytes_per_block": 8192,
+        "threads_per_block": 128,
+        "first_blocks_row_split_column": [
+          [
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            2,
+            0
+          ],
+          [
+            0,
+            3,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            0,
+            2,
+            1
+          ],
+          [
+            0,
+            3,
+            1
+          ],
+          [
+            0,
+            0,
+            2
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            0,
+            2,
+            2
+          ],
+          [
+            0,
+            3,
+            2
+          ],
+          [
+            0,
+            0,
+            3
+          ],
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            2,
+            3
+          ],
+          [
+            0,
+            3,
+            3
+          ]
+        ]
+      },
+      "median_ms": {
+        "operand_paths": 0.36501934300758876
+      },
+      "paired_ratios": {},
+      "samples_ms": {
+        "operand_paths": [
+          0.3660033750444806,
+          0.36382854159455746,
+          0.36501934300758876
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ],
+        [
+          "operand_paths"
+        ]
+      ],
+      "batches": 3,
+      "repeats": 3,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    }
+  ],
+  "excluded": [],
+  "selections": {
+    "1x1": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      }
+    },
+    "1x2": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      }
+    },
+    "2x1": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      }
+    },
+    "2x2": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      }
+    },
+    "lesson_default": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      }
+    }
+  },
+  "verification": [
+    {
+      "seed": 29,
+      "median_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.273204275072203,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.2840360062691616,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.27918343439523596,
+        "torch": 0.2896532438171562,
+        "operand_paths": 0.2849271346349269
+      },
+      "paired_ratios": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          1.0371160644419273,
+          1.0386606565375305,
+          1.0410738922140301,
+          1.040475918320041,
+          1.0497207165566513,
+          1.0416398460996563,
+          1.0247165296318714
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          1.001411445919047,
+          1.0040635111062581,
+          0.9992386567256679,
+          0.9997966754162582,
+          1.0087298748263458,
+          1.0010859975399442,
+          1.0044723483924054
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          1.0109409434350212,
+          1.0232160783447737,
+          1.0202255875629345,
+          1.0231451361744426,
+          1.023152757995613,
+          1.0184861766213646,
+          1.0210539323525372
+        ],
+        "torch": [
+          0.9844087841844144,
+          0.9840766981941128,
+          0.980421862505684,
+          0.9813888677668406,
+          0.9858412596020633,
+          0.9816722806501835,
+          0.9847599370911555
+        ]
+      },
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 1.040475918320041,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 1.001411445919047,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 1.0210539323525372,
+      "ratio_to_torch": 0.9840766981941128,
+      "samples_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          0.275492328000837,
+          0.27432167844381183,
+          0.27297000015096273,
+          0.273204275072203,
+          0.27289109384582844,
+          0.27297771848679986,
+          0.2783352407277562
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.2853148125723237,
+          0.28377401577017736,
+          0.28439846537366975,
+          0.2843202782969456,
+          0.2839803219103487,
+          0.2840360062691616,
+          0.28394482178555336
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          0.28262533123779576,
+          0.27846233133459464,
+          0.2785481407045154,
+          0.27783200930571184,
+          0.2799771904392401,
+          0.27918343439523596,
+          0.2793336501781596
+        ],
+        "torch": [
+          0.29024275645497255,
+          0.28953752807865385,
+          0.28985679673496634,
+          0.2896532438171562,
+          0.29057359060971066,
+          0.28965315032110084,
+          0.28962868127564434
+        ],
+        "operand_paths": [
+          0.2857175190001726,
+          0.2849271346349269,
+          0.28418194051482715,
+          0.2842624689947115,
+          0.28645943457377143,
+          0.2843444686732255,
+          0.28521472195279785
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "torch",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 10,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 29,
+      "median_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.28738630935549736,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.298909901175648,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.29737299773842096,
+        "torch": 0.2957100048661232,
+        "operand_paths": 0.29904290568083525
+      },
+      "paired_ratios": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          1.0327406833610389,
+          1.052496663105611,
+          1.039575562145517,
+          1.0412999074295226,
+          1.042896338792322,
+          1.030030162742695,
+          1.0356022223828152
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          1.008308377057658,
+          0.9975688419758421,
+          1.0084196599858608,
+          1.0021716275955375,
+          0.9953601326366301,
+          0.9938662999376113,
+          0.9990932604773611
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          0.9831999982473636,
+          0.983658458375795,
+          0.9975835780975107,
+          1.006465058300325,
+          1.000504420856348,
+          1.0111896536791005,
+          1.0059858582971342
+        ],
+        "torch": [
+          1.0042383082322934,
+          1.010829768465476,
+          1.0065899458659593,
+          1.013931638333717,
+          1.0061309863874661,
+          1.013800406032462,
+          1.0104327372013888
+        ]
+      },
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 1.039575562145517,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.9990932604773611,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 1.000504420856348,
+      "ratio_to_torch": 1.0104327372013888,
+      "samples_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          0.2934180898591876,
+          0.28732329374179244,
+          0.2887061913497746,
+          0.28718230314552784,
+          0.28528530383482575,
+          0.28976519824936986,
+          0.28738630935549736
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.3005278995260596,
+          0.3031437983736396,
+          0.29762599151581526,
+          0.29839490307495,
+          0.298909901175648,
+          0.3003088990226388,
+          0.29788800748065114
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          0.30820260290056467,
+          0.307430699467659,
+          0.30085890321061015,
+          0.2971219946630299,
+          0.29737299773842096,
+          0.29516411013901234,
+          0.29584700241684914
+        ],
+        "torch": [
+          0.3017459064722061,
+          0.2991668996401131,
+          0.2981669967994094,
+          0.29493399197235703,
+          0.2957100048661232,
+          0.29440399957820773,
+          0.29454499017447233
+        ],
+        "operand_paths": [
+          0.3030247986316681,
+          0.3024068078957498,
+          0.3001319011673331,
+          0.29904290568083525,
+          0.29752299888059497,
+          0.29846689430996776,
+          0.2976179006509483
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "torch",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 10,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "seed": 47,
+      "median_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.2754497967544012,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.28703097814286593,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.2821043468429707,
+        "torch": 0.2899567971326178,
+        "operand_paths": 0.28529343762784265
+      },
+      "paired_ratios": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          1.0380265952535916,
+          1.040847003360375,
+          1.0229472364870085,
+          1.033837636174353,
+          1.0371636461354994,
+          1.0560051130961474,
+          1.0296419089276339
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.9983557725037773,
+          1.0004743679287071,
+          0.9873356855222497,
+          0.9948570963020332,
+          0.9950888717527322,
+          1.0133972146698476,
+          0.9991237442291747
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          1.0159041678353393,
+          1.0176764909148106,
+          1.0177404041089433,
+          0.9703598606022081,
+          1.0124877998050053,
+          1.0148247663009011,
+          1.0098016252244795
+        ],
+        "torch": [
+          0.979465776684465,
+          0.9808999566134154,
+          0.9776460599786552,
+          0.9863305751080519,
+          0.9755146651330179,
+          1.0036905947636232,
+          0.9841548458770045
+        ]
+      },
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 1.0371636461354994,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.9983557725037773,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 1.0148247663009011,
+      "ratio_to_torch": 0.9808999566134154,
+      "samples_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          0.2735987312917132,
+          0.27303730967105366,
+          0.2779336591629544,
+          0.2774128970486345,
+          0.27539261573110707,
+          0.2754497967544012,
+          0.2770802500890568
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.28447049371607136,
+          0.2840553188434569,
+          0.28795826256100554,
+          0.2882825028791558,
+          0.28703688440145925,
+          0.28703097814286593,
+          0.285543646896258
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          0.2795566437271191,
+          0.27925383765250444,
+          0.27935558755416423,
+          0.2955603435111698,
+          0.2821043468429707,
+          0.2866272123355884,
+          0.2825242409016937
+        ],
+        "torch": [
+          0.2899567971326178,
+          0.2897238027799176,
+          0.29081226857670117,
+          0.2907746154960478,
+          0.2927964280388551,
+          0.28980683418922126,
+          0.2898867376643466
+        ],
+        "operand_paths": [
+          0.28400275950843934,
+          0.2841900655766949,
+          0.28431146856746636,
+          0.28679989372903947,
+          0.2856272094504675,
+          0.29087639377394225,
+          0.28529343762784265
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "torch"
+        ],
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 10,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 47,
+      "median_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.28960430063307285,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.2984149963594973,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.29816790483891964,
+        "torch": 0.297220004722476,
+        "operand_paths": 0.2983139012940228
+      },
+      "paired_ratios": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          1.0541360977295815,
+          1.0162109336814589,
+          1.038879584143853,
+          1.0338579589417658,
+          1.0050710334295299,
+          1.0296635984824427,
+          0.9998788536214402
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          1.0094297384653745,
+          0.9894003338675136,
+          1.0013805455949822,
+          0.9962230675111989,
+          0.9966948033876011,
+          1.0016462896931786,
+          0.9955565443598694
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          1.0080860354199923,
+          1.0075176833820048,
+          1.0121693978289321,
+          0.9880923649022296,
+          0.9963321981325626,
+          0.997895458751307,
+          1.002378669362327
+        ],
+        "torch": [
+          1.0052607786100292,
+          0.9956577612597469,
+          1.0036459993974245,
+          1.0156494145115706,
+          1.0133269597624075,
+          1.003280403700536,
+          1.004697320758694
+        ]
+      },
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 1.0296635984824427,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.9966948033876011,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 1.002378669362327,
+      "ratio_to_torch": 1.004697320758694,
+      "samples_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          0.2851424040272832,
+          0.2935550990514457,
+          0.2882902976125479,
+          0.28725028969347477,
+          0.29700289014726877,
+          0.28960430063307285,
+          0.29712499817833304
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.2977709984406829,
+          0.3015098045580089,
+          0.2990860026329756,
+          0.29810190899297595,
+          0.29949890449643135,
+          0.29770489782094955,
+          0.2984149963594973
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          0.29816790483891964,
+          0.29608800541609526,
+          0.2958980039693415,
+          0.3005548962391913,
+          0.2996079041622579,
+          0.29882389353588223,
+          0.2963840030133724
+        ],
+        "torch": [
+          0.29900589725002646,
+          0.2996149007230997,
+          0.298410898540169,
+          0.29240010771900415,
+          0.29458310455083847,
+          0.297220004722476,
+          0.29570000478997827
+        ],
+        "operand_paths": [
+          0.300578901078552,
+          0.2983139012940228,
+          0.29949890449643135,
+          0.29697599820792675,
+          0.29850900173187256,
+          0.29819500632584095,
+          0.29708900256082416
+        ]
+      },
+      "orders": [
+        [
+          "torch",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "torch"
+        ],
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 10,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    },
+    {
+      "seed": 71,
+      "median_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.27381159670767374,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.2844902752258349,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.27880975940206554,
+        "torch": 0.28988664380449336,
+        "operand_paths": 0.2849387594324071
+      },
+      "paired_ratios": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          1.04117654454265,
+          1.0417043204637089,
+          1.03549026093746,
+          1.0381651258787143,
+          1.042378799106293,
+          1.0454677726706114,
+          1.0388090529263985
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          1.0000986372425853,
+          1.0011867843126845,
+          1.0018120261467607,
+          1.0079068713496553,
+          0.998679454978734,
+          1.0049264040728445,
+          0.9998161280921469
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          1.019521061660558,
+          1.0224906214254423,
+          1.0209297028694602,
+          1.0294287500515602,
+          1.0231814662372396,
+          1.0212825281064986,
+          1.0201865460741697
+        ],
+        "torch": [
+          0.9812837642163944,
+          0.981882360276947,
+          0.9832106064076296,
+          0.9898179171879635,
+          0.9830451561040424,
+          0.9832822492334343,
+          0.9812041069680859
+        ]
+      },
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 1.04117654454265,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 1.0011867843126845,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 1.0212825281064986,
+      "ratio_to_torch": 0.9830451561040424,
+      "samples_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          0.27388469061406795,
+          0.27336114362697117,
+          0.2750768719124608,
+          0.2762795531452866,
+          0.273354331147857,
+          0.2727708186284872,
+          0.27381159670767374
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.2851341909263283,
+          0.2844239344995003,
+          0.28432421895558946,
+          0.2845737093593925,
+          0.285315531436936,
+          0.28377510934660677,
+          0.2844902752258349
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          0.2797022312734043,
+          0.2784978936688276,
+          0.2790000340610277,
+          0.27862423412443604,
+          0.2784831125609344,
+          0.27923037196160294,
+          0.27880975940206554
+        ],
+        "torch": [
+          0.2906012778112199,
+          0.29001588773098774,
+          0.289703365706373,
+          0.28977430301893037,
+          0.289853174763266,
+          0.29002160918025766,
+          0.28988664380449336
+        ],
+        "operand_paths": [
+          0.28516231577668805,
+          0.2847614843631163,
+          0.2848394218744943,
+          0.28682379706879146,
+          0.2849387594324071,
+          0.2851731002010638,
+          0.2844379654561635
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1"
+        ],
+        [
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 10,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "operand_paths": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "workspace_initialization_nodes": 0,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 71,
+      "median_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.29052620520815253,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.2993838977999985,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.2974429982714355,
+        "torch": 0.2957160002551973,
+        "operand_paths": 0.2983529004268348
+      },
+      "paired_ratios": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          1.0391036112417928,
+          1.0082106209738138,
+          1.0244618020083418,
+          1.0254290679834845,
+          1.017971748334811,
+          1.0359945875322003,
+          1.0673205395043488
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.9964371802275808,
+          1.0031561758986247,
+          0.999623828510843,
+          0.9958743306793983,
+          0.9963295432794911,
+          1.002491075784196,
+          1.0228450923134818
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          1.0014163675263348,
+          0.995594393021019,
+          1.0006387827175558,
+          1.0037913921220276,
+          0.9988989590264681,
+          1.0090465538448878,
+          1.0412265576454938
+        ],
+        "torch": [
+          0.9986575333795907,
+          1.0037559655046002,
+          1.006816221841642,
+          1.0055573734986276,
+          1.0059550478507222,
+          1.0120023660786732,
+          1.0454324432292557
+        ]
+      },
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 1.0254290679834845,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.999623828510843,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 1.0014163675263348,
+      "ratio_to_torch": 1.0059550478507222,
+      "samples_ms": {
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": [
+          0.28850530507043004,
+          0.2978830016218126,
+          0.29052620520815253,
+          0.29095420613884926,
+          0.29222520533949137,
+          0.28745130402967334,
+          0.28780829161405563
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": [
+          0.3008588100783527,
+          0.2993838977999985,
+          0.29774500289931893,
+          0.29958890518173575,
+          0.29857290210202336,
+          0.29705800116062164,
+          0.30032279901206493
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": [
+          0.29936289647594094,
+          0.3016577917151153,
+          0.2974429982714355,
+          0.2972260001115501,
+          0.2978048985823989,
+          0.29512810287997127,
+          0.2950210007838905
+        ],
+        "torch": [
+          0.3001898992806673,
+          0.29920500237494707,
+          0.2956180018372834,
+          0.2967040054500103,
+          0.2957160002551973,
+          0.2942661056295037,
+          0.29383410001173615
+        ],
+        "operand_paths": [
+          0.299786904361099,
+          0.3003288060426712,
+          0.29763299971818924,
+          0.2983529004268348,
+          0.29747700318694115,
+          0.29779799515381455,
+          0.3071837010793388
+        ]
+      },
+      "orders": [
+        [
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1"
+        ],
+        [
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "operand_paths",
+          "torch",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+        ],
+        [
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 7,
+      "repeats": 10,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    }
+  ],
+  "aliases": {
+    "1x1/tuned_gm1": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x1_u2_ac0_bc2_ar0",
+    "1x2/tuned_gm1": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+    "2x1/tuned_gm1": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+    "2x2/tuned_gm1": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+    "lesson_default/tuned_gm1": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0"
+  },
+  "validation": {
+    "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x1_u2_ac0_bc2_ar0": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x1_u2_ac0_bc2_ar0",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16
+          ],
+          "sum_before_bf16": 16
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48
+          ],
+          "sum_before_bf16": 48
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112
+          ],
+          "sum_before_bf16": 112
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            240
+          ],
+          "sum_before_bf16": 240
+        }
+      ]
+    },
+    "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16
+          ],
+          "sum_before_bf16": 16
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48
+          ],
+          "sum_before_bf16": 48
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112
+          ],
+          "sum_before_bf16": 112
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            240
+          ],
+          "sum_before_bf16": 240
+        },
+        {
+          "tiles_per_split": 5,
+          "partial_values": [
+            496
+          ],
+          "sum_before_bf16": 496
+        },
+        {
+          "tiles_per_split": 6,
+          "partial_values": [
+            1008
+          ],
+          "sum_before_bf16": 1008
+        }
+      ]
+    },
+    "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16
+          ],
+          "sum_before_bf16": 16
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48
+          ],
+          "sum_before_bf16": 48
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112
+          ],
+          "sum_before_bf16": 112
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            240
+          ],
+          "sum_before_bf16": 240
+        },
+        {
+          "tiles_per_split": 5,
+          "partial_values": [
+            496
+          ],
+          "sum_before_bf16": 496
+        },
+        {
+          "tiles_per_split": 6,
+          "partial_values": [
+            1008
+          ],
+          "sum_before_bf16": 1008
+        }
+      ]
+    },
+    "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "config": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1",
+      "first_four": [
+        8.0,
+        5.0,
+        2.0,
+        -1.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16
+          ],
+          "sum_before_bf16": 16
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48
+          ],
+          "sum_before_bf16": 48
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112
+          ],
+          "sum_before_bf16": 112
+        },
+        {
+          "tiles_per_split": 8,
+          "partial_values": [
+            4080
+          ],
+          "sum_before_bf16": 4080
+        },
+        {
+          "tiles_per_split": 9,
+          "partial_values": [
+            8176
+          ],
+          "sum_before_bf16": 8176
+        },
+        {
+          "tiles_per_split": 10,
+          "partial_values": [
+            16368
+          ],
+          "sum_before_bf16": 16368
+        }
+      ]
+    }
+  },
+  "measurement_anchor": "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x1_u2_ac0_bc2_ar0",
+  "median_ms": {
+    "graph-host": {
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.27381159670767374,
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.2844902752258349,
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.27918343439523596,
+      "torch": 0.28988664380449336,
+      "operand_paths": 0.2849387594324071
+    },
+    "direct-host": {
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg1x2_u4_ac0_bc2_ar0": 0.28960430063307285,
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x1_u4_ac0_bc2_ar1": 0.298909901175648,
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk1_wg2x2_u8_ac0_bc2_ar1": 0.2974429982714355,
+      "torch": 0.2957160002551973,
+      "operand_paths": 0.2983529004268348
+    }
+  }
+}

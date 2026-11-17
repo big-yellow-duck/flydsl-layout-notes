@@ -2,11 +2,11 @@
 
 Loop unrolling exposes several consecutive K iterations to the compiler. It can reduce loop overhead and change instruction scheduling and register lifetimes. This lesson varies `k_unroll` while retaining [10b's B cache policy](../10b-cache-policy/README.md), independent-wave mapping, and LDS-only handoffs. It keeps one current LDS tile and one logical next-tile staging fragment.
 
-The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). A physical block owns `BLOCK_M*WAVE_GROUPS_M` rows and `BLOCK_N*WAVE_GROUPS_N` columns. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
+The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
 ## Count pipeline steps before unrolling
 
-The default workload is `(16,4096,8192)` with `BLOCK_K=16`, two independent waves per block, and `split_k=1`. For a small trace of exactly the same tile path, reduce K to 96. Each wave then consumes six K tiles. Set A's tile tags to `[1,2,4,8,16,32]` and B to 1. Every output must be `16*(1+2+4+8+16+32)=1008`.
+The default workload is `(16,4096,8192)` with `STAGE_K=16`, two independent waves per block, and `split_k=1`. For a small trace of exactly the same tile path, reduce K to 96. Each wave then consumes six K tiles. Set A's tile tags to `[1,2,4,8,16,32]` and B to 1. Every output must be `16*(1+2+4+8+16+32)=1008`.
 
 ![Six K tiles with unroll four: prepare tile zero, execute four steady steps in one unrolled group, execute one tail step, then drain tile five. The same 32-value B staging fragment is reused for every unroll factor.](../../../../assets/01-gpu-programming/13-matmul/10c-k-unrolling/k-unrolling.svg)
 
@@ -14,7 +14,7 @@ Follow the tile numbers. The prologue prepares tile 0, so six tiles need **five 
 
 ## Expand the full groups
 
-Let `tiles_per_split=K//(BLOCK_K*SPLIT_K)`. The [solution](solution.py) uses a runtime loop for full groups and a tracing-time constant loop inside it. The pinned [FlyDSL kernel-authoring guide](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_authoring_guide.md) explains these loop forms:
+Let `tiles_per_split=K//(STAGE_K*SPLIT_K)`. The [solution](solution.py) uses a runtime loop for full groups and a tracing-time constant loop inside it. The pinned [FlyDSL kernel-authoring guide](https://github.com/ROCm/FlyDSL/blob/888d7d80528f0cf2abab8a86610d5ccca47f205d/docs/kernel_authoring_guide.md) explains these loop forms:
 
 ```python
 for group_k in range((tiles_per_split - 1) // K_UNROLL):
@@ -23,8 +23,7 @@ for group_k in range((tiles_per_split - 1) // K_UNROLL):
         gmem2reg_load_tile(next_tile_k)
         compute_lds()
         lds_barrier()
-        reg2lds_store_tile()
-        lds_barrier()
+        reg2lds_copy_tile()  # Copies A/B and performs the publication barrier.
 ```
 
 For the six-tile example, `group_k=0` and `step=0,1,2,3` select future tiles 1,2,3,4. Each expanded step still loads one successor and consumes one current tile. The handoffs remain between those steps.

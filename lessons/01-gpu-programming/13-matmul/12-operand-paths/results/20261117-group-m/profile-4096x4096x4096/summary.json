@@ -1,0 +1,145 @@
+{
+  "benchmark_report": "lessons/01-gpu-programming/13-matmul/12-operand-paths/results/20261117-group-m/benchmark/4096x4096x4096.json",
+  "benchmark_sha256": "6e22a1eaf696f55155f50d0d12d4a5093d2e132dfff3e6faf5dd533682d5a639",
+  "collector_sha256": "f4dddec0837bcf17206740ed2a4c6371b202ff867fae86f973b775cbe868ae5a",
+  "shape_MNK": [
+    4096,
+    4096,
+    4096
+  ],
+  "scope": "Hold the tuned grouped geometry fixed; change only group_m. Separate rocprofv3 trace, L1, L2 and external-read passes, alternating native/Torch dispatches after 20 warmups. Full CPU-reference validation and sentinel/workspace checks before/after every pass. Aggregate cache counters include all kernel traffic, not operand-specific B hits.",
+  "profiles": {
+    "2x2-grouped_geometry_gm1": {
+      "config": {
+        "block_m": 32,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "command": [
+        "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/bin/python",
+        "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py",
+        "--collect",
+        "--module",
+        "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/12-operand-paths/solution.py",
+        "--shape",
+        "4096",
+        "4096",
+        "4096",
+        "--config-json",
+        "{\"block_m\": 32, \"block_n\": 64, \"block_k\": 32, \"waves_m\": 1, \"waves_n\": 1, \"group_m\": 1, \"split_k\": 1, \"wave_groups_m\": 2, \"wave_groups_n\": 2, \"k_unroll\": 2, \"right_cache_modifier\": 2, \"left_cache_modifier\": 0, \"left_in_registers\": true}",
+        "--pairs",
+        "8",
+        "--output",
+        "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/12-operand-paths/results/20261117-group-m/profile-4096x4096x4096/2x2-grouped_geometry_gm1",
+        "--group",
+        "l1-traffic",
+        "--group",
+        "l2",
+        "--group",
+        "external-reads"
+      ],
+      "counters": {
+        "GL1C_REQ_READ_sum": 57922716.0,
+        "GL1C_REQ_MISS_sum": 49572132.0,
+        "TCP_REQ_READ_sum": 83882673.0,
+        "TCP_REQ_MISS_sum": 29552815.0,
+        "GL2C_HIT_sum": 16571476.0,
+        "GL2C_MISS_sum": 32698979.5,
+        "GL2C_EA_RDREQ_128B_sum": 32436809.5,
+        "GL2C_EA_RDREQ_64B_sum": 26.0,
+        "GL2C_EA_RDREQ_32B_sum": 0.0,
+        "GL2C_EA_RDREQ_96B_sum": 0.0,
+        "GL2C_EA_RDREQ_DRAM_sum": 32413569.5,
+        "GL2C_MC_RDREQ_sum": 32413569.5
+      },
+      "resources": {
+        "lds_bytes": 16384,
+        "vgprs": 208,
+        "scratch_bytes": 0,
+        "workgroup_threads": 128,
+        "grid_threads": 262144
+      },
+      "L2_lookup_hit_fraction_from_median_counts": 0.33633697581707966,
+      "trace_median_us_instrumented": {
+        "native": 5355.417,
+        "torch": 3618.73
+      }
+    },
+    "2x2-tuned_grouped": {
+      "config": {
+        "block_m": 32,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 2,
+        "split_k": 1,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "command": [
+        "/home/akk/jeff/flydsl-layout-notes/.pixi/envs/default/bin/python",
+        "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/09-split-k/profile.py",
+        "--collect",
+        "--module",
+        "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/12-operand-paths/solution.py",
+        "--shape",
+        "4096",
+        "4096",
+        "4096",
+        "--config-json",
+        "{\"block_m\": 32, \"block_n\": 64, \"block_k\": 32, \"waves_m\": 1, \"waves_n\": 1, \"group_m\": 2, \"split_k\": 1, \"wave_groups_m\": 2, \"wave_groups_n\": 2, \"k_unroll\": 2, \"right_cache_modifier\": 2, \"left_cache_modifier\": 0, \"left_in_registers\": true}",
+        "--pairs",
+        "8",
+        "--output",
+        "/home/akk/jeff/flydsl-layout-notes/lessons/01-gpu-programming/13-matmul/12-operand-paths/results/20261117-group-m/profile-4096x4096x4096/2x2-tuned_grouped",
+        "--group",
+        "l1-traffic",
+        "--group",
+        "l2",
+        "--group",
+        "external-reads"
+      ],
+      "counters": {
+        "GL1C_REQ_READ_sum": 60470555.0,
+        "GL1C_REQ_MISS_sum": 51452917.5,
+        "TCP_REQ_READ_sum": 83882764.0,
+        "TCP_REQ_MISS_sum": 30752362.0,
+        "GL2C_HIT_sum": 20741498.5,
+        "GL2C_MISS_sum": 30936439.0,
+        "GL2C_EA_RDREQ_128B_sum": 30674249.0,
+        "GL2C_EA_RDREQ_64B_sum": 47.0,
+        "GL2C_EA_RDREQ_32B_sum": 0.0,
+        "GL2C_EA_RDREQ_96B_sum": 0.0,
+        "GL2C_EA_RDREQ_DRAM_sum": 30791871.5,
+        "GL2C_MC_RDREQ_sum": 30791871.5
+      },
+      "resources": {
+        "lds_bytes": 16384,
+        "vgprs": 208,
+        "scratch_bytes": 0,
+        "workgroup_threads": 128,
+        "grid_threads": 262144
+      },
+      "L2_lookup_hit_fraction_from_median_counts": 0.40136080314737793,
+      "trace_median_us_instrumented": {
+        "native": 5376.274,
+        "torch": 3670.167
+      }
+    }
+  }
+}

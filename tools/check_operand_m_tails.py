@@ -76,7 +76,7 @@ def main():
     practice = (lesson / "practice.py").read_text()
     practice = practice.replace(
         'left_direct_plan = None\n    if left_direct_plan is None:\n        raise NotImplementedError("Fill in left_direct_plan.")',
-        "left_direct_plan = fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(compute_thread_id)",
+        "left_direct_plan = fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(thread_id_in_wave_group)",
     ).replace(
         'left_current = None\n            if left_current is None:\n                raise NotImplementedError("Fill in left_current.")',
         "left_current = fx.slice(left_full_tiled, (None, None, None, 0, 0, inner_k))",

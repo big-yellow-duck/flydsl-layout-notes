@@ -134,7 +134,7 @@ def unrolling():
         "For six tiles and unroll four, the prologue prepares tile zero, four expanded steps consume tiles zero through three, one tail step consumes tile four, and the drain consumes tile five. B staging remains thirty-two BF16 values per thread; physical VGPR use is measured independently.",
     )
     d.text(
-        32, 72, "Small trace: K=96; BLOCK_K=16; one split; six tiles; k_unroll=4.", 22
+        32, 72, "Small trace: K=96; STAGE_K=16; one split; six tiles; k_unroll=4.", 22
     )
     d.card(
         32,

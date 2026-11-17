@@ -52,12 +52,6 @@ def _matmul_bf16(
     print(left_thread_tiled_view)
     # TODO 1: Fill in left_thread_view; see README.md.
     left_thread_view = None
-    left_thread_view = fx.slice(
-        left_thread_tiled_view,
-        (None, None, thread_coordinate[0], 0),
-    )
-    print("left thread view:")
-    print(left_thread_view)
     if left_thread_view is None:
         raise NotImplementedError("Fill in left_thread_view.")
     right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))
@@ -70,7 +64,6 @@ def _matmul_bf16(
             a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
             # TODO 2: Fill in updated; see README.md.
             updated = None
-            updated = a * b
             if updated is None:
                 raise NotImplementedError("Fill in updated.")
             accumulators[slot] += updated

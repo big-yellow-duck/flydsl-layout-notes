@@ -110,7 +110,7 @@ def wave_grid_2d():
         row, col = divmod(wave, 2)
         x, y = 32 + col * 460, 248 + row * 174
         d.box(x, y, 433, 147, color)
-        d.text(x + 14, y + 12, f"Wave {wave}: (wave_row,wave_col)=({row},{col})", 20)
+        d.text(x + 14, y + 12, f"Wave {wave}: (group_row,group_col)=({row},{col})", 20)
         d.text(
             x + 14,
             y + 48,
@@ -147,7 +147,7 @@ def wave_grid_2d():
     d.text(
         32,
         807,
-        "out_block_view: 32 x 128  ->  divide 16 x 64  ->  slice (wave_row,wave_col)",
+        "out_block_view: 32 x 128  ->  divide 16 x 64  ->  slice (group_row,group_col)",
         20,
     )
     d.text(

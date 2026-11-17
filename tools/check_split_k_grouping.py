@@ -31,25 +31,36 @@ def instrument(source, independent_waves):
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef) and node.name == "_matmul_bf16"
     )
+    tile_id = "flat_group_id" if independent_waves else "flat_block_id"
     assignment = next(
         node
         for node in kernel.body
         if isinstance(node, ast.Assign)
         and any(
-            isinstance(target, ast.Name) and target.id == "flat_block_id"
+            isinstance(target, ast.Name) and target.id == tile_id
             for target in node.targets
         )
     )
-    logical_id = "launch_coordinate" if independent_waves else "fx.block_idx.x"
-    local_thread = "compute_thread_id" if independent_waves else "fx.thread_idx.x"
+    if independent_waves:
+        logical_id = "(fx.block_idx.x * WAVE_GROUPS + wave_group)"
+        local_thread = "thread_id_in_wave_group"
+        workspace_size = (
+            "fx.size(output_group_layout).to_py_value() * SPLIT_K * GROUP_TILE_M * GROUP_TILE_N"
+        )
+        output_row, output_col = "output_group_row", "output_group_col"
+    else:
+        logical_id = "fx.block_idx.x"
+        local_thread = "fx.thread_idx.x"
+        workspace_size = "tiles_m * tiles_n * SPLIT_K * BLOCK_M * BLOCK_N"
+        output_row, output_col = "block_row", "block_col"
     recording = f"""
     # Extra test-only storage follows the production partial workspace.
-    record_base = tiles_m * tiles_n * SPLIT_K * BLOCK_M * BLOCK_N + {logical_id} * 4
+    record_base = {workspace_size} + {logical_id} * 4
     if {local_thread} == 0:
-        partials[record_base] = fx.Float32(block_row)
-        partials[record_base + 1] = fx.Float32(block_col)
+        partials[record_base] = fx.Float32({output_row})
+        partials[record_base + 1] = fx.Float32({output_col})
         partials[record_base + 2] = fx.Float32(split_id)
-        partials[record_base + 3] = fx.Float32(flat_block_id)
+        partials[record_base + 3] = fx.Float32({tile_id})
 """
     lines = source.splitlines(keepends=True)
     lines.insert(assignment.end_lineno, recording)
@@ -67,6 +78,9 @@ def check(module, config):
         "BLOCK_M": "block_m",
         "BLOCK_N": "block_n",
         "BLOCK_K": "block_k",
+        "GROUP_TILE_M": "block_m",
+        "GROUP_TILE_N": "block_n",
+        "STAGE_K": "block_k",
         "WAVES_M": "waves_m",
         "WAVES_N": "waves_n",
         "GROUP_M": "group_m",

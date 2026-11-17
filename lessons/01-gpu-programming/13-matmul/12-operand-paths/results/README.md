@@ -4,6 +4,12 @@ The current 2D wave-group kernels and their full arrangement sweep are documente
 in [the 2026-11-16 results](../../10-wave-local-tiles/results/20261116-2d-wave-groups/README.md).
 Earlier raw timings below retain their original kernel hashes.
 
+The [M-grouping and wave-packing study](20261117-group-m/README.md) tests whether
+`wave_groups_m` replaces `group_m`, using the current lesson-12 kernel on three
+skinny and six square/rectangular shapes. It separates fixed-geometry traversal
+changes from independently tuned choices and records cache counters separately
+from uninstrumented timing.
+
 The [2026-11-13 wave-local tile comparison](wave-tiles.md) validates the wave arrangement separately: packed independent tiles improve wide graph replay time by about 3.8% over single-wave blocks, while cooperating waves remain faster for the narrow shapes.
 
 The [square-shape tuning study](square-shapes.md) adds M=N=K=1024 and 2048 with explicit tuned configurations. The 1024³ graph result is near Torch parity; 2048³ is about 1.25× faster than Torch in graph replay and also wins ordinary dispatch.

@@ -67,17 +67,10 @@ def _matmul_bf16(
     gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
     # TODO 1: Derive LEFT staging ownership from BLOCK_K.
     left_staging_thread_layout = None
-    # (32,8) :(1.0)
-    left_staging_thread_layout = fx.make_ordered_layout(
-        (THREADS_PER_BLOCK // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
-    )
     if left_staging_thread_layout is None:
         raise NotImplementedError("Fill in left_staging_thread_layout.")
     # TODO 2: Derive RIGHT staging ownership from BLOCK_N.
     right_staging_thread_layout = None
-    right_staging_thread_layout = fx.make_ordered_layout(
-        (THREADS_PER_BLOCK // (BLOCK_N // 8), BLOCK_N // 8), (1, 0)
-    )
     if right_staging_thread_layout is None:
         raise NotImplementedError("Fill in right_staging_thread_layout.")
     staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))

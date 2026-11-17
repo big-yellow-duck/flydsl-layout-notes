@@ -2,7 +2,7 @@
 
 The two waves in [lesson 10](../10-wave-local-tiles/README.md) use disjoint LDS regions. They still rendezvous at full-workgroup barriers. This lesson asks which threads actually exchange data, and which memory needs ordering at each handoff. It keeps the same tiles, ordinary cache policy, rolled K loop, and single LDS stage.
 
-The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). A physical block owns `BLOCK_M*WAVE_GROUPS_M` rows and `BLOCK_N*WAVE_GROUPS_N` columns. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
+The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
 ## Two independent choices
 
@@ -42,7 +42,7 @@ publish the next tile to LDS
 make the new LDS values visible
 ```
 
-Narrowing a barrier does not remove either dependency. The first handoff protects readers from overwrite; the second protects consumers from incomplete publication. In the three-tile trace, A tags `[1,2,4]`, B=1, and `BLOCK_K=16` still produce 112 at every output. Changing the barrier must preserve every tagged contribution.
+Narrowing a barrier does not remove either dependency. The first handoff protects readers from overwrite; the second protects consumers from incomplete publication. In the three-tile trace, A tags `[1,2,4]`, B=1, and `STAGE_K=16` still produce 112 at every output. Changing the barrier must preserve every tagged contribution.
 
 ## Compare one choice at a time
 

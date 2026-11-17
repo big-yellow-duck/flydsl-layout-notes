@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FlyDSL · A × B → C indexing explorer</title>
+<style>
+:root{--ink:#162338;--muted:#647187;--line:#dfe5ee;--bg:#f3f5f9;--wm:#2563eb;--wn:#0891b2;--r:#07835f;--s:#b86a00;--pn:#7c3aed;--g:#d23769}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.4}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #2563eb;outline-offset:3px}a{color:#235ccd}code,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace}header{background:#142237;color:white;padding:37px max(24px,calc((100vw - 1460px)/2));border-bottom:4px solid #18a7bd}.eyebrow{font-size:12px;letter-spacing:.16em;font-weight:750;text-transform:uppercase;color:#a2cdd6}h1{font-size:clamp(30px,4vw,46px);line-height:1.12;letter-spacing:-.045em;margin:10px 0 12px}header p{max-width:850px;margin:0;color:#c8d3e3;font-size:16px}main{max-width:1508px;margin:auto;padding:24px}.card{background:white;border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px;box-shadow:0 2px 5px #15243a03}h2{font-size:20px;letter-spacing:-.025em;margin:0 0 5px}h3{font-size:16px;margin:0 0 9px}.sub{color:var(--muted);font-size:13px;margin:0 0 15px}.sectionhead{display:flex;align-items:start;justify-content:space-between;gap:16px;flex-wrap:wrap}.pill{display:inline-block;border-radius:6px;background:#edf1f7;padding:3px 8px;font-size:12px;font-weight:650}.buttons,.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.button{border:1px solid #ccd6e3;background:white;border-radius:8px;padding:8px 12px;color:var(--ink);font-size:13px;font-weight:600}.button.active,.button.primary{background:#192d49;color:white;border-color:#192d49}.button:hover:not(:disabled){box-shadow:0 0 0 2px #253b5b12}.params{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:13px;margin-top:19px}.field{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:650;min-width:0}.field input,.field select{width:100%;min-width:0;padding:8px 10px;background:#fbfcfe;border:1px solid #cdd6e2;border-radius:7px;font-size:17px;color:var(--ink)}.field small{font-size:11px;color:var(--muted);font-weight:400}.field.coloured{border-top:3px solid var(--accent);padding-top:8px}.advanced{margin-top:15px;font-size:13px}summary{cursor:pointer;font-weight:650}.stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.stat{flex:1;min-width:140px;background:#f5f7fb;border-radius:9px;padding:11px 13px}.stat .value{font-size:20px;font-weight:750;letter-spacing:-.04em}.stat .label{font-size:11px;color:var(--muted)}.notice{border-radius:8px;padding:10px 13px;font-size:13px;margin-top:14px;background:#edf7f2;color:#176045}.notice.warn{background:#fff5df;color:#805019}.notice.error{background:#fff0f0;color:#a12032}.notice.muted{background:#f1f4f8;color:#58647a}.hidden{display:none!important}.controlrow{display:grid;grid-template-columns:auto 1fr 115px;gap:16px;align-items:center}input[type=range]{accent-color:#1c517f;width:100%}.indexinput{font:700 25px ui-monospace,monospace;max-width:115px;border:1px solid #bdcadb;border-radius:8px;padding:6px 8px}.transport{display:flex;gap:5px}.transport button{padding:8px 12px}.selectionline{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:13px}.selectionline b{font-family:ui-monospace,monospace}.axisgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin-top:16px}.axiscard{border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:9px;padding:12px 10px;min-width:0}.axisname{font:700 12px ui-monospace,monospace;color:var(--accent);min-height:32px;overflow-wrap:anywhere}.axisdatum{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;margin:6px 0}.axisdatum strong{color:var(--ink);font:700 15px ui-monospace,monospace}.axiscoord{display:flex;justify-content:space-between;align-items:center;gap:4px;padding:5px 0}.axiscoord b{font:700 27px ui-monospace,monospace}.axiscoord button{width:27px;height:27px;border:1px solid var(--line);border-radius:5px;background:white;color:var(--accent);font-weight:800}.contribution{border-top:1px solid var(--line);font:600 12px ui-monospace,monospace;padding-top:9px}.formula{padding:14px 16px;background:#f6f8fb;border:1px solid #e1e6ee;border-radius:9px;font:15px/1.9 ui-monospace,monospace;overflow-x:auto;margin-top:12px}.formula .term{font-weight:750;white-space:nowrap}.columns{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(330px,1fr);gap:18px}.columns>.card{min-width:0}.nest{position:relative;padding:10px 10px 9px 14px;margin-top:6px;border-left:4px solid var(--accent);background:color-mix(in srgb,var(--accent) 4%,white);border-radius:0 8px 8px 0}.nesthead{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}.nesthead b{color:var(--accent);font-family:ui-monospace,monospace}.siblings{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}.sibling{padding:5px 8px;min-width:50px;border:1px solid color-mix(in srgb,var(--accent) 25%,white);border-radius:6px;background:#fff;color:var(--ink);font:12px ui-monospace,monospace;text-align:left}.sibling small{display:block;font-size:10px;color:var(--muted);margin-top:2px}.sibling.selected{background:var(--accent);color:white;border-color:var(--accent)}.sibling.selected small{color:white;opacity:.9}.wavegrid{display:grid;gap:9px;margin:12px 0}.wavebox{border:1px solid #a5c4dc;border-radius:8px;padding:11px 8px;background:#eff8fc;text-align:center;cursor:pointer}.wavebox.chosen{outline:3px solid #193653;background:#dfeef9}.wavebox strong{font:700 18px ui-monospace,monospace}.wavebox small{display:block;font-size:11px;color:var(--muted);margin-top:4px}.wavebox .dims{font:11px ui-monospace,monospace;margin-top:5px}.explain{font-size:13px;color:#4c5c71;line-height:1.65}.explain b{color:#1b2c43}.separator{height:1px;background:var(--line);margin:17px 0}.ribbon{display:flex;gap:9px;overflow-x:auto;padding:5px 3px 11px}.blockbox{border:1px solid #d9e2eb;border-radius:9px;min-width:110px;padding:8px;flex:1}.blockbox.iscurrent{border:2px solid #17314e;padding:7px;background:#f8fbff}.blocktitle{display:flex;justify-content:space-between;gap:8px;font:600 11px ui-monospace,monospace;margin-bottom:7px}.blockwaves{display:grid;gap:3px}.wavechip{border:1px solid #dae2eb;border-top:3px solid var(--accent);border-radius:5px;padding:7px 4px;background:white;font:600 13px ui-monospace,monospace}.wavechip.selected{background:#1b314f;color:white;border-color:#1b314f}.blockmeta{font:10px ui-monospace,monospace;color:var(--muted);margin-top:7px;white-space:nowrap}.carry{font-size:13px;background:#f4f6fa;border-radius:8px;padding:11px 13px;margin-top:8px}.smallselect{padding:5px 7px;border:1px solid #cdd7e4;border-radius:6px;font-size:12px;background:white}.plane{border:1px solid #e4d4bc;border-top:3px solid var(--s);border-radius:9px;margin-top:13px;overflow:hidden}.planehead{background:#fffaf1;padding:9px 13px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px}.planehead b{color:var(--s)}.plane-scroll{overflow:auto;max-height:640px;background:#fcfdff;padding:9px}.plane svg{display:block}.tilehit{cursor:pointer}.tilehit:focus{outline:none}.tilehit:hover rect{stroke:#15283f;stroke-width:3}.legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:10px}.swatch{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;background:var(--accent)}.calcgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}.calc{border:1px solid var(--line);border-radius:9px;padding:14px;overflow-wrap:anywhere}.calc h3{font-size:14px}.calc code{display:block;font-size:12px;line-height:1.9}.calc .big{font:700 20px ui-monospace,monospace;margin:6px 0}.calc .tiny{font-size:11px;color:var(--muted);margin-top:6px}.formula.small{font-size:12px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.row input[type=range]{max-width:300px}pre{background:#142237;color:#d7e5f4;padding:18px;border-radius:9px;overflow-x:auto;font-size:12px;line-height:1.75}footer{color:var(--muted);font-size:12px;padding:6px 5px 30px}footer p{margin:8px 0}details.notes p{max-width:1000px}.floating-note{font-size:11px;color:var(--muted);margin-top:8px}.validation{font-family:ui-monospace,monospace;font-size:11px}.sourcebadge{display:inline-block;color:#afbecf;font:11px ui-monospace,monospace;margin-top:16px}#status{font-size:12px;color:var(--muted)}@media(max-width:1120px){.params,.axisgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.columns{grid-template-columns:1fr}.axisname{min-height:16px}.calcgrid{grid-template-columns:1fr 1fr}}@media(max-width:650px){main{padding:12px}.card{padding:15px;border-radius:11px}header{padding:26px 18px}.params,.axisgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.calcgrid{grid-template-columns:1fr}.controlrow{grid-template-columns:1fr 100px}.transport{grid-column:1/-1}.indexinput{width:100px}.nest{margin-left:0!important}.stat{min-width:120px}.sectionhead{gap:10px}h2{font-size:18px}.formula{font-size:12px}}
+
+html{scroll-behavior:smooth;scroll-padding-top:14px}.quicknav{display:flex;gap:10px;flex-wrap:wrap;margin-top:21px}.quicknav a{font-size:13px;color:white;text-decoration:none;padding:8px 13px;border:1px solid #72839c;border-radius:7px}.quicknav a:first-child{background:#ecf8fc;color:#16334d;border-color:#ecf8fc}.matmul-card{padding:24px;border-top:4px solid #7c3aed}.matmul-badge{background:#f0eafe;color:#6231ad}.matmul-controls{display:grid;grid-template-columns:minmax(240px,1.2fr) minmax(270px,1fr);gap:14px;margin:17px 0 14px}.controlbox{padding:14px;background:#f7f9fc;border:1px solid #e4e9f0;border-radius:10px}.controllabel{font-size:11px;letter-spacing:.05em;font-weight:750;text-transform:uppercase;color:#5b6b81;margin-bottom:8px}.matmul-l-selection{font-size:12px;margin:9px 0 0;color:#4e5f75}.kcontrol{display:grid;grid-template-columns:auto 1fr 65px;gap:9px;align-items:center;margin-top:9px}.kcontrol input[type=number]{width:65px;border:1px solid #c9d4e2;border-radius:6px;padding:6px;background:white;font-weight:700}.split-buttons{display:flex;gap:5px;align-items:center;flex-wrap:wrap}.split-btn{border:1px solid #ddc9a5;border-radius:6px;background:white;font-size:12px;color:#885718;padding:5px 9px;cursor:pointer}.split-btn.selected{background:#a75f00;color:white;border-color:#a75f00}.split-btn small{display:inline-block;margin-left:5px;font-size:10px;opacity:.82}.matrix-options{display:flex;gap:13px;align-items:center;flex-wrap:wrap;font-size:12px;padding:10px 0 14px}.matrix-options label{display:flex;gap:5px;align-items:center}.matrix-options input{accent-color:#6742a3}.equation-banner{background:#f7f4fd;border:1px solid #e7dcf7;border-radius:9px;padding:13px 16px;margin:0 0 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.equation-main{font:600 15px/1.8 ui-monospace,monospace}.equation-extra{font-size:11px;color:#6c627b}.a-color{color:#2563eb}.b-color{color:#07879d}.c-color{color:#7338c7}.k-color{color:#a75f00}.matrix-panels{display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr) 22px minmax(0,1fr);gap:8px;align-items:start}.matrix-panel{border:1px solid #dce5ef;border-top:4px solid var(--matrix-color);border-radius:11px;overflow:hidden;min-width:0;background:#fff}.matrix-panel-head{display:flex;justify-content:space-between;align-items:start;padding:13px 14px 8px;gap:6px}.matrix-symbol{font-size:27px;font-weight:800;line-height:1.1;color:var(--matrix-color)}.matrix-size{font:12px ui-monospace,monospace;color:#62748a;margin-top:5px}.matrix-purpose{font-size:11px;color:#68788b;text-align:right;max-width:145px}.matrix-op{color:#8996aa;font-size:27px;font-weight:400;text-align:center;padding-top:155px}.matrix-svg{display:block;width:100%;height:auto;overflow:visible;user-select:none;touch-action:pan-y}.matrix-svg:focus-visible{outline:3px solid var(--matrix-color);outline-offset:-3px}.matrix-foot{padding:10px 13px 12px;background:#f8fafc;border-top:1px solid #e8edf4;font-size:11px;line-height:1.8;min-height:102px;overflow-wrap:anywhere}.matrix-foot code{font-size:11px;font-weight:600;color:#253b56}.matrix-foot .origin{font-size:10px;color:#627087}.matrix-viewport{font:10px ui-monospace,monospace;padding:0 13px 10px;color:#6e7c90;min-height:23px}.matrix-hover{margin-top:10px;min-height:24px;font-size:12px;color:#53647b}.matrix-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#627186;padding:2px 0 7px}.legend-chip{display:inline-block;width:14px;height:11px;vertical-align:middle;margin-right:5px;border-radius:2px}.pipeline-note{display:flex;gap:12px;padding:12px 14px;margin-top:12px;background:#f4f7fb;border-radius:9px;font-size:12px;color:#4e5e72}.pipeline-tag{align-self:start;white-space:nowrap;font-size:10px;font-weight:750;border-radius:5px;background:#e3eaf4;padding:4px 7px;color:#314861}.accumbar{height:6px;display:flex;background:#e5dcf3;border-radius:8px;overflow:hidden;margin:6px 0}.accumbar span{background:#7840bf;display:block}.matrix-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}.detailbox{border:1px solid #dde5ee;border-radius:10px;padding:15px;min-width:0}.detailbox h3{font-size:14px}.detailbox .sub{margin-bottom:9px;font-size:12px}.probe-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:11px}.probe-field{font-size:11px;font-weight:650;color:#5c6b7e}.probe-field input{width:100%;accent-color:#6742a3}.probe-value{font:700 15px ui-monospace,monospace}.probe-formula{font:12px/1.95 ui-monospace,monospace;padding:10px 12px;background:#f7f8fc;border-radius:7px;margin-top:9px;overflow-wrap:anywhere}.probe-note{font-size:10px;color:#64748a;margin-top:8px}.group-tags{display:flex;gap:5px;flex-wrap:wrap;margin:9px 0}.group-tag{border:1px solid #d9e3ef;border-radius:5px;font:11px ui-monospace,monospace;padding:4px 6px;background:white;cursor:pointer}.group-tag.active{background:#1c3250;color:white;border-color:#1c3250}.reuse-pair{font:12px/1.95 ui-monospace,monospace;background:#f7f9fc;padding:10px 11px;border-radius:7px}.trace-wrap{overflow:auto;margin-top:10px}.trace-table{border-collapse:collapse;width:100%;font:11px/1.6 ui-monospace,monospace;min-width:660px}.trace-table th{font:600 10px system-ui,sans-serif;text-align:left;color:#6a7890;padding:8px;background:#f6f8fc;border-bottom:1px solid #dfe6f0}.trace-table td{padding:8px;border-bottom:1px solid #e7ecf2;white-space:nowrap}.trace-table tr.active td{background:#f3edfc;color:#522891;font-weight:650}.trace-table button{border:1px solid #d8cbea;border-radius:5px;background:white;color:#6433a4;padding:3px 8px;font:inherit;cursor:pointer}.trace-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px}.trace-title h3{margin:0}.matmul-small-note{font-size:11px;color:#607086;margin-top:10px}.matrix-panel svg text{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.local-probe-marker{pointer-events:none}.matmul-toast{font-size:12px;padding:8px 11px;background:#eaf4ef;border-radius:6px;color:#32614b;margin-top:10px}.hero-tight{max-width:1050px}.motion-hint{font-size:11px;color:#627088;margin-top:9px}.matrix-ranges{display:flex;gap:7px;flex-wrap:wrap;font-size:11px}.range-badge{background:#edf1f8;border-radius:5px;padding:3px 6px;font-family:ui-monospace,monospace}.probe-summary{font-size:11px;margin-top:9px;line-height:1.7;color:#53677d}.matrix-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.matrix-tools button{padding:5px 9px}.matrix-select-label{font-size:11px;font-weight:600;color:#61728a}.matrix-c-status{font-size:10px;font-weight:650;color:#704198}.matrix-svg .pointer-target{cursor:crosshair}.matrix-svg .pointer-target:focus{outline:none} .matrix-card-section{scroll-margin-top:12px}
+@media(max-width:1050px){.matrix-panels{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.matrix-op{display:none}.matrix-purpose{font-size:10px}.matrix-controls{grid-template-columns:1fr}.matrix-panel-head{padding:10px}.matrix-foot{padding:10px;font-size:10px}.matrix-foot code{font-size:10px}.matrix-detail-grid{grid-template-columns:1fr}.equation-main{font-size:13px}.matmul-controls{grid-template-columns:1fr}}
+@media(max-width:720px){.matrix-panels{grid-template-columns:1fr}.matrix-panel{max-width:500px;width:100%;margin:auto}.matrix-panel-head{padding:12px 14px}.matrix-foot{min-height:auto;font-size:12px}.matrix-foot code{font-size:12px}.matrix-purpose{font-size:12px}.matmul-card{padding:15px}.matrix-detail-grid{grid-template-columns:1fr}.matrix-tools{gap:5px}.equation-main{font-size:11px}.matrix-options{gap:9px}.matrix-options label{font-size:11px}.pipeline-note{display:block}.pipeline-tag{display:inline-block;margin-bottom:6px}.quicknav{gap:6px}.quicknav a{font-size:12px;padding:7px 9px}.kcontrol{grid-template-columns:auto 1fr 57px}.kcontrol input[type=number]{width:57px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+</style></head>
+<body>
+<header><div class="eyebrow">FlyDSL layout notes / 10b-cache-policy</div><h1>One index. Three matrices.</h1><p>Follow the six-axis launch layout into A, B, and C. Step the K loop to see operand tiles move, prefetch advance, and a fixed output tile accumulate.</p><span class="sourcebadge">INTEGER MAPPING EXPLORER · NO GPU REQUIRED · SOURCE CHECKED 16 NOV 2026</span><nav class="quicknav"><a href="#matmul-section">A × B → C flow</a><a href="#parameters">Parameters</a><a href="#launch-section">Launch hierarchy</a><a href="#address-section">Exact addresses</a></nav></header>
+<main>
+<section class="card" id="parameters"><div class="sectionhead"><div><h2>01 / Configure the hierarchy</h2><p class="sub">Start with every axis active, then switch to the exact configurations selected in your 10b solution.</p></div><span id="presetLabel" class="pill">Teaching preset</span></div>
+<div class="buttons" id="presets"><button class="button active" data-preset="teaching">All six axes</button><button class="button" data-preset="wide">10b · 16 × 4096 × 8192</button><button class="button" data-preset="narrow16">10b · 16 × 1024 × 8192</button><button class="button" data-preset="narrow32">10b · 32 × 1024 × 8192</button></div>
+<div class="params">
+<label class="field coloured" style="--accent:var(--wm)">WAVE_GROUPS_M<input id="wm" type="number" min="1" max="8" value="2"><small>Tile groups down a physical block</small></label>
+<label class="field coloured" style="--accent:var(--wn)">WAVE_GROUPS_N<input id="wn" type="number" min="1" max="8" value="2"><small>Tile groups across a physical block</small></label>
+<label class="field coloured" style="--accent:var(--r)">GROUP_M<input id="gm" type="number" min="1" max="128" value="2"><small>group_width = min(GROUP_M, P_M)</small></label>
+<label class="field coloured" style="--accent:var(--s)">SPLIT_K<input id="sk" type="number" min="1" max="32" value="2"><small>K partitions per output tile</small></label>
+<label class="field coloured" style="--accent:var(--pn)">physical_tiles_n · P_N<input id="pn" type="number" min="1" max="128" value="3"><small>Physical block columns</small></label>
+<label class="field coloured" style="--accent:var(--g)">physical_tiles_m · P_M<input id="pm" type="number" min="1" max="128" value="4"><small>M groups = P_M / group_width</small></label>
+</div>
+<details class="advanced"><summary>Matrix element sizes &amp; waves within a tile group</summary><p class="sub" style="margin-top:9px">These affect element addresses and thread/LDS sizes. Only WAVE_GROUPS_M/N determine the first two launch-layout axes.</p><div class="params">
+<label class="field">BLOCK_M<input id="bm" type="number" minhttps://github.com/vllm-project/vllm/pull/67844#issuecomment-6930402349="1" max="512" value="16"></label><label class="field">BLOCK_N<input id="bn" type="number" min="1" max="512" value="64"></label><label class="field">BLOCK_K<input id="bk" type="number" min="1" max="512" value="16"></label><label class="field">K<input id="k" type="number" min="1" max="1048576" value="256"></label><label class="field">WAVES_M<input id="im" type="number" min="1" max="8" value="1"><small>WMMA waves inside each group</small></label><label class="field">WAVES_N<input id="inn" type="number" min="1" max="8" value="1"><small>Not WAVE_GROUPS_N</small></label></div></details>
+<div id="error" class="notice error hidden" role="alert"></div><div id="warning" class="notice warn hidden"></div><div id="stats" class="stats"></div>
+</section>
+<div id="visuals">
+<section class="card matmul-card matrix-card-section" id="matmul-section">
+ <div class="sectionhead"><div><h2>02 / Watch A × B accumulate into C</h2><p class="sub">Choose an output tile, then walk along K. The three matrices stay synchronized with the six-axis launch mapping.</p></div><div class="inline"><span class="pill matmul-badge">NEW · 2D operand flow</span><button class="button" id="matrixDemo">Worked demo · L79, K-step 2</button></div></div>
+ <div class="matmul-controls">
+  <div class="controlbox"><div class="controllabel">1 · Select the output tile / launch item</div><div class="matrix-tools"><button class="button primary" id="matrixLPlay">Play L</button><button class="button" id="matrixLPrev" title="Previous logical launch item">← L</button><button class="button" id="matrixLNext" title="Next logical launch item">L →</button><button class="button" id="matrixBlockPrev">← Block</button><button class="button" id="matrixBlockNext">Block →</button><input type="number" id="matrixL" class="smallselect" style="width:83px" min="0" aria-label="Selected launch coordinate"></div><div style="margin-top:8px"><label class="matrix-select-label">Playback step <select id="matrixLStep" class="smallselect"><option value="wave">One tile group</option><option value="block">One physical block</option></select></label></div><div id="matrixSelection" class="matmul-l-selection"></div><div class="motion-hint">Or click C to choose a tile. Click A or B to change its spatial coordinate and K position.</div></div>
+  <div class="controlbox"><div class="controllabel">2 · Advance the K loop (keep the output tile fixed)</div><div class="matrix-tools"><button class="button" id="kFirst">|←</button><button class="button" id="kPrev">←</button><button class="button primary" id="kPlay">Play K</button><button class="button" id="kNext">→</button><button class="button" id="kLast">→|</button><select id="kSpeed" class="smallselect" aria-label="Animation interval"><option value="1100">Slow</option><option value="650" selected>Normal</option><option value="250">Fast</option></select><label style="font-size:11px"><input type="checkbox" id="kCycle"> Continue to next split</label></div><div class="kcontrol"><span class="mono" style="font-size:12px">local j</span><input id="matrixK" type="range" min="0" value="0" aria-label="K-loop iteration"><input id="matrixKNum" type="number" min="0" value="0" aria-label="K-loop iteration number"></div><div id="matrixKLabel" class="motion-hint"></div></div>
+ </div>
+ <div class="split-buttons" id="matrixSplits" aria-label="Choose a K partition"></div>
+ <div class="matrix-options"><label>View <select id="matrixZoom" class="smallselect"><option value="auto">Auto fit</option><option value="full">Full matrices</option><option value="local">Follow tile · zoom</option></select></label><label><input id="matrixTrail" type="checkbox" checked> Earlier K tiles</label><label><input id="matrixPrefetch" type="checkbox" checked> Next prefetch</label><label><input id="matrixGroups" type="checkbox" checked> Physical-block footprint</label><label><input id="matrixProbe" type="checkbox"> Scalar probe</label></div>
+ <div id="matrixEquation" class="equation-banner" aria-live="polite"></div>
+ <div class="matrix-panels" id="matrixPanels"></div>
+ <div class="matrix-hover" id="matrixHover">Click any matrix to inspect its tile. Focus a matrix and use the arrow keys to move its selection.</div>
+ <div class="matrix-legend"><span><i class="legend-chip" style="background:#2563eb"></i>Current A tile</span><span><i class="legend-chip" style="background:#07879d"></i>Current B tile</span><span><i class="legend-chip" style="background:#7c3aed"></i>C accumulator target</span><span><i class="legend-chip" style="background:#fff0cf;border:1px solid #e5bb75"></i>Selected K partition</span><span><i class="legend-chip" style="border:2px dashed #bb760e"></i>Next global-load tile</span><span><i class="legend-chip" style="background:#dce8fa"></i>Earlier K contributions</span></div>
+ <div id="matrixPipeline" class="pipeline-note"></div>
+ <div class="matrix-detail-grid">
+  <div class="detailbox"><h3>What changes at the next K step?</h3><div id="matrixDelta" class="reuse-pair"></div><div id="matrixReuse" class="probe-summary"></div><div id="matrixGroupTags" class="group-tags"></div></div>
+  <div class="detailbox"><h3>Inspect one scalar multiply inside the tile</h3><p class="sub">A symbolic term of the dot product, not the GPU lane or WMMA issue order. Enable “Scalar probe” to mark it on all three matrices.</p><div class="probe-fields"><label class="probe-field">local m <b id="probeMLabel" class="probe-value"></b><input id="probeM" type="range" min="0" value="0" aria-label="Scalar probe local M"></label><label class="probe-field">local n <b id="probeNLabel" class="probe-value"></b><input id="probeN" type="range" min="0" value="0" aria-label="Scalar probe local N"></label><label class="probe-field">local k <b id="probeKLabel" class="probe-value"></b><input id="probeK" type="range" min="0" value="0" aria-label="Scalar probe local K"></label></div><div id="probeFormula" class="probe-formula"></div><div class="probe-note">Offsets are in elements from each tensor’s base. A/B and final C are BF16; accumulators and split-K partials are FP32.</div></div>
+ </div>
+ <div class="trace-title"><h3>K-loop trace · selected launch item</h3><div class="inline"><button id="matrixTraceCsv" class="button">Export K trace CSV</button></div></div><div id="matrixTrace" class="trace-wrap"></div>
+ <div id="matrixToast" class="matmul-toast hidden" role="status"></div>
+ <p class="matmul-small-note">Tile-grid schematic: matrix panels are independently scaled. Indices and half-open ranges [start, end) are exact. Scrubbing is an indexing illustration, not GPU scheduling, numerical values, or measured cache behavior.</p>
+</section>
+
+<section class="card" id="launch-section"><div class="sectionhead"><div><h2>03 / Scrub the launch coordinate</h2><p class="sub">L = block_idx.x × WAVE_GROUPS + wave_group. This is an index, not a byte offset or a timestamp.</p></div><div class="inline"><button class="button" id="example79">Worked example · L = 79</button><select id="stepMode" class="smallselect" aria-label="Step size"><option value="wave">Step one tile group</option><option value="block">Step one physical launch</option></select></div></div>
+<div class="controlrow"><div class="transport"><button class="button" id="start" title="First coordinate">|←</button><button class="button" id="prev" title="Previous coordinate">←</button><button class="button primary" id="play">Play</button><button class="button" id="next" title="Next coordinate">→</button><button class="button" id="end" title="Last coordinate">→|</button></div><input id="slider" type="range" min="0" max="95" value="0" aria-label="Launch coordinate"><input id="index" class="indexinput" type="number" min="0" max="95" value="0" aria-label="Launch coordinate value"></div>
+<div id="selection" class="selectionline" aria-live="polite"></div><div class="notice muted">“Traversal” here means the mapping of increasing IDs. Groups within a block can execute concurrently; block IDs do not guarantee GPU issue order, completion order, or cache hits.</div>
+<div id="axes" class="axisgrid"></div><div id="sum" class="formula"></div><div id="tuple" class="formula small"></div>
+</section>
+<div class="columns">
+<section class="card"><h2>04 / Open the nested containers</h2><p class="sub">Slowest / outermost at the top. Each child partitions only its selected parent. Ranges are inclusive launch coordinates.</p><div id="hierarchy"></div><p class="floating-note">Click any sibling to change just that coordinate while retaining the other five. Extent 1 means a collapsed level, not another traversal step.</p></section>
+<section class="card"><h2>Inside this physical block</h2><p class="sub">The two wave-group axes are local to one physical launch. All these groups have the same split_id.</p><div id="waveInfo" class="explain"></div><div id="wavegrid" class="wavegrid"></div><div id="waveDetail" class="explain"></div><div class="separator"></div><h3>The smallest strides live here</h3><div id="fastslow" class="explain"></div></section>
+</div>
+<section class="card"><div class="sectionhead"><div><h2>05 / Follow the IDs</h2><p class="sub">Each outlined box is one physical launch; its inner cells are tile groups. The small colour bar marks the axis advanced at that boundary.</p></div><div class="inline"><button class="button" id="ribbonPrev">← Earlier</button><button class="button" id="ribbonNext">Later →</button></div></div><div id="ribbon" class="ribbon"></div><div id="carry" class="carry"></div></section>
+<section class="card"><div class="sectionhead"><div><h2>06 / See where each item lands in C</h2><p class="sub">Each cell is one BLOCK_M × BLOCK_N output tile. Different K planes contribute to the same C coordinates.</p></div><div class="inline"><label>Labels <select id="labels" class="smallselect"><option value="l">Launch coordinate L</option><option value="b">block_idx.x</option><option value="tile">Row-major output tile ID</option></select></label><label>Fill <select id="colour" class="smallselect"></select></label><label>Plane <select id="planeMode" class="smallselect"><option value="auto">All, up to 4 splits</option><option value="selected">Selected split only</option></select></label></div></div><div id="gridInfo" class="explain"></div><div id="planes"></div><div class="legend"><span><i class="swatch" style="--accent:#172c46"></i>Dark cell: selected L</span><span><i class="swatch" style="--accent:#8697ad"></i>Grey frame: physical C footprint</span><span><i class="swatch" style="--accent:var(--g)"></i>Pink horizontal boundaries: M groups</span><span>Click a tile to select it. All indices are zero-based.</span></div></section>
+<section class="card" id="address-section"><h2>07 / Turn coordinates into actual addresses</h2><p class="sub">Separate the launch-layout stride from row-major tensor strides. Addresses below are relative to each tensor’s base, for contiguous BF16 A/B/C.</p><div class="row"><label for="kt">K-loop tile inside this split:</label><input id="kt" type="range" min="0" max="7" value="0"><b id="ktlabel" class="mono"></b></div><div id="mapping" class="formula small"></div><div id="addresses" class="calcgrid"></div><div id="workspace" class="formula small"></div></section>
+<section class="card"><div class="sectionhead"><div><h2>Reproduce this mapping</h2><p class="sub">Pure integer reference; no FlyDSL installation required. The layout is a permutation of a dense mixed-radix counter.</p></div><div class="inline"><button id="csv" class="button">Export traversal CSV</button><button id="json" class="button">Export parameters JSON</button></div></div><pre id="reference"></pre><div id="check" class="validation"></div></section>
+</div>
+<footer><details class="notes"><summary>Scope, assumptions, and source references</summary><p>The 2D view models the BLOCK_K outer loop, with an optional preview of the next global-to-register prefetch. Its C highlight denotes the accumulator’s output region: the kernel does not write C each iteration. In split-K, the completed partial is published first and a last-arriving thread finalizes its output slots. The scalar probe is mathematical, not a lane mapping. This explorer reproduces the indexing in <code>lessons/01-gpu-programming/13-matmul/10b-cache-policy/solution.py</code>, inspected on 16 November 2026; source-file blob SHA <code>0277d7e841de9717806eba115447c0dcbb85f4fe</code>. Teaching presets are illustrative, not measured tuning results. The three 10b presets come from <code>CONFIGS_BY_SHAPE</code>. The implementation is a standalone integer model, not a FlyDSL execution trace or hardware simulator.</p><p>The mapping requires complete physical tiles and complete M groups. K partitions must contain complete BLOCK_K tiles. Amber warnings distinguish mathematically valid layout settings from settings rejected by 10b’s kernel validator. A tile group can contain more than one WMMA wave when WAVE_GROUPS = 1; in 10b, multiple independent groups each contain one wave32.</p><p>Changing traversal does not change row-major workspace tile IDs. Workspace numbers identify a tile’s FP32 partial region; they do not describe the thread/fragment arrangement inside that region. Cache policy modifiers do not change this launch mapping. Cache reuse is an opportunity, not a guarantee; LDS slices remain separate per tile group.</p><p>Source: <a href="https://github.com/big-yellow-duck/flydsl-layout-notes/blob/main/lessons/01-gpu-programming/13-matmul/10b-cache-policy/solution.py">10b solution</a> · <a href="https://github.com/big-yellow-duck/flydsl-layout-notes/blob/main/lessons/01-gpu-programming/13-matmul/10b-cache-policy/README.md">10b README</a> · <a href="https://rocm.docs.amd.com/projects/FlyDSL/en/latest/layout_system_guide.html">AMD FlyDSL layout algebra</a></p></details><p>Local, dependency-free HTML. No external scripts, tracking, or network requests. Layout arithmetic is independently tested against explicit nested-loop enumeration.</p><div id="status"></div></footer>
+</main>
+<script>
+/* Exact integer model of 10b's dense six-axis launch-coordinate layout.
+ * No GPU/FlyDSL runtime is required. Does NOT simulate GPU scheduling.
+ */
+(function (root) {
+'use strict';
+const AXES = [
+ {key:'wm', name:'wave_row', param:'WAVE_GROUPS_M', color:'#2563eb', short:'wM'},
+ {key:'wn', name:'wave_col', param:'WAVE_GROUPS_N', color:'#0891b2', short:'wN'},
+ {key:'r', name:'row_in_group', param:'group_width', color:'#07835f', short:'r'},
+ {key:'s', name:'split_id', param:'SPLIT_K', color:'#b86a00', short:'s'},
+ {key:'pn', name:'physical_block_col', param:'physical_tiles_n', color:'#7c3aed', short:'pN'},
+ {key:'g', name:'group_id', param:'physical_tiles_m / group_width', color:'#d23769', short:'g'},
+];
+const PRESETS = {
+ teaching:{wm:2,wn:2,pm:4,pn:3,gm:2,sk:2,bm:16,bn:64,bk:16,k:256,im:1,inn:1},
+ wide:{wm:1,wn:2,pm:1,pn:32,gm:1,sk:1,bm:16,bn:64,bk:16,k:8192,im:1,inn:1},
+ narrow16:{wm:1,wn:1,pm:1,pn:16,gm:1,sk:4,bm:16,bn:64,bk:32,k:8192,im:1,inn:2},
+ narrow32:{wm:1,wn:1,pm:1,pn:16,gm:1,sk:4,bm:32,bn:64,bk:64,k:8192,im:1,inn:2},
+};
+function derive(p) {
+ for (const [key,v] of Object.entries(p)) if (!Number.isSafeInteger(v)||v<1) throw Error(key+' must be a positive integer.');
+ const w=p.wm*p.wn, gw=Math.min(p.gm,p.pm);
+ if (p.pm%gw) throw Error('physical_tiles_m ('+p.pm+') must be divisible by group_width ('+gw+'). This code has no partial M-group tail.');
+ if (p.k%(p.sk*p.bk)) throw Error('K must be divisible by SPLIT_K × BLOCK_K, so each split contains complete K tiles.');
+ const sh=[p.wm,p.wn,gw,p.sk,p.pn,p.pm/gw],st=[p.wn,1,w,w*gw,w*gw*p.sk,w*gw*p.sk*p.pn];
+ const blocks=p.pm*p.pn*p.sk,total=blocks*w,tm=p.pm*p.wm,tn=p.pn*p.wn;
+ if (!Number.isSafeInteger(total)||total>1000000) throw Error('Explorer limit: at most 1,000,000 logical work items. Reduce the grid.');
+ const d={...p,w,gw,sh,st,blocks,total,tm,tn,m:tm*p.bm,n:tn*p.bn,tpg:32*p.im*p.inn};
+ d.threads=d.tpg*w;d.lds=2*w*(p.bm*(p.bk+8)+p.bk*p.bn);d.iters=p.k/p.sk/p.bk;
+ return d;
+}
+function decode(l,d) {
+ if(!Number.isSafeInteger(l)||l<0||l>=d.total) throw Error('Launch coordinate out of range.');
+ const c=d.sh.map((sz,i)=>Math.floor(l/d.st[i])%sz);
+ const [wm,wn,r,s,pn,g]=c,pr=g*d.gw+r,tr=pr*d.wm+wm,tc=pn*d.wn+wn;
+ return {l,c,wm,wn,r,s,pn,g,pr,tr,tc,b:Math.floor(l/d.w),wave:l%d.w,tile:tr*d.tn+tc,m0:tr*d.bm,n0:tc*d.bn};
+}
+function encode(c,d) {
+ if(c.length!==6||c.some((v,i)=>!Number.isInteger(v)||v<0||v>=d.sh[i])) throw Error('Coordinate outside the layout shape.');
+ return c.reduce((sum,v,i)=>sum+v*d.st[i],0);
+}
+function fromTile(tr,tc,s,d) {
+ const pr=Math.floor(tr/d.wm);
+ return encode([tr%d.wm,tc%d.wn,pr%d.gw,s,Math.floor(tc/d.wn),Math.floor(pr/d.gw)],d);
+}
+function kernelWarnings(d) {
+ const out=[];
+ if(![1,2].includes(d.wm)||![1,2].includes(d.wn))out.push('10b permits only 1 or 2 for each WAVE_GROUPS dimension.');
+ if(![1,2,4].includes(d.sk))out.push('10b permits only SPLIT_K = 1, 2, or 4.');
+ if(![32,64,128,256].includes(d.threads))out.push('10b requires 32, 64, 128, or 256 threads per block.');
+ if(d.w>1&&d.tpg!==32)out.push('With independent groups, 10b requires exactly one wave32 per group.');
+ if(d.bm%(16*d.im)||d.bn%(16*d.inn)||d.bk%16)out.push('The tile must contain whole WMMA groups and K fragments.');
+ if([[d.bm,d.bk],[d.bk,d.bn]].some(([rows,cols])=>cols%8||cols/8>d.tpg||d.tpg%(cols/8)||rows%(d.tpg/(cols/8))))out.push('These tile sizes do not satisfy 10b’s eight-BF16 staging geometry.');
+ if(d.lds>65536)out.push('The lesson limits LDS to 64 KiB per block.');
+ return out;
+}
+root.LayoutModel={AXES,PRESETS,derive,decode,encode,fromTile,kernelWarnings};
+if(typeof module!=='undefined')module.exports=root.LayoutModel;
+})(typeof window!=='undefined'?window:globalThis);
+
+/* Tile-level GEMM indexing for the inspected 10b kernel. No numeric GEMM or GPU simulation. */
+(function(root){
+'use strict';
+const LM=typeof module!=='undefined'?require('./model.js'):root.LayoutModel;
+function integer(v,lo,hi,name){if(!Number.isSafeInteger(v)||v<lo||v>=hi)throw Error(`${name} must be an integer in [${lo}, ${hi}).`);}
+function frame(d,l,j){
+ integer(j,0,d.iters,'K-loop iteration');
+ const x=LM.decode(l,d),tileK=x.s*d.iters+j,k0=tileK*d.bk,k1=k0+d.bk;
+ const region=(rows,cols,ld,tile)=>({rows,cols,tile,origin:rows[0]*ld+cols[0],byteOrigin:2*(rows[0]*ld+cols[0]),ld});
+ const A=region([x.m0,x.m0+d.bm],[k0,k1],d.k,[x.tr,tileK]);
+ const B=region([k0,k1],[x.n0,x.n0+d.bn],d.n,[tileK,x.tc]);
+ const C=region([x.m0,x.m0+d.bm],[x.n0,x.n0+d.bn],d.n,[x.tr,x.tc]);
+ const next=j+1<d.iters?{tileK:tileK+1,k0:k1,k1:k1+d.bk,aOrigin:x.m0*d.k+k1,bOrigin:k1*d.n+x.n0}:null;
+ return {x,j,tileK,k0,k1,A,B,C,next,splitStart:x.s*d.k/d.sk,splitEnd:(x.s+1)*d.k/d.sk,
+  completedK:[x.s*d.k/d.sk,k0],last:j===d.iters-1,phase:j===d.iters-1?'drain':'steady state',
+  partialOrigin:(x.tile*d.sk+x.s)*d.bm*d.bn,
+  physical:{row0:x.pr*d.wm,row1:(x.pr+1)*d.wm,col0:x.pn*d.wn,col1:(x.pn+1)*d.wn}};
+}
+function probe(d,l,j,mi,ni,ki){
+ integer(mi,0,d.bm,'Local M');integer(ni,0,d.bn,'Local N');integer(ki,0,d.bk,'Local K');
+ const f=frame(d,l,j),m=f.x.m0+mi,n=f.x.n0+ni,k=f.k0+ki;
+ return {m,n,k,a:m*d.k+k,b:k*d.n+n,c:m*d.n+n,mi,ni,ki};
+}
+function pick(d,l,j,kind,row,col){
+ const x=LM.decode(l,d),tk=d.k/d.bk;
+ if(kind==='A'){integer(row,0,d.tm,'A tile row');integer(col,0,tk,'A K tile');return {l:LM.fromTile(row,x.tc,Math.floor(col/d.iters),d),j:col%d.iters};}
+ if(kind==='B'){integer(row,0,tk,'B K tile');integer(col,0,d.tn,'B tile column');return {l:LM.fromTile(x.tr,col,Math.floor(row/d.iters),d),j:row%d.iters};}
+ if(kind==='C'){integer(row,0,d.tm,'C tile row');integer(col,0,d.tn,'C tile column');return {l:LM.fromTile(row,col,x.s,d),j};}
+ throw Error('Unknown matrix '+kind);
+}
+function windowAround(size,index,max){const n=Math.min(size,max),lo=Math.max(0,Math.min(size-n,index-Math.floor(n/2)));return [lo,lo+n];}
+root.MatmulModel={frame,probe,pick,windowAround};
+if(typeof module!=='undefined')module.exports=root.MatmulModel;
+})(typeof window!=='undefined'?window:globalThis);
+
+</script><script>
+'use strict';
+const {AXES,PRESETS,derive,decode,encode,fromTile,kernelWarnings}=LayoutModel;
+const $=id=>document.getElementById(id), keys=Object.keys(PRESETS.teaching), slow=[5,4,3,2,0,1];
+const names={teaching:'Teaching preset · all six axes',wide:'Exact 10b wide preset',narrow16:'Exact 10b narrow / M=16',narrow32:'Exact 10b narrow / M=32'};
+let d,L=0,timer=null,kstep=0,gridBuiltFor='',ribbonPage=0,selectedPreset='teaching';
+const fmt=n=>n.toLocaleString('en-US'),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const span=(i,text)=>`<span style="color:${AXES[i].color};font-weight:750">${text}</span>`;
+$('colour').innerHTML=AXES.map((a,i)=>`<option value="${i}" ${i===2?'selected':''}>${a.name}</option>`).join('');
+function parameterValues(){return Object.fromEntries(keys.map(k=>[k,Number($(k).value)]));}
+function stop(){if(window.stopMatmulPlayback)window.stopMatmulPlayback();if(timer)clearInterval(timer);timer=null;$('play').textContent='Play';}
+function applyParams(p,preset=null){stop();for(const k of keys)$(k).value=p[k];selectedPreset=preset;L=0;kstep=0;refreshConfig();}
+function refreshConfig(){
+ stop();const p=parameterValues();
+ try {
+  d=derive(p);
+  // Bound browser rendering independently of the algebra.
+  if(p.wm>8||p.wn>8||p.pm>128||p.pn>128||p.sk>32)throw Error('Explorer display limits: group dimensions ≤ 8, physical dimensions ≤ 128, splits ≤ 32.');
+  $('error').classList.add('hidden');$('visuals').classList.remove('hidden');
+ } catch(e){$('error').textContent=e.message;$('error').classList.remove('hidden');$('visuals').classList.add('hidden');$('stats').innerHTML='';$('warning').classList.add('hidden');return;}
+ const warnings=kernelWarnings(d);$('warning').classList.toggle('hidden',!warnings.length);
+ $('warning').innerHTML='<b>Algebra-only configuration.</b> '+warnings.map(esc).join(' ')+' This visualizer still shows the mathematical mapping, not a runnable 10b configuration.';
+ $('presetLabel').textContent=selectedPreset?names[selectedPreset]:'Custom parameters';
+ document.querySelectorAll('[data-preset]').forEach(b=>b.classList.toggle('active',b.dataset.preset===selectedPreset));
+ $('stats').innerHTML=[
+  [`${d.wm} × ${d.wn} = ${d.w}`,'Tile groups per physical block'],
+  [`${d.pm} × ${d.pn} × ${d.sk} = ${fmt(d.blocks)}`,'Physical launches (grid.x)'],
+  [fmt(d.total),'Logical launch items'],
+  [`${fmt(d.m)} × ${fmt(d.n)} × ${fmt(d.k)}`,'Derived GEMM shape · M × N × K'],
+  [`${d.gw} / ${d.pm/d.gw}`,'group_width / number of M groups'],
+ ].map(([v,l])=>`<div class="stat"><div class="value">${v}</div><div class="label">${l}</div></div>`).join('');
+ $('slider').max=$('index').max=d.total-1;$('kt').max=d.iters-1;
+ kstep=Math.min(kstep,d.iters-1);$('kt').value=kstep;
+ $('example79').classList.toggle('hidden',d.total!==96||d.sh.join()!=='2,2,2,2,3,2');
+ $('tuple').innerHTML=`Shape (in your code’s order): (${d.sh.map((n,i)=>span(i,n)).join(', ')})<br>Stride (launch-coordinate units): (${d.st.map((n,i)=>span(i,n)).join(', ')})`;
+ $('reference').textContent=`# Parameters for this view\nWM, WN, G, S, PN, MG = ${d.sh.join(', ')}\nW = WM * WN\nshape  = (WM, WN, G, S, PN, MG)\nstride = (WN, 1, W, W*G, W*G*S, W*G*S*PN)\n\n# Valid for this dense, positive-stride layout (not arbitrary layouts).\ncoords = tuple((L // step) % size for size, step in zip(shape, stride))\nwave_row, wave_col, row_in_group, split_id, physical_col, group_id = coords\nassert sum(c * s for c, s in zip(coords, stride)) == L\n\nblock_idx_x = L // W\nwave_group  = L % W\nphysical_row = group_id * G + row_in_group\nblock_row = physical_row * WM + wave_row\nblock_col = physical_col * WN + wave_col\noutput_tile_id = block_row * (PN * WN) + block_col`;
+ gridBuiltFor='';setL(Math.min(L,d.total-1));
+ // Exhaustive round-trip check on small grids; sampled check for large ones.
+ const count=Math.min(d.total,10000);let ok=true;
+ for(let j=0;j<count;j++){const l=count===d.total?j:Math.floor(j*(d.total-1)/(count-1)),x=decode(l,d);if(encode(x.c,d)!==l||fromTile(x.tr,x.tc,x.s,d)!==l)ok=false;}
+ $('check').textContent=`${ok?'✓':'✗'} Round-trip consistency: ${fmt(count)} ${count===d.total?'of '+fmt(d.total):'sampled'} IDs checked. Extents × strides cover [0, ${d.total-1}]. GPU execution is not tested by this page.`;
+}
+function setL(v,keepPage=false){if(!d)return;const n=Number(v);if(!Number.isFinite(n))return;L=Math.max(0,Math.min(d.total-1,Math.round(n)));$('slider').value=$('index').value=L;if(!keepPage)ribbonPage=Math.floor((L/d.w)/8)*8;render();}
+function strideJump(axis,delta){const x=decode(L,d),v=x.c[axis]+delta;if(v>=0&&v<d.sh[axis]){x.c[axis]=v;setL(encode(x.c,d));}}
+function carryAxis(l){if(l===0)return null;const a=decode(l-1,d).c,b=decode(l,d).c;return slow.find(i=>a[i]!==b[i]);}
+function render(){const x=decode(L,d);
+ $('selection').innerHTML=`<span><b>L ${L}</b> / ${d.total-1}</span><span>block_idx.x = <b>${x.b}</b></span><span>wave_group = <b>${x.wave}</b></span><span>C tile = <b>(${x.tr}, ${x.tc})</b></span><span>${span(3,'K split '+x.s)}</span>`;
+ $('axes').innerHTML=AXES.map((a,i)=>`<div class="axiscard" style="--accent:${a.color}"><div class="axisname">${a.name}</div><div class="axisdatum">shape extent <strong>${d.sh[i]}</strong></div><div class="axisdatum">stride <strong>+${d.st[i]}</strong></div><div class="axiscoord"><button data-axis="${i}" data-delta="-1" ${x.c[i]===0?'disabled':''} aria-label="Decrease ${a.name}">−</button><b style="color:${a.color}">${x.c[i]}</b><button data-axis="${i}" data-delta="1" ${x.c[i]===d.sh[i]-1?'disabled':''} aria-label="Increase ${a.name}">+</button></div><div class="contribution">${x.c[i]} × ${d.st[i]} = <span style="color:${a.color}">${x.c[i]*d.st[i]}</span></div></div>`).join('');
+ $('sum').innerHTML=`L = ${x.c.map((v,i)=>`<span class="term" style="color:${AXES[i].color}">${v}×${d.st[i]}</span>`).join(' + ')} = <b>${L}</b><br><span style="font-size:12px;color:#647187">${x.b} physical-launch IDs × ${d.w} groups + local group ${x.wave} = ${L}</span>`;
+ renderHierarchy(x);renderWave(x);renderRibbon(x);renderGrid(x);renderAddresses(x);
+ const previous=L?decode(L-1,d):null,ci=carryAxis(L);
+ $('carry').innerHTML=!previous?'At L = 0, all six coordinates are zero. Advance to watch the mixed-radix counter carry.':`<b>${L-1} → ${L}:</b> ${span(ci,AXES[ci].name)} advances from ${previous.c[ci]} to ${x.c[ci]}. ${slow.slice(slow.indexOf(ci)+1).filter(i=>previous.c[i]!==x.c[i]).map(i=>`${AXES[i].name} resets ${previous.c[i]} → ${x.c[i]}`).join('; ')||'The other coordinates stay the same.'} ${x.b!==previous.b?'<b>A new physical launch begins.</b>':'<b>Still the same physical launch.</b>'}`;
+}
+function renderHierarchy(x){
+ $('hierarchy').innerHTML=slow.map((i,level)=>{
+  const a=AXES[i],sz=d.sh[i],st=d.st[i],base=Math.floor(L/(sz*st))*sz*st;
+  let values=[...Array(sz).keys()];if(sz>12){const start=Math.max(0,Math.min(sz-9,x.c[i]-4));values=[...Array(9)].map((_,j)=>start+j);}
+  return `<div class="nest" style="--accent:${a.color};margin-left:${level*13}px"><div class="nesthead"><b>${level+1}. ${a.name}</b><span>extent ${sz} · stride ${st}</span></div><div class="siblings">${values[0]>0?'<span>…</span>':''}${values.map(v=>`<button class="sibling ${v===x.c[i]?'selected':''}" data-coord-axis="${i}" data-coord="${v}">${a.short}=${v}<small>${base+v*st}${st>1?'–'+(base+(v+1)*st-1):''}</small></button>`).join('')}${values.at(-1)<sz-1?'<span>…</span>':''}</div></div>`;
+ }).join('');
+}
+function renderWave(x){
+ $('waveInfo').innerHTML=`Physical launch <b>b = ${x.b}</b> owns C’s physical tile <b>(${x.pr}, ${x.pn})</b> at split <b>${x.s}</b>.<br>Footprint: <b>${d.bm*d.wm} rows × ${d.bn*d.wn} columns</b>. Each group owns <b>${d.bm} × ${d.bn}</b>.`;
+ $('wavegrid').style.gridTemplateColumns=`repeat(${d.wn},minmax(0,1fr))`;
+ $('wavegrid').innerHTML=Array.from({length:d.w},(_,wave)=>{const l=x.b*d.w+wave,z=decode(l,d);return `<button class="wavebox ${wave===x.wave?'chosen':''}" data-l="${l}"><strong>w${wave}</strong><small>L = ${l}</small><div class="dims">${span(0,'wM='+z.wm)} · ${span(1,'wN='+z.wn)}</div><small>C tile (${z.tr},${z.tc})</small></button>`;}).join('');
+ $('waveDetail').innerHTML=`<code>wave_group = wave_row × ${d.wn} + wave_col</code><br>${span(1,'wave_col')} varies first; ${span(0,'wave_row')} next.<br>${d.tpg} threads per tile group · <b>${d.threads} threads/block</b><br>Selected group’s thread range: <b>${x.wave*d.tpg}–${(x.wave+1)*d.tpg-1}</b>.${d.tpg>32?'<br><b>Here one tile group contains '+(d.tpg/32)+' WMMA waves.</b>':''}`;
+ $('fastslow').innerHTML=`<b>Fast → slow:</b><br>${[1,0,2,3,4,5].map(i=>span(i,AXES[i].name)).join(' → ')}<br><br>The first two axes fill one physical block. Only then does ${span(2,'row_in_group')} advance. A stride is the number of logical items contained below that level; the written tuple order does not itself determine speed.`;
+}
+function renderRibbon(x){
+ const end=Math.min(d.blocks,ribbonPage+8);
+ $('ribbon').innerHTML=Array.from({length:end-ribbonPage},(_,j)=>{const b=ribbonPage+j,z=decode(b*d.w,d);return `<div class="blockbox ${b===x.b?'iscurrent':''}"><div class="blocktitle"><span>b=${b}</span><span>${span(3,'s='+z.s)}</span></div><div class="blockwaves" style="grid-template-columns:repeat(${Math.min(d.wn,4)},minmax(28px,1fr))">${Array.from({length:d.w},(_,w)=>{const l=b*d.w+w,i=carryAxis(l);return `<button class="wavechip ${l===L?'selected':''}" style="--accent:${i===null?'#9baabd':AXES[i].color}" data-l="${l}" title="Launch ${l}, local group ${w}">${l}</button>`;}).join('')}</div><div class="blockmeta">pM=${z.pr} pN=${z.pn} g=${z.g}</div></div>`;}).join('');
+ $('ribbonPrev').disabled=ribbonPage===0;$('ribbonNext').disabled=end===d.blocks;
+}
+function tint(hex,f){const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));return 'rgb('+rgb.map(v=>Math.round(255*(1-f)+v*f)).join(',')+')';}
+function renderGrid(x){
+ // A bounded window prevents pathological configurations from producing huge SVGs.
+ const maxRows=16,maxCols=32,rs=Math.floor(x.tr/maxRows)*maxRows,cs=Math.floor(x.tc/maxCols)*maxCols;
+ const re=Math.min(d.tm,rs+maxRows),ce=Math.min(d.tn,cs+maxCols),nr=re-rs,nc=ce-cs;
+ const planes=$('planeMode').value==='selected'||d.sk>4?[x.s]:[...Array(d.sk).keys()];
+ const label=$('labels').value,colour=Number($('colour').value),signature=[JSON.stringify(parameterValues()),rs,cs,planes.join(),label,colour].join('|');
+ $('gridInfo').innerHTML=`C has <b>${d.tm} × ${d.tn}</b> logical tiles, grouped into <b>${d.pm} × ${d.pn}</b> physical footprints. Every footprint repeats across <b>${d.sk}</b> K ${d.sk===1?'plane':'planes'}.<br>${d.tm>maxRows||d.tn>maxCols?`Window follows selection: tile rows ${rs}–${re-1}, columns ${cs}–${ce-1}. Scrub L to move the window.`:'Full output grid shown.'} Fill shade encodes ${span(colour,AXES[colour].name)} (darker = larger coordinate).`;
+ if(signature!==gridBuiltFor){
+  gridBuiltFor=signature;const cw=nc>16?55:72,ch=52,left=62,top=57,w=left+nc*cw+14,h=top+nr*ch+17;
+  $('planes').innerHTML=planes.map(s=>{
+   let svg=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Output tile grid for K split ${s}"><text x="${left}" y="14" font-size="11" font-family="system-ui" fill="#647187">block_col → (logical tile columns)</text>`;
+   for(let tc=cs;tc<ce;tc++){const cx=left+(tc-cs)*cw;svg+=`<text x="${cx+cw/2}" y="47" text-anchor="middle" font-size="11" font-family="monospace" fill="${AXES[1].color}">${tc}</text>`;if(tc%d.wn===0)svg+=`<text x="${cx+Math.min(d.wn,ce-tc)*cw/2}" y="29" text-anchor="middle" font-size="10" font-family="monospace" fill="${AXES[4].color}">pN=${Math.floor(tc/d.wn)}</text>`;}
+   for(let tr=rs;tr<re;tr++){
+    const cy=top+(tr-rs)*ch;svg+=`<text x="50" y="${cy+29}" text-anchor="end" font-family="monospace" font-size="11" fill="${AXES[0].color}">${tr}</text>`;
+    if(tr%d.wm===0)svg+=`<text x="4" y="${cy+15}" font-size="9" font-family="monospace" fill="${AXES[2].color}">pM=${Math.floor(tr/d.wm)}</text>`;
+    for(let tc=cs;tc<ce;tc++){
+     const l=fromTile(tr,tc,s,d),z=decode(l,d),cx=left+(tc-cs)*cw,shade=.07+.32*(z.c[colour]+1)/d.sh[colour],fill=tint(AXES[colour].color,shade),text=label==='l'?l:label==='b'?'b'+z.b:'t'+z.tile;
+     svg+=`<g class="tilehit" data-l="${l}" data-base="${fill}" tabindex="0" role="button" aria-label="Launch ${l}, C tile ${tr},${tc}, split ${s}"><title>L=${l} | block=${z.b} | wave=${z.wave} | coords=(${z.c.join(',')}) | output tile=${z.tile}</title><rect x="${cx+2}" y="${cy+2}" width="${cw-4}" height="${ch-4}" rx="5" fill="${fill}" stroke="#e0e7ef"/><text class="mainlabel" x="${cx+cw/2}" y="${cy+25}" text-anchor="middle" font-family="monospace" font-size="${cw>60?15:13}" font-weight="700" fill="#1d324c">${text}</text><text class="minilabel" x="${cx+cw/2}" y="${cy+40}" text-anchor="middle" font-family="monospace" font-size="9" fill="#586a80">w${z.wave}</text></g>`;
+    }
+   }
+   // Physical boundaries and M-group boundaries sit above the cells, without intercepting clicks.
+   svg+='<g pointer-events="none">';
+   for(let tr=rs;tr<=re;tr++){if(tr%d.wm===0||tr===rs||tr===re){const y=top+(tr-rs)*ch,isGroup=tr%(d.wm*d.gw)===0;svg+=`<line x1="${left}" y1="${y}" x2="${left+nc*cw}" y2="${y}" stroke="${isGroup?AXES[5].color:'#9cabbc'}" stroke-width="${isGroup?2:1.4}"/>`;}}
+   for(let tc=cs;tc<=ce;tc++){if(tc%d.wn===0||tc===cs||tc===ce){const xx=left+(tc-cs)*cw;svg+=`<line x1="${xx}" y1="${top}" x2="${xx}" y2="${top+nr*ch}" stroke="#9cabbc" stroke-width="1.4"/>`;}}
+   svg+='</g></svg>';
+   return `<div class="plane"><div class="planehead"><b>split_id = ${s}</b><span>K elements [${s*d.k/d.sk}, ${(s+1)*d.k/d.sk}) · ${d.iters} K-loop tiles</span></div><div class="plane-scroll">${svg}</div></div>`;
+  }).join('');
+ }
+ document.querySelectorAll('.tilehit').forEach(g=>{const active=Number(g.dataset.l)===L;g.querySelector('rect').setAttribute('fill',active?'#182f4d':g.dataset.base);g.querySelector('rect').setAttribute('stroke',active?'#11233c':'#e0e7ef');g.querySelector('.mainlabel').setAttribute('fill',active?'white':'#1d324c');g.querySelector('.minilabel').setAttribute('fill',active?'#d2e2f5':'#586a80');});
+}
+function renderAddresses(x){
+ const k0=x.s*d.k/d.sk+kstep*d.bk,a=x.m0*d.k+k0,b=k0*d.n+x.n0,c=x.m0*d.n+x.n0;
+ $('ktlabel').textContent=`${kstep} / ${d.iters-1} → k0 = ${k0}`;
+ $('mapping').innerHTML=`physical_block_row = ${span(5,x.g)} × ${d.gw} + ${span(2,x.r)} = <b>${x.pr}</b><br>block_row = ${x.pr} × ${d.wm} + ${span(0,x.wm)} = <b>${x.tr}</b> &nbsp; → m0 = ${x.tr} × ${d.bm} = <b>${x.m0}</b><br>block_col = ${span(4,x.pn)} × ${d.wn} + ${span(1,x.wn)} = <b>${x.tc}</b> &nbsp; → n0 = ${x.tc} × ${d.bn} = <b>${x.n0}</b><br>k0 = split_id × (K / SPLIT_K) + k_loop_tile × BLOCK_K = ${span(3,x.s)} × ${d.k/d.sk} + ${kstep} × ${d.bk} = <b>${k0}</b>`;
+ const calc=(name,range,formula,off,extra)=>`<div class="calc"><h3>${name}</h3><code>${range}</code><code>${formula}</code><div class="big">${fmt(off)} elements</div><div class="tiny">${fmt(off*2)} bytes from this tensor’s base</div><div class="tiny">${extra}</div></div>`;
+ $('addresses').innerHTML=calc('A / current tile',`rows [${x.m0}, ${x.m0+d.bm})<br>K [${k0}, ${k0+d.bk})`,`${x.m0} × ${d.k} + ${k0}`,a,'Row stride K = '+d.k+' BF16 values')+calc('B / current tile',`K [${k0}, ${k0+d.bk})<br>cols [${x.n0}, ${x.n0+d.bn})`,`${k0} × ${d.n} + ${x.n0}`,b,'Row stride N = '+d.n+' BF16 values')+calc('C / final output tile',`rows [${x.m0}, ${x.m0+d.bm})<br>cols [${x.n0}, ${x.n0+d.bn})`,`${x.m0} × ${d.n} + ${x.n0}`,c,'Same C region across all '+d.sk+' split(s); these are tile origins, not contiguous tile byte spans.');
+ const part=x.tile*d.sk+x.s,poff=part*d.bm*d.bn;
+ $('workspace').innerHTML=`<b>Workspace indexing is separate from launch order.</b><br>flat_block_id = block_row × tiles_n + block_col = ${x.tr} × ${d.tn} + ${x.tc} = <b>${x.tile}</b><br>${d.sk===1?'SPLIT_K = 1: 10b allocates no split-K workspace for this config.':`Partial region = flat_block_id × SPLIT_K + split_id = ${x.tile} × ${d.sk} + ${x.s} = <b>${part}</b><br>Partial region base = ${part} × (${d.bm} × ${d.bn}) = <b>${fmt(poff)} FP32 values = ${fmt(poff*4)} bytes</b> (thread/fragment offset excluded).`}<br><br><b>Separate per-group LDS slices:</b> A offset ${fmt(x.wave*d.bm*(d.bk+8))} BF16 values within the A allocation; B offset ${fmt(x.wave*d.bk*d.bn)} BF16 values within the B allocation.<br>Total block LDS: ${fmt(d.lds)} bytes. Shared input addresses do not imply shared LDS storage.`;
+ if(window.renderMatmul)window.renderMatmul(d,x,kstep);
+}
+// Event delegation survives re-rendered interactive views.
+document.addEventListener('click',e=>{
+ const preset=e.target.closest('[data-preset]');if(preset){applyParams(PRESETS[preset.dataset.preset],preset.dataset.preset);return;}
+ const axis=e.target.closest('[data-axis]');if(axis){stop();strideJump(Number(axis.dataset.axis),Number(axis.dataset.delta));return;}
+ const coord=e.target.closest('[data-coord-axis]');if(coord){stop();const x=decode(L,d);x.c[Number(coord.dataset.coordAxis)]=Number(coord.dataset.coord);setL(encode(x.c,d));return;}
+ const item=e.target.closest('[data-l]');if(item){stop();setL(Number(item.dataset.l));}
+});
+document.addEventListener('keydown',e=>{const g=e.target.closest('.tilehit');if(g&&(e.key==='Enter'||e.key===' ')){e.preventDefault();stop();setL(Number(g.dataset.l));}});
+keys.forEach(k=>$(k).addEventListener('input',()=>{selectedPreset=null;refreshConfig();}));
+$('slider').addEventListener('input',()=>{stop();setL($('slider').value);});$('index').addEventListener('change',()=>{stop();setL($('index').value);});
+const step=()=>($('stepMode').value==='block'?d.w:1);
+$('start').onclick=()=>{stop();setL(0);};$('end').onclick=()=>{stop();setL(d.total-1);};$('prev').onclick=()=>{stop();setL(L-step());};$('next').onclick=()=>{stop();setL(L+step());};
+$('play').onclick=()=>{if(window.stopMatmulPlayback)window.stopMatmulPlayback();if(timer){stop();return;}$('play').textContent='Pause';timer=setInterval(()=>{if(L+step()>=d.total){setL(d.total-1);stop();}else setL(L+step());},650);};
+$('example79').onclick=()=>{stop();setL(79);};
+$('ribbonPrev').onclick=()=>{ribbonPage=Math.max(0,ribbonPage-8);renderRibbon(decode(L,d));};$('ribbonNext').onclick=()=>{ribbonPage=Math.min(Math.floor((d.blocks-1)/8)*8,ribbonPage+8);renderRibbon(decode(L,d));};
+['labels','colour','planeMode'].forEach(id=>$(id).addEventListener('change',()=>{gridBuiltFor='';renderGrid(decode(L,d));}));
+$('kt').oninput=()=>{stop();kstep=Number($('kt').value);renderAddresses(decode(L,d));};
+function download(name,text,type){const url=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$('json').onclick=()=>download('flydsl-layout-parameters.json',JSON.stringify({...parameterValues(),launch_coordinate:L,k_loop_tile:kstep,shape:d.sh,stride:d.st},null,2),'application/json');
+$('csv').onclick=()=>{
+ if(d.total>100000){$('status').textContent='CSV export is limited to 100,000 rows. Reduce the grid before exporting.';return;}
+ const rows=['L,block_idx_x,wave_group,wave_row,wave_col,row_in_group,split_id,physical_block_col,group_id,physical_block_row,block_row,block_col,output_tile_id'];
+ for(let l=0;l<d.total;l++){const x=decode(l,d);rows.push([l,x.b,x.wave,...x.c,x.pr,x.tr,x.tc,x.tile].join(','));}
+ download('flydsl-layout-traversal.csv',rows.join('\n'),'text/csv');
+};
+// A read-only test hook also makes the reference model easy to inspect in devtools.
+window.explorer={get state(){return {d,L,kstep};},select:setL,apply:applyParams,stop, setK(v){const n=Number(v);if(!Number.isFinite(n)||!d)return;kstep=Math.max(0,Math.min(d.iters-1,Math.round(n)));$('kt').value=kstep;renderAddresses(decode(L,d));}};
+applyParams(PRESETS.teaching,'teaching');
+
+/* Synchronized A/B/C visualization. All coordinates are in the original row-major tensors. */
+(function(){
+'use strict';
+const $=id=>document.getElementById(id),MM=window.MatmulModel,LM=window.LayoutModel,E=window.explorer;
+const fmt=n=>n.toLocaleString('en-US'),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const colors={A:'#2563eb',B:'#07879d',C:'#7c3aed'},palette=['#2563eb','#0891b2','#07835f','#b86a00','#7c3aed','#d23769'];
+let kTimer=null,mi=0,ni=0,ki=0,lastFrame=null,lastChange='',currentViews={};
+function stopK(){if(kTimer!==null)clearInterval(kTimer);kTimer=null;$('kPlay').textContent='Play K';if($('matrixLPlay'))$('matrixLPlay').textContent='Play L';}
+window.stopMatmulPlayback=stopK;
+function state(){return E.state;}
+function frame(){const {d,L,kstep}=state();return MM.frame(d,L,kstep);}
+function redraw(){const {d,L,kstep}=state();if(d)render(d,LM.decode(L,d),kstep);}
+function setK(j){E.setK(j);}
+function selectL(l){E.stop();E.select(l);}
+function selectSplit(s,j=state().kstep){
+ const {d,L}=state(),x=LM.decode(L,d);E.select(LM.fromTile(x.tr,x.tc,s,d));setK(j);
+}
+function setPicked(kind,row,col){const {d,L,kstep}=state(),v=MM.pick(d,L,kstep,kind,row,col);E.stop();E.select(v.l);setK(v.j);}
+function ranges(d,f){
+ const mode=$('matrixZoom').value;
+ function axis(n,i,limit,threshold){return mode==='full'||(mode==='auto'&&n<=threshold)?[0,n]:MM.windowAround(n,i,limit);}
+ return {M:axis(d.tm,f.x.tr,12,16),N:axis(d.tn,f.x.tc,12,16),K:axis(d.k/d.bk,f.tileK,16,32)};
+}
+function config(kind,d,f,r){
+ const map={A:{rows:d.tm,cols:d.k/d.bk,rr:r.M,cc:r.K,rowSize:d.bm,colSize:d.bk,y:'M',x:'K',label:'A operand'},B:{rows:d.k/d.bk,cols:d.tn,rr:r.K,cc:r.N,rowSize:d.bk,colSize:d.bn,y:'K',x:'N',label:'B operand'},C:{rows:d.tm,cols:d.tn,rr:r.M,cc:r.N,rowSize:d.bm,colSize:d.bn,y:'M',x:'N',label:'C output target'}};
+ return {...map[kind],kind,active:f[kind].tile};
+}
+function svgGrid(v,d,f,p){
+ const kind=v.kind,color=colors[kind],X=47,Y=34,W=310,H=210;
+ const [r0,r1]=v.rr,[c0,c1]=v.cc,rn=r1-r0,cn=c1-c0,cw=W/cn,ch=H/rn;
+ const xx=c=>X+(c-c0)*cw,yy=r=>Y+(r-r0)*ch;
+ currentViews[kind]={...v,X,Y,W,H};
+ let out=`<svg class="matrix-svg" tabindex="0" data-matrix-svg="${kind}" viewBox="0 0 380 296" role="img" aria-label="${kind}, ${v.rows*v.rowSize} by ${v.cols*v.colSize}. Current tile ${v.active.join(', ')}. Click a tile or use arrow keys to move."><title>${kind}: each cell is a tile. Click to select; arrow keys move this matrix’s tile.</title><rect x="${X}" y="${Y}" width="${W}" height="${H}" fill="#fff"/>`;
+ function rect(a,b,c,e,fill,stroke='',width=1,dash='',extra=''){
+  a=Math.max(a,r0);b=Math.min(b,r1);c=Math.max(c,c0);e=Math.min(e,c1);
+  if(a>=b||c>=e)return '';
+  return `<rect x="${xx(c).toFixed(3)}" y="${yy(a).toFixed(3)}" width="${((e-c)*cw).toFixed(3)}" height="${((b-a)*ch).toFixed(3)}" fill="${fill}" ${stroke?`stroke="${stroke}" stroke-width="${width}"`:''} ${dash?`stroke-dasharray="${dash}"`:''} ${extra}/>`;
+ }
+ const split0=f.x.s*d.iters,split1=split0+d.iters,showGroups=$('matrixGroups').checked,trail=$('matrixTrail').checked;
+ const pr=f.physical,ar=f.A.tile[0],ac=f.A.tile[1],br=f.B.tile[0],bc=f.B.tile[1];
+ // Pale amber is the chosen split; operands are in the full original A/B layouts.
+ if(kind==='A')out+=rect(0,v.rows,split0,split1,'#fff4dd');
+ if(kind==='B')out+=rect(split0,split1,0,v.cols,'#fff4dd');
+ if(kind==='A')out+=rect(ar,ar+1,0,v.cols,'#eaf1ff');
+ if(kind==='B')out+=rect(0,v.rows,bc,bc+1,'#e4f4f6');
+ if(kind==='C'){out+=rect(f.x.tr,f.x.tr+1,0,v.cols,'#eef3ff');out+=rect(0,v.rows,f.x.tc,f.x.tc+1,'#eaf7f8');}
+ // Earlier K tiles only within this split. Scrubbing does not preserve a real computation.
+ if(trail&&f.j>0){
+  if(kind==='A')out+=rect(showGroups?pr.row0:ar,showGroups?pr.row1:ar+1,split0,f.tileK,'#cddff9');
+  if(kind==='B')out+=rect(split0,f.tileK,showGroups?pr.col0:bc,showGroups?pr.col1:bc+1,'#c3e6e9');
+ }
+ if(showGroups){
+  if(kind==='A')out+=rect(pr.row0,pr.row1,ac,ac+1,'#d3e3fa');
+  if(kind==='B')out+=rect(br,br+1,pr.col0,pr.col1,'#cbe8eb');
+  if(kind==='C')out+=rect(pr.row0,pr.row1,pr.col0,pr.col1,'#ece3fc');
+ }
+ // Grid lines are decimated on large full-matrix views; the hit mapping remains exact.
+ const rs=Math.max(1,Math.ceil(rn/32)),cs=Math.max(1,Math.ceil(cn/32));
+ out+='<g stroke="#cdd8e4" stroke-width="0.65" opacity="0.85">';
+ for(let i=r0;i<=r1;i+=rs)out+=`<line x1="${X}" y1="${yy(i)}" x2="${X+W}" y2="${yy(i)}"/>`;
+ for(let i=c0;i<=c1;i+=cs)out+=`<line x1="${xx(i)}" y1="${Y}" x2="${xx(i)}" y2="${Y+H}"/>`;
+ out+='</g>';
+ if(kind==='C'&&showGroups&&cw>20&&ch>15){
+  for(let i=pr.row0;i<pr.row1;i++)for(let j=pr.col0;j<pr.col1;j++)if(i>=r0&&i<r1&&j>=c0&&j<c1&&!(i===f.x.tr&&j===f.x.tc)){
+   const wave=(i-pr.row0)*d.wn+j-pr.col0;out+=`<text x="${xx(j+.5)}" y="${yy(i+.5)+3}" text-anchor="middle" font-size="9" fill="#967eaf">w${wave}</text>`;
+  }
+ }
+ if(showGroups){
+  if(kind==='A')out+=rect(pr.row0,pr.row1,ac,ac+1,'none','#546d93',1.5,'4 3');
+  if(kind==='B')out+=rect(br,br+1,pr.col0,pr.col1,'none','#4f7880',1.5,'4 3');
+  if(kind==='C')out+=rect(pr.row0,pr.row1,pr.col0,pr.col1,'none','#79618f',1.5,'4 3');
+ }
+ if($('matrixPrefetch').checked&&f.next){
+  if(kind==='A')out+=rect(showGroups?pr.row0:ar,showGroups?pr.row1:ar+1,f.next.tileK,f.next.tileK+1,'#fff8e9','#ba740b',2,'4 2');
+  if(kind==='B')out+=rect(f.next.tileK,f.next.tileK+1,showGroups?pr.col0:bc,showGroups?pr.col1:bc+1,'#fff8e9','#ba740b',2,'4 2');
+ }
+ const [rr,cc]=v.active;
+ out+=rect(rr,rr+1,cc,cc+1,color,'#142d49',1.5,'',`data-active-tile="${kind}"`);
+ if(cw>=17&&ch>=17)out+=`<text x="${xx(cc+.5)}" y="${yy(rr+.5)+4}" text-anchor="middle" font-size="${Math.min(14,ch*.45)}" fill="white" font-weight="700">${kind==='C'?'Σ':kind}</text>`;
+ // Alignment guides and locators make even subpixel cells discoverable in full-matrix mode.
+ out+=`<path d="M${xx(cc+.5)},${Y-7} l-4,-6 h8 z" fill="${color}"/><path d="M${X-4},${yy(rr+.5)} l-6,-4 v8 z" fill="${color}"/>`;
+ if($('matrixProbe').checked){
+  const [row,col]=kind==='A'?[p.m/d.bm,p.k/d.bk]:kind==='B'?[p.k/d.bk,p.n/d.bn]:[p.m/d.bm,p.n/d.bn];
+  const rx=xx(col+.5/v.colSize),ry=yy(row+.5/v.rowSize);
+  out+=`<g class="local-probe-marker"><circle cx="${rx}" cy="${ry}" r="4" fill="#fff" stroke="#152b45" stroke-width="1.5"/><path d="M${rx-7},${ry}h14 M${rx},${ry-7}v14" stroke="#102a47" stroke-width="1.2"/></g>`;
+ }
+ out+=`<rect x="${X}" y="${Y}" width="${W}" height="${H}" fill="none" stroke="#9fb0c4" stroke-width="1"/>`;
+ // Numeric tick labels are element indices at tile boundaries, not tile IDs.
+ const ticks=(a,b)=>[...new Set([a,a+Math.floor((b-a)/2),b])];
+ for(const c of ticks(c0,c1))out+=`<text x="${xx(c)}" y="${Y+H+17}" text-anchor="${c===c0?'start':c===c1?'end':'middle'}" font-size="10" fill="#62758e">${fmt(c*v.colSize)}</text>`;
+ for(const r of ticks(r0,r1))out+=`<text x="${X-10}" y="${yy(r)+(r===r0?7:r===r1?0:4)}" text-anchor="end" font-size="10" fill="#62758e">${fmt(r*v.rowSize)}</text>`;
+ out+=`<text x="${X+W/2}" y="${Y+H+39}" text-anchor="middle" font-size="10" font-weight="700" fill="#536982">${v.x} → · elements</text><text x="${X-10}" y="14" text-anchor="end" font-size="10" font-weight="700" fill="#536982">${v.y} ↓</text>`;
+ const head=kind==='C'?`tile (${f.x.tr}, ${f.x.tc}) · fixed through K`:`tile (${v.active.join(', ')}) · ${kind==='A'?'moves right →':'moves down ↓'}`;
+ out+=`<text x="${X+W}" y="14" text-anchor="end" font-size="10" fill="${color}">${head}</text>`;
+ out+=`<rect class="pointer-target" data-matrix-hit="${kind}" x="${X}" y="${Y}" width="${W}" height="${H}" fill="transparent"/></svg>`;
+ return out;
+}
+function panel(kind,d,f,r,p){
+ const v=config(kind,d,f,r),s=f[kind],mkind=kind==='A'?'M × K':kind==='B'?'K × N':'M × N',size=kind==='A'?`${fmt(d.m)} × ${fmt(d.k)}`:kind==='B'?`${fmt(d.k)} × ${fmt(d.n)}`:`${fmt(d.m)} × ${fmt(d.n)}`;
+ const purpose=kind==='A'?'Current operand from LDS':kind==='B'?'Current operand from LDS':'Output region of the FP32 accumulator';
+ const range=`${kind}[${s.rows[0]}:${s.rows[1]}, ${s.cols[0]}:${s.cols[1]}]`;
+ const shape=kind==='A'?`${d.bm} × ${d.bk}`:kind==='B'?`${d.bk} × ${d.bn}`:`${d.bm} × ${d.bn}`;
+ const cropped=v.rr[0]!==0||v.rr[1]!==v.rows||v.cc[0]!==0||v.cc[1]!==v.cols;
+ const viewport=cropped?`Window · tile rows [${v.rr.join(', ')}), cols [${v.cc.join(', ')})`:`Full matrix · ${v.rows} × ${v.cols} tiles`;
+ let extra='';
+ if(kind!=='C')extra=f.next&&$('matrixPrefetch').checked?`Next prefetch K [${f.next.k0}, ${f.next.k1})`:'No next-tile prefetch shown';
+ else extra=`<span class="matrix-c-status">${f.j} earlier K tiles + current contribution</span><div class="accumbar"><span style="width:${100*f.j/d.iters}%"></span><span style="width:${100/d.iters}%;background:#b394da"></span></div>`;
+ return `<article class="matrix-panel" style="--matrix-color:${colors[kind]}"><div class="matrix-panel-head"><div><div class="matrix-symbol">${kind}</div><div class="matrix-size">${size} · ${mkind}</div></div><div class="matrix-purpose">${purpose}</div></div>${svgGrid(v,d,f,p)}<div class="matrix-viewport">${viewport}${cropped?' · global indices':''}</div><div class="matrix-foot"><code>${range}</code><br>Tile: ${shape}<div class="origin">Origin ${fmt(s.origin)} elements · ${fmt(s.byteOrigin)} bytes${kind==='C'?' (destination only)':''}</div><div style="font-size:10px;color:#6b7890;margin-top:5px">${extra}</div></div></article>`;
+}
+function render(d,x,j){
+ const f=MM.frame(d,x.l,j),signature=[d.m,d.n,d.k,d.bm,d.bn,d.bk,d.sk].join();
+ mi=Math.min(mi,d.bm-1);ni=Math.min(ni,d.bn-1);ki=Math.min(ki,d.bk-1);
+ const p=MM.probe(d,x.l,j,mi,ni,ki),r=ranges(d,f);
+ if(lastFrame&&lastFrame.signature===signature&&(lastFrame.f.x.l!==x.l||lastFrame.f.j!==j)){
+  const old=lastFrame.f,sign=n=>(n>=0?'+':'')+fmt(n);
+  lastChange=`Last selection move: ΔA ${sign(f.A.origin-old.A.origin)}, ΔB ${sign(f.B.origin-old.B.origin)}, ΔC ${sign(f.C.origin-old.C.origin)} elements.`;
+ } else if(!lastFrame||lastFrame.signature!==signature)lastChange='';
+ lastFrame={f,signature};
+ $('matrixLPlay').textContent=$('play').textContent==='Pause'?'Pause L':'Play L';
+ $('matrixL').max=d.total-1;$('matrixL').value=x.l;
+ $('matrixSelection').innerHTML=`<b class="mono">L ${x.l}</b> · physical launch <b>${x.b}</b> · local group <b>w${x.wave}</b> · <span class="c-color">C tile (${x.tr}, ${x.tc})</span>`;
+ $('matrixLPrev').disabled=x.l===0;$('matrixLNext').disabled=x.l===d.total-1;
+ $('matrixBlockPrev').disabled=x.b===0;$('matrixBlockNext').disabled=x.b===d.blocks-1;
+ $('matrixK').max=$('matrixKNum').max=d.iters-1;$('matrixK').value=$('matrixKNum').value=j;
+ $('kFirst').disabled=$('kPrev').disabled=j===0;$('kLast').disabled=$('kNext').disabled=j===d.iters-1;
+ $('matrixKLabel').innerHTML=`j = <b>${j}</b> / ${d.iters-1} · global K-tile <b>${f.tileK}</b> · K elements <b>[${f.k0}, ${f.k1})</b>`;
+ $('matrixSplits').innerHTML=`<span class="matrix-select-label">K partition:</span>`+Array.from({length:d.sk},(_,s)=>`<button class="split-btn ${s===x.s?'selected':''}" data-matmul-split="${s}" aria-pressed="${s===x.s}">s=${s}<small>[${s*d.k/d.sk}, ${(s+1)*d.k/d.sk})</small></button>`).join('')+`<span style="font-size:11px;color:#738096">Same C tile across all splits.</span>`;
+ $('matrixEquation').innerHTML=`<div class="equation-main"><span class="c-color">Acc<sub>s=${x.s}</sub>[${x.m0}:${x.m0+d.bm}, ${x.n0}:${x.n0+d.bn}]</span> += <span class="a-color">A[${x.m0}:${x.m0+d.bm}, ${f.k0}:${f.k1}]</span> × <span class="b-color">B[${f.k0}:${f.k1}, ${x.n0}:${x.n0+d.bn}]</span></div><div class="equation-extra">One BLOCK_K contribution · FP32 register accumulation · no C store per iteration</div>`;
+ $('matrixHover').textContent=`Selected: A tile (${x.tr}, ${f.tileK}) × B tile (${f.tileK}, ${x.tc}) → C tile (${x.tr}, ${x.tc}). Click a matrix to choose a tile; arrow keys work when it has focus.`;
+ $('matrixPanels').innerHTML=panel('A',d,f,r,p)+'<div class="matrix-op" aria-hidden="true">×</div>'+panel('B',d,f,r,p)+'<div class="matrix-op" aria-hidden="true">→</div>'+panel('C',d,f,r,p);
+ let pipeline=f.next?`The solid A/B tiles are the current <b>LDS → registers → WMMA</b> inputs for K [${f.k0}, ${f.k1}). ${$('matrixPrefetch').checked?'Dashed tiles show':'The next global load targets'} K [${f.next.k0}, ${f.next.k1}): the kernel prefetches them <b>global → registers</b> before computing the current tile, then publishes them to LDS after the reader barrier.`:`This is the <b>drain</b>: compute the last LDS tile, K [${f.k0}, ${f.k1}). There is <b>no next global load</b>; it does not prefetch into the next split.`;
+ if(j===0)pipeline=`<b>Prologue:</b> current K tile was loaded and copied into LDS first. `+pipeline;
+ const output=d.sk===1?'After the last tile, convert the accumulator to BF16 and store C.':'After the last tile, publish this split’s FP32 partial. The last-arriving thread for each set of output slots reduces all splits and stores BF16 C; the selected split is not necessarily the finalizer.';
+ $('matrixPipeline').innerHTML=`<span class="pipeline-tag">${f.last?'DRAIN':'K-LOOP BODY'}</span><div>${pipeline}<br><span class="c-color">${output}</span></div>`;
+ $('matrixDelta').innerHTML=f.next?`<span class="a-color">A: same M rows; K moves right by ${d.bk}</span><br><span class="b-color">B: same N cols; K moves down by ${d.bk}</span><br><span class="c-color">C: same output tile; accumulator adds the product</span><br><b>Origin deltas: A +${fmt(d.bk)}, B +${fmt(d.bk*d.n)}, C +0</b> elements`:`<b>End of this split.</b> No next K tile or prefetch.<br>${d.sk>1?`Keep this C target and select another split to inspect its contribution.`:'The final BF16 C store follows the drain.'}<br>Changing split is a different physical launch, not continuation of the same block.`;
+ const aPeers=Array.from({length:d.wn},(_,i)=>x.wm*d.wn+i),bPeers=Array.from({length:d.wm},(_,i)=>i*d.wn+x.wn);
+ $('matrixReuse').innerHTML=`<b>Within this physical block:</b> A’s current addresses are used by ${aPeers.map(w=>'w'+w).join(', ')}; B’s by ${bPeers.map(w=>'w'+w).join(', ')}. ${d.w>1?'These groups have separate LDS slices; matching addresses are a cache-reuse opportunity, not shared LDS.':'There is one tile group here.'}${lastChange?'<br><span class="mono">'+lastChange+'</span>':''}`;
+ $('matrixGroupTags').innerHTML=Array.from({length:d.w},(_,w)=>`<button class="group-tag ${w===x.wave?'active':''}" style="border-top:3px solid ${palette[w%palette.length]}" data-matmul-group="${w}">w${w} · (${Math.floor(w/d.wn)},${w%d.wn})</button>`).join('');
+ for(const [id,val,max] of [['M',mi,d.bm-1],['N',ni,d.bn-1],['K',ki,d.bk-1]]){$('probe'+id).max=max;$('probe'+id).value=val;$('probe'+id+'Label').textContent=val;}
+ $('probeFormula').innerHTML=`<span class="c-color">Acc[${p.m}, ${p.n}]</span> += <span class="a-color">A[${p.m}, ${p.k}]</span> × <span class="b-color">B[${p.k}, ${p.n}]</span><br><span class="a-color">A offset = ${p.m} × ${d.k} + ${p.k} = ${fmt(p.a)}</span><br><span class="b-color">B offset = ${p.k} × ${d.n} + ${p.n} = ${fmt(p.b)}</span><br><span class="c-color">C destination = ${p.m} × ${d.n} + ${p.n} = ${fmt(p.c)}</span>`;
+ const [start,end]=MM.windowAround(d.iters,j,7);
+ $('matrixTrace').innerHTML=`<table class="trace-table"><thead><tr><th>Local j</th><th>Global K-tile</th><th>K range</th><th>A tile (rows, K)</th><th>B tile (K, columns)</th><th>C accumulator target</th><th>Next prefetch</th></tr></thead><tbody>`+Array.from({length:end-start},(_,i)=>{const q=MM.frame(d,x.l,start+i);return `<tr class="${q.j===j?'active':''}"><td><button data-matmul-j="${q.j}" aria-label="Select K iteration ${q.j}">${q.j===j?'▶ ':''}${q.j}</button></td><td>${q.tileK}</td><td>[${q.k0},${q.k1})</td><td>[${x.m0}:${x.m0+d.bm}, ${q.k0}:${q.k1}]</td><td>[${q.k0}:${q.k1}, ${x.n0}:${x.n0+d.bn}]</td><td>[${x.m0}:${x.m0+d.bm}, ${x.n0}:${x.n0+d.bn}]</td><td>${q.next?'['+q.next.k0+','+q.next.k1+')':'none · drain'}</td></tr>`;}).join('')+`</tbody></table><div class="matmul-small-note">Showing iterations ${start}–${end-1} of ${d.iters}. The C accumulator region stays fixed; only A/B’s K coordinate advances.</div>`;
+}
+window.renderMatmul=render;
+function advance(){
+ const {d,kstep}=state(),f=frame();
+ if(kstep<d.iters-1){setK(kstep+1);return;}
+ if($('kCycle').checked&&f.x.s+1<d.sk){selectSplit(f.x.s+1,0);return;}
+ stopK();
+}
+function startK(){
+ E.stop();const {d,kstep}=state(),f=frame();
+ if(kstep===d.iters-1){if($('kCycle').checked&&f.x.s+1<d.sk)selectSplit(f.x.s+1,0);else setK(0);}
+ $('kPlay').textContent='Pause K';kTimer=setInterval(advance,Number($('kSpeed').value));
+}
+$('kPlay').onclick=()=>kTimer!==null?stopK():startK();
+$('kSpeed').onchange=()=>{if(kTimer!==null){stopK();$('kPlay').textContent='Pause K';kTimer=setInterval(advance,Number($('kSpeed').value));}};
+$('matrixLPlay').onclick=()=>{$('play').click();$('matrixLPlay').textContent=$('play').textContent==='Pause'?'Pause L':'Play L';};
+$('matrixLStep').onchange=()=>{$('stepMode').value=$('matrixLStep').value;};
+$('stepMode').onchange=()=>{$('matrixLStep').value=$('stepMode').value;};
+$('matrixLPrev').onclick=()=>selectL(state().L-1);$('matrixLNext').onclick=()=>selectL(state().L+1);
+$('matrixBlockPrev').onclick=()=>selectL(state().L-state().d.w);$('matrixBlockNext').onclick=()=>selectL(state().L+state().d.w);
+$('matrixL').onchange=()=>selectL(Number($('matrixL').value));
+$('kFirst').onclick=()=>{E.stop();setK(0);};$('kLast').onclick=()=>{E.stop();setK(state().d.iters-1);};
+$('kPrev').onclick=()=>{E.stop();setK(state().kstep-1);};$('kNext').onclick=()=>{E.stop();setK(state().kstep+1);};
+$('matrixK').oninput=()=>{E.stop();setK(Number($('matrixK').value));};$('matrixKNum').onchange=()=>{E.stop();setK(Number($('matrixKNum').value));};
+$('matrixDemo').onclick=()=>{E.apply(LM.PRESETS.teaching,'teaching');E.select(79);setK(2);};
+['matrixZoom','matrixTrail','matrixPrefetch','matrixGroups','matrixProbe'].forEach(id=>$(id).onchange=redraw);
+['M','N','K'].forEach(axis=>$('probe'+axis).oninput=()=>{if(axis==='M')mi=Number($('probeM').value);if(axis==='N')ni=Number($('probeN').value);if(axis==='K')ki=Number($('probeK').value);$('matrixProbe').checked=true;redraw();});
+function location(e){
+ const target=e.target.closest('[data-matrix-hit]');if(!target)return null;
+ const kind=target.dataset.matrixHit,v=currentViews[kind],svg=target.ownerSVGElement,point=svg.createSVGPoint();
+ point.x=e.clientX;point.y=e.clientY;const p=point.matrixTransform(svg.getScreenCTM().inverse());
+ const row=Math.max(v.rr[0],Math.min(v.rr[1]-1,Math.floor(v.rr[0]+(p.y-v.Y)/v.H*(v.rr[1]-v.rr[0]))));
+ const col=Math.max(v.cc[0],Math.min(v.cc[1]-1,Math.floor(v.cc[0]+(p.x-v.X)/v.W*(v.cc[1]-v.cc[0]))));
+ return {kind,row,col,v};
+}
+$('matmul-section').addEventListener('click',e=>{
+ const split=e.target.closest('[data-matmul-split]');if(split){E.stop();selectSplit(Number(split.dataset.matmulSplit));return;}
+ const group=e.target.closest('[data-matmul-group]');if(group){const f=frame();selectL(f.x.b*state().d.w+Number(group.dataset.matmulGroup));return;}
+ const j=e.target.closest('[data-matmul-j]');if(j){E.stop();setK(Number(j.dataset.matmulJ));return;}
+ const loc=location(e);if(loc)setPicked(loc.kind,loc.row,loc.col);
+});
+$('matrixPanels').addEventListener('pointermove',e=>{const p=location(e);if(!p)return;const {kind,row,col,v}=p;$('matrixHover').textContent=`${kind} tile (${row}, ${col}) → ${kind}[${row*v.rowSize}:${(row+1)*v.rowSize}, ${col*v.colSize}:${(col+1)*v.colSize}]. Click to select${kind==='A'?' this M row and K tile; N stays fixed.':kind==='B'?' this N column and K tile; M stays fixed.':' this output tile; K position stays fixed.'}`;});
+$('matrixPanels').addEventListener('keydown',e=>{
+ const svg=e.target.closest('[data-matrix-svg]');if(!svg||!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))return;
+ e.preventDefault();const kind=svg.dataset.matrixSvg,v=currentViews[kind];let [row,col]=v.active;
+ if(e.key==='ArrowUp')row--;if(e.key==='ArrowDown')row++;if(e.key==='ArrowLeft')col--;if(e.key==='ArrowRight')col++;
+ row=Math.max(0,Math.min(v.rows-1,row));col=Math.max(0,Math.min(v.cols-1,col));setPicked(kind,row,col);document.querySelector(`[data-matrix-svg="${kind}"]`).focus({preventScroll:true});
+});
+$('matrixTraceCsv').onclick=()=>{
+ const {d,L}=state();if(d.iters>100000){$('matrixToast').textContent='Trace export is limited to 100,000 iterations. Reduce K or increase BLOCK_K.';$('matrixToast').classList.remove('hidden');return;}
+ const rows=['L,block_idx_x,wave_group,split_id,local_j,global_k_tile,k_begin,k_end,a_row_begin,a_row_end,a_element_origin,b_col_begin,b_col_end,b_element_origin,c_element_origin,next_prefetch_k_begin'];
+ for(let j=0;j<d.iters;j++){const q=MM.frame(d,L,j);rows.push([L,q.x.b,q.x.wave,q.x.s,j,q.tileK,q.k0,q.k1,...q.A.rows,q.A.origin,...q.B.cols,q.B.origin,q.C.origin,q.next?q.next.k0:''].join(','));}
+ const url=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'})),a=document.createElement('a');a.href=url;a.download=`flydsl-L${L}-K-trace.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+window.matmulExplorer={get frame(){return frame();},get views(){return currentViews;},get probe(){const {d,L,kstep}=state();return MM.probe(d,L,kstep,mi,ni,ki);},get playing(){return kTimer!==null;},setK,pick:setPicked,redraw};
+// Open on the all-axes worked example: several K tiles have already been traversed.
+E.select(79);setK(2);lastFrame=null;lastChange='';redraw();
+})();
+
+</script></body></html>

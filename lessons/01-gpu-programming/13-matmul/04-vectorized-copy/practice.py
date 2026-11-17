@@ -57,9 +57,10 @@ def _matmul_bf16(
     staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
         staging_thread_layout, staging_value_layout
     )
-    staging_copy_plan = fx.make_tiled_copy(
-        copy_128b, staging_copy_tv, staging_copy_tile
-    )
+    # TODO 1: Build the global-to-LDS plan from its atom and thread/value layout.
+    staging_copy_plan = None
+    if staging_copy_plan is None:
+        raise NotImplementedError("Fill in staging_copy_plan.")
     # get per thread copy plan
     thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
 
@@ -77,9 +78,10 @@ def _matmul_bf16(
     left_lds2reg_copy_tile, left_lds2reg_copy_tv = fx.make_layout_tv(
         left_lds2reg_thread_layout, left_lds2reg_value_layout
     )
-    left_lds2reg_copy_plan = fx.make_tiled_copy(
-        copy_16b, left_lds2reg_copy_tv, left_lds2reg_copy_tile
-    )
+    # TODO 2: Build A's LDS-to-register copy plan.
+    left_lds2reg_copy_plan = None
+    if left_lds2reg_copy_plan is None:
+        raise NotImplementedError("Fill in left_lds2reg_copy_plan.")
 
     copy_64b = fx.make_copy_atom(fx.UniversalCopy64b(), fx.BFloat16)
     right_lds2reg_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
@@ -87,9 +89,10 @@ def _matmul_bf16(
     right_lds2reg_copy_tile, right_lds2reg_copy_tv = fx.make_layout_tv(
         right_lds2reg_thread_layout, right_lds2reg_value_layout
     )
-    right_lds2reg_copy_plan = fx.make_tiled_copy(
-        copy_64b, right_lds2reg_copy_tv, right_lds2reg_copy_tile
-    )
+    # TODO 3: Build B's LDS-to-register copy plan.
+    right_lds2reg_copy_plan = None
+    if right_lds2reg_copy_plan is None:
+        raise NotImplementedError("Fill in right_lds2reg_copy_plan.")
 
     compute_thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
     thread_coord = fx.idx2crd(fx.thread_idx.x, compute_thread_layout)
@@ -190,9 +193,10 @@ def _matmul_bf16(
     reg2gmem_tilemn, reg2gmem_tv_layout = fx.make_layout_tv(
         reg2gmem_thread_layout, reg2gmem_val_layout
     )
-    reg2gmem_copy_plan = fx.make_tiled_copy(
-        copy_64b, reg2gmem_tv_layout, reg2gmem_tilemn
-    )
+    # TODO 4: Build the register-to-global output copy plan.
+    reg2gmem_copy_plan = None
+    if reg2gmem_copy_plan is None:
+        raise NotImplementedError("Fill in reg2gmem_copy_plan.")
     reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(0)
     reg2gmem_source = reg2gmem_thread_copy.partition_S(out_registers)
     reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_thread_view)

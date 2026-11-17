@@ -38,7 +38,6 @@ def _matmul_bf16(
     # 1. Buffer resources retain the existing row-major matrix layouts.
     # TODO 1: Wrap A as a native global buffer resource.
     left_buffer = None
-    left_buffer = fx.rocdl.make_buffer_tensor(left)
     if left_buffer is None:
         raise NotImplementedError("Fill in left_buffer.")
     right_buffer = fx.rocdl.make_buffer_tensor(right)
@@ -70,7 +69,6 @@ def _matmul_bf16(
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
     # TODO 2: Select the 128-bit buffer global-load atom for BF16.
     gmem_load_128b = None
-    gmem_load_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.BFloat16)
     if gmem_load_128b is None:
         raise NotImplementedError("Fill in gmem_load_128b.")
     staging_thread_layout = fx.make_ordered_layout((16, 8), (1, 0))

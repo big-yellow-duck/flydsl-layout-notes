@@ -4,7 +4,14 @@ A and B need not pass through the same storage. For skinny `C=A@B`, A has only 1
 
 This lesson measures that choice. It retains row-major BF16 inputs/output, FP32 accumulation, one-dimensional physical block IDs, prefetch, and stage 09's single-kernel split-K finalizer. All waves load and compute using the [10c prefetch schedule](../10c-k-unrolling/README.md). This lesson changes the operand route while retaining that schedule. Read [10](../10-wave-local-tiles/README.md) for the independent-wave mapping and [stage 05](../05-matrix-instructions/README.md) for WMMA ownership.
 
-The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). A physical block owns `BLOCK_M*WAVE_GROUPS_M` rows and `BLOCK_N*WAVE_GROUPS_N` columns. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
+The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
+
+With one physical M row, `group_m` is exactly redundant:
+`ceil(M / BLOCK_M) == 1`. With several physical M rows,
+grouped traversal can still improve B locality between blocks. The
+[M-grouping study](results/20261117-group-m/README.md) uses this lesson's
+unmodified kernel to compare tuned and matched configurations on skinny,
+square and rectangular workloads.
 
 ## Why the course keeps prefetch
 
@@ -66,12 +73,12 @@ left_direct_atom = fx.make_copy_atom(
     fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
 )
 left_direct_plan = fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(
-    compute_thread_id
+    thread_id_in_wave_group
 )
 left_direct_destination = left_direct_plan.retile(left_full_fragment)
 
-# Inside gmem2reg_load_tile(tile_k), after selecting left_block_view:
-left_direct_source = left_direct_plan.partition_S(left_block_view)
+# Inside gmem2reg_load_tile(tile_k), after selecting left_group_view:
+left_direct_source = left_direct_plan.partition_S(left_group_view)
 fx.copy(left_direct_atom, left_direct_source, left_direct_destination)
 ```
 
@@ -99,7 +106,7 @@ Loading B directly with the WMMA plan required many narrow global reads in the e
 
 ```python
 left_full_tiled = fx.flat_divide(
-    left_compute_fragment, (16, BLOCK_M // (16 * WAVES_M), 1)
+    left_compute_fragment, (16, GROUP_TILE_M // (16 * WAVES_M), 1)
 )
 left_current = fx.slice(left_full_tiled, (None, None, None, 0, 0, inner_k))
 fx.copy(copy_16b, left_current, left_r_tile)
@@ -120,9 +127,9 @@ make the new B tile visible
 The prologue prepares the first tile, and the drain consumes the last tile without loading beyond its partition. Cooperating waves use LDS-only workgroup barriers. Independent wave groups have disjoint tiles and use subgroup scope. A's private fragments do not remove B's synchronization requirements.
 
 LDS views retain lesson 10's two group axes: B has shape
-`(WAVE_GROUPS_M,WAVE_GROUPS_N,BLOCK_K,BLOCK_N)`. Slicing
-`(wave_row,wave_col,None,None)` selects one private B tile. When A also crosses
-LDS its full shape is `(WAVE_GROUPS_M,WAVE_GROUPS_N,BLOCK_M,BLOCK_K)` with
+`(WAVE_GROUPS_M,WAVE_GROUPS_N,STAGE_K,GROUP_TILE_N)`. Slicing
+`(group_row,group_col,None,None)` selects one private B tile. When A also crosses
+LDS its full shape is `(WAVE_GROUPS_M,WAVE_GROUPS_N,GROUP_TILE_M,STAGE_K)` with
 padded K rows. No A/B tile is shared between independent groups. The explicit
 physical output view is sliced into wave tiles before WMMA ownership is applied.
 M bounds round to the full physical block height, so `(2,1)` and `(2,2)` can
@@ -150,14 +157,14 @@ The controlled M=32 profile holds geometry and scheduling fixed while switching 
 
 [practice.py](practice.py) supplies global/block views, storage, register allocation, the B path, synchronization, split-K finalization, and the complete checker. Fill two expressions:
 
-1. `left_direct_plan`: derive the A copy plan from `left_direct_atom` and `mma`, then select `compute_thread_id`.
+1. `left_direct_plan`: derive the A copy plan from `left_direct_atom` and `mma`, then select `thread_id_in_wave_group`.
 2. `left_current`: select `inner_k` from `left_full_tiled`, retaining the operand's first three modes.
 
 The default full-size trace checkpoint is **`[7,4,1,-2]`**, the first four outputs in row 0. The wide selector's checkpoint is `[8,5,2,-1]`. These are BF16 output values, not addresses or per-split partials.
 
 The checker compares every output with CPU FP32 arithmetic on the actual BF16 inputs, rounded to BF16. It tests structured and random data, signed input changes across workspace reuses, NaN output replacement, output/workspace sentinels, counter reset, and exact FP32 partials at tagged K boundaries. The course check covers all three shapes with split counts 1, 2 and 4. Complete N/K tiles and contiguous inputs are required. Random tolerances are `rtol=0.016, atol=0.03125`.
 
-Explicit configurations also support partial M tiles, including M=1,2,4,8. The kernel rounds the logical row domain up to `BLOCK_M`, while bounding A and output buffer descriptors to their actual byte counts. Missing A rows read zero and output stores beyond M are discarded. No padding allocation or extra kernel is required; complete M tiles retain the existing unbounded descriptors. Grid sizing and split-K workspace sizing count the rounded-up row tiles. The [small-M tuning study](results/small-m-shapes.md) compares these cases with Torch at N=K=1024 and 2048; the teaching CLI keeps its original three default selectors.
+Explicit configurations also support partial M tiles, including M=1,2,4,8. The kernel rounds the logical row domain up to `GROUP_TILE_M`, while bounding A and output buffer descriptors to their actual byte counts. Missing A rows read zero and output stores beyond M are discarded. No padding allocation or extra kernel is required; complete M tiles retain the existing unbounded descriptors. Grid sizing and split-K workspace sizing count the rounded-up row tiles. The [small-M tuning study](results/small-m-shapes.md) compares these cases with Torch at N=K=1024 and 2048; the teaching CLI keeps its original three default selectors.
 
 ## Revision question
 

@@ -24,8 +24,12 @@ FOLDERS = (
 def completed_practice(folder):
     source = (folder / "practice.py").read_text()
     for item in json.loads((folder / "practice-expressions.json").read_text()):
-        assert source.count(item["unfinished"]) == 1, folder
-        source = source.replace(item["unfinished"], item["completed"], 1)
+        if item["unfinished"] in source:
+            assert source.count(item["unfinished"]) == 1, folder
+            source = source.replace(item["unfinished"], item["completed"], 1)
+        else:
+            # Learners may already have completed some or all expressions.
+            assert source.count(item["completed"]) == 1, folder
 
     def normalized(text):
         tree = ast.parse(text)
@@ -166,7 +170,7 @@ def main():
                 "checks": checks,
                 "practice_AST_equivalent": True,
                 "selected_shape_split_cases_per_lesson": 9,
-                "explicit_2d_physical_block_and_wave_views": True,
+                "explicit_block_then_group_operand_and_output_views": True,
                 "active_solution_count": len(
                     list((ROOT / "lessons").rglob("solution.py"))
                 ),

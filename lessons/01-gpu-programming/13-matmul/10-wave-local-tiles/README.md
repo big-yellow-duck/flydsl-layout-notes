@@ -7,7 +7,12 @@ This lesson changes wave ownership only. It keeps the ordinary B cache policy, a
 Wave groups have two dimensions: `wave_groups_m` and `wave_groups_n`. They
 place independent tiles along M and N, while `waves_m` and `waves_n` describe
 cooperating waves **inside one compute tile**. The physical block covers
-`(BLOCK_M*wave_groups_m, BLOCK_N*wave_groups_n)` output values. The four tuning
+`(BLOCK_M, BLOCK_N)` output values, where
+`BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` and
+`BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N`. Each group computes
+`GROUP_TILE_M × GROUP_TILE_N` outputs using `STAGE_K`-wide K stages.
+The host configuration fields `block_m`, `block_n`, and `block_k` retain their
+serialized names and supply `GROUP_TILE_M`, `GROUP_TILE_N`, and `STAGE_K`. The four tuning
 arrangements are `(1,1)`, `(1,2)`, `(2,1)`, and `(2,2)`.
 
 ## Follow physical block 2
@@ -22,45 +27,99 @@ The walkthrough selects `(1,2)`. The tuned wide CLI default uses `(1,1)` because
 
 ## Select the physical block before the wave
 
-The [native solution](solution.py) encodes physical-block and wave ownership in
-one native layout. For the walkthrough, `WAVE_GROUPS_M=1`, `WAVE_GROUPS_N=2`,
-`group_m=1`, and `split_k=1`:
+The [native solution](solution.py) uses two layouts: one for groups within a
+physical block, and one for physical-block traversal. For the walkthrough,
+`GROUP_TILE_M=16`, `GROUP_TILE_N=64`, `STAGE_K=16`,
+`WAVE_GROUPS_M=1`, `WAVE_GROUPS_N=2`, `group_m=1`, and `split_k=1`.
+Thus `BLOCK_M=16`, `BLOCK_N=128`, and each group has 32 threads.
 
 ```python
-WAVE_GROUPS = WAVE_GROUPS_M * WAVE_GROUPS_N
 wave_group = fx.thread_idx.x // THREADS_PER_GROUP
-compute_thread_id = fx.thread_idx.x % THREADS_PER_GROUP
-launch_coordinate = fx.block_idx.x * WAVE_GROUPS + wave_group
+thread_id_in_wave_group = fx.thread_idx.x % THREADS_PER_GROUP
+group_layout = fx.make_layout((WAVE_GROUPS_M, WAVE_GROUPS_N), (WAVE_GROUPS_N, 1))
+group_coords = fx.idx2crd(wave_group, group_layout)
+group_row = fx.get_scalar(group_coords[0])
+group_col = fx.get_scalar(group_coords[1])
 ```
 
-`split_block_layout` has axes `(wave_row, wave_col, row_in_group, split_id,
-physical_block_col, m_group)`. Its strides make wave column vary first, then wave
-row, then the grouped physical-block traversal. `idx2crd` decodes the scalar
-`launch_coordinate`. For block 2 the waves decode `(wave_row,wave_col)=(0,0)`
-and `(0,1)`, both with `physical_block_row=0`, `physical_block_col=2`, and split 0.
+The layout has shape `(1,2)` and strides `(2,1)`. Physical threads 0–31
+select group `(0,0)`; threads 32–63 select `(0,1)`, reusing local thread IDs
+0–31. These coordinates do not change the block's K split.
 
-First select the whole physical block's **16×128** view, then each wave's 16×64
-view. These expressions describe addresses without loading or copying values:
+The block layout counts output blocks, rather than matrix elements:
 
 ```python
-out_tiled_view = fx.flat_divide(out_global_view, (PHYSICAL_M, PHYSICAL_N))
-out_block_view = fx.slice(
-    out_tiled_view, (None, None, physical_block_row, physical_block_col)
+blocks_m = m // BLOCK_M
+blocks_n = n // BLOCK_N
+group_m_width = min(GROUP_M, blocks_m)
+split_block_layout = fx.make_ordered_layout(
+    (group_m_width, SPLIT_K, blocks_n, blocks_m // group_m_width),
+    (0, 1, 2, 3),
 )
-out_wave_tiles = fx.flat_divide(out_block_view, (BLOCK_M, BLOCK_N))
-out_wave_view = fx.slice(out_wave_tiles, (None, None, wave_row, wave_col))
+block_coords = fx.idx2crd(fx.block_idx.x, split_block_layout)
 ```
 
-Block 2 owns C rows 0–15, columns 256–383. Wave 0 slices columns 256–319;
-wave 1 slices columns 320–383. Copy/MMA plans use `compute_thread_id`, 0–31,
-and the accumulator/output plans consume `out_wave_view`. The two waves have
-separate accumulators; neither reduces the other's values.
+Its axes are `(row_in_group, split_id, block_col, m_group_id)`, fastest first.
+The equivalent strides are `(1, group_m_width, group_m_width*SPLIT_K,
+group_m_width*SPLIT_K*blocks_n)`. Reconstruct the output block row as
+`block_row=m_group_id*group_m_width+row_in_group`. In the walkthrough the
+shape is `(1,1,32,1)`: block 2 selects row 0, column 2, split 0 for both groups.
 
-The operand tile coordinates are `block_row=physical_block_row*WAVE_GROUPS_M+
-wave_row` and `block_col=physical_block_col*WAVE_GROUPS_N+wave_col`. Neighbors
-along N load the same A tile; neighbors along M load the same B tile. Each wave
-still stages its own copies. Packing independent tiles introduces no operand
-sharing between waves.
+First select the whole physical block's **16×128** output view, then each
+group's **16×64** view. These expressions describe addresses without loading
+or copying values:
+
+```python
+out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
+out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))
+out_group_tiles = fx.flat_divide(out_block_view, (GROUP_TILE_M, GROUP_TILE_N))
+out_group_view = fx.slice(out_group_tiles, (None, None, group_row, group_col))
+```
+
+Block 2 owns C rows 0–15, columns 256–383. Group 0 slices columns 256–319;
+group 1 slices columns 320–383. Copy/MMA plans use `thread_id_in_wave_group`,
+and the accumulator/output plans consume `out_group_view`. Each group has a
+separate accumulator.
+
+## Select global operands through the same hierarchy
+
+At `tile_k=0`, block 2 needs A rows 0–15, K=0–15, and B rows 0–15,
+columns 256–383. Expose block tiles for one K stage:
+
+```python
+left_block_tiles = fx.flat_divide(left_global_view, (BLOCK_M, STAGE_K))
+right_block_tiles = fx.flat_divide(right_global_view, (STAGE_K, BLOCK_N))
+
+# Inside gmem2reg_load_tile(tile_k):
+left_block_view = fx.slice(left_block_tiles, (None, None, block_row, tile_k))
+right_block_view = fx.slice(right_block_tiles, (None, None, tile_k, block_col))
+left_group_tiles = fx.flat_divide(left_block_view, (GROUP_TILE_M, STAGE_K))
+right_group_tiles = fx.flat_divide(right_block_view, (STAGE_K, GROUP_TILE_N))
+left_group_view = fx.slice(left_group_tiles, (None, None, group_row, 0))
+right_group_view = fx.slice(right_group_tiles, (None, None, 0, group_col))
+```
+
+A's group windows have shape `(16,16,1,1)`; B's have shape `(16,64,1,2)`.
+The final A view retains global strides `(8192,1)`, and B retains `(4096,1)`.
+Neighbors along N load the same A tile and different B columns; neighbors
+along M load different A rows and the same B tile. Each group stages its own
+copies into its own LDS region.
+
+For local thread 3 in block 2, the first 128-bit vectors follow these paths.
+All offsets count BF16 elements; A/B LDS offsets are relative to their separate arrays.
+
+| Group | A global offsets | A LDS offsets | B global offsets | B LDS offsets |
+| --- | --- | --- | --- | --- |
+| 0 | 8200–8207 | 32–39 | 280–287 | 24–31 |
+| 1 | 8200–8207 | 416–423 | 344–351 | 1048–1055 |
+
+A uses one eight-value vector per thread. B uses four: thread 3 covers local
+rows 0,4,8,12 at columns 24–31. The shared staging copy plan partitions each
+group's global source and LDS destination with the same local ownership.
+`gmem2reg_load_tile` fills private fragments; `reg2lds_copy_tile` publishes
+those fragments to the preselected LDS destinations. Neither step adds the
+group's base offset a second time. Later K stages change the global source
+while reusing the same LDS regions after their readers finish.
 
 ## Arrange four wave tiles in two dimensions
 
@@ -82,30 +141,55 @@ fixed. Full physical tiles are required here. An M=16 workload cannot fit two
 16-row wave tiles along M; the tuner records that exclusion rather than using
 the second wave row for another K split. Lesson 12 later bounds partial M rows.
 
+## When does M traversal still matter?
+
+`wave_groups_m` and `group_m` act at successive levels. The first packs M-neighbor
+wave tiles into one physical block. The second visits M-neighbor physical blocks
+before advancing to the next K split or physical N column. Both can bring
+requests for the same B values closer together, while every wave retains its
+own staging copies and LDS region.
+
+For per-wave height `GROUP_TILE_M`, the number of physical M rows is
+`M // (GROUP_TILE_M * wave_groups_m)` in this full-tile lesson. If it is one,
+`min(group_m, blocks_m)` is always one: changing `group_m` cannot change
+the traversal. For example, M=32 with 16-row waves and `wave_groups_m=2`
+already fits all M work in one physical row. With M=256, the same packing
+leaves eight physical rows. `group_m=4` then places four blocks with the same
+B columns and K split at neighboring launch positions, covering 128 output
+rows across eight independent M wave tiles.
+
+That locality opportunity does not guarantee an L2 hit. Scheduling, cache policy,
+capacity and competing traffic determine where repeated reads are served.
+Changing `group_m` leaves per-block threads, fragment shapes and LDS allocation fixed;
+changing wave packing also changes block resources and grid size. The
+[lesson-12 benchmark study](../12-operand-paths/results/20261117-group-m/README.md)
+tests both levels on skinny, square and rectangular GEMMs, with matched
+traversal controls and separately tuned configurations.
+
 ## Slice the shared views by group
 
-The allocator reserves one A tile and one B tile per group. Describe the full allocation with a leading group dimension, then slice that dimension to select each group's tile:
+The allocator reserves one A tile and one B tile per group. Describe the full allocation with two leading group dimensions, then slice those dimensions to select each group's tile:
 
 ```python
 left_lds_all = lds.left.view(
     fx.make_layout(
-        (WAVE_GROUPS_M, WAVE_GROUPS_N, BLOCK_M, BLOCK_K),
-        (WAVE_GROUPS_N * BLOCK_M * (BLOCK_K + 8),
-         BLOCK_M * (BLOCK_K + 8), BLOCK_K + 8, 1),
+        (WAVE_GROUPS_M, WAVE_GROUPS_N, GROUP_TILE_M, STAGE_K),
+        (WAVE_GROUPS_N * GROUP_TILE_M * (STAGE_K + 8),
+         GROUP_TILE_M * (STAGE_K + 8), STAGE_K + 8, 1),
     )
 )
 right_lds_all = lds.right.view(
     fx.make_layout(
-        (WAVE_GROUPS_M, WAVE_GROUPS_N, BLOCK_K, BLOCK_N),
-        (WAVE_GROUPS_N * BLOCK_K * BLOCK_N, BLOCK_K * BLOCK_N, BLOCK_N, 1),
+        (WAVE_GROUPS_M, WAVE_GROUPS_N, STAGE_K, GROUP_TILE_N),
+        (WAVE_GROUPS_N * STAGE_K * GROUP_TILE_N, STAGE_K * GROUP_TILE_N, GROUP_TILE_N, 1),
     )
 )
-left_lds_view = fx.slice(left_lds_all, (wave_row, wave_col, None, None))
-right_lds_view = fx.slice(right_lds_all, (wave_row, wave_col, None, None))
+left_group_lds_view = fx.slice(left_lds_all, (group_row, group_col, None, None))
+right_group_lds_view = fx.slice(right_lds_all, (group_row, group_col, None, None))
 ```
 
-A's full view has coordinates `(wave_row,wave_col,row,k)`; B's has
-`(wave_row,wave_col,k,column)`. Adjacent wave columns are separated by one
+A's full view has coordinates `(group_row,group_col,row,k)`; B's has
+`(group_row,group_col,k,column)`. Adjacent wave columns are separated by one
 private tile; adjacent wave rows by `WAVE_GROUPS_N` private tiles. Slicing the
 two group axes leaves the 2D operand tile expected by the copy/MMA plans.
 
@@ -117,7 +201,7 @@ Slicing carries the selected group's base offset into the tile view. It allocate
 
 Every wave loads its next A/B chunk into private registers while WMMA consumes its current LDS chunk. The handoffs still call `fx.barrier()` for the entire physical block. All groups execute the same number of K steps, so each reaches the same barriers. This is deliberately a conservative synchronization baseline for the next lesson.
 
-With `K=48`, one split, and the same `BLOCK_K=16`, set A's three K chunks to `[1,2,4]` and B to 1. Every output must be `16*(1+2+4)=112`. Tile 0 is prepared in the prologue, two steady steps advance the pipeline, and the drain consumes tile 2 without another global read.
+With `K=48`, one split, and the same `STAGE_K=16`, set A's three K chunks to `[1,2,4]` and B to 1. Every output must be `16*(1+2+4)=112`. Tile 0 is prepared in the prologue, two steady steps advance the pipeline, and the drain consumes tile 2 without another global read.
 
 The two narrow workload configurations use two cooperating waves per tile and a `(1,1)` group shape. The new grouping comparison matters on the wide workload, whose tiles need only one wave each. For the wide shape, the benchmark compares valid wave-group shapes while preserving per-tile arithmetic, cache policy, and the K loop. The full 2D tuner also tests one-wave 16-row tiles on the narrow workloads, keeping K chunks and split counts fixed. The existing cooperating configuration remains a control.
 
@@ -125,8 +209,8 @@ The two narrow workload configurations use two cooperating waves per tile and a 
 
 [practice.py](practice.py) supplies the global views, copy/MMA ownership, prefetch pipeline, single-kernel split-K finalizer, launch, and independent host checker. Fill only these two expressions:
 
-1. `launch_coordinate`: combine the physical block ID with this wave group for the six-axis layout.
-2. `right_lds_view`: slice B's full LDS view at `(wave_row,wave_col)`, keeping both tile axes.
+1. `group_coords`: decode `wave_group` using the two-dimensional `group_layout`.
+2. `right_group_lds_view`: slice B's full LDS view at `(group_row,group_col)`, keeping both tile axes.
 
 The default full-size checkpoint is **`[8,5,2,-1]`**, the first four BF16 output values in row 0 of the wide workload. Both narrow shape selectors return `[7,4,1,-2]`. The tile-tag traces above use different inputs to isolate pipeline boundaries.
 

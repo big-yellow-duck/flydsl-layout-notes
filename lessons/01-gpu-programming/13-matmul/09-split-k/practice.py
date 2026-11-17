@@ -287,10 +287,12 @@ def _matmul_bf16(
     # 6. Prefetch next globals while consuming the current LDS tile.
     # Prologue: make tile 0 visible in LDS before any consumer reads it.
     tile_per_split = k // (BLOCK_K * SPLIT_K)
-    initial_tile_k = split_id * tile_per_split
+    # TODO 1: Select this split's first K tile in the full input views.
+    initial_tile_k = None
+    if initial_tile_k is None:
+        raise NotImplementedError("Fill in initial_tile_k.")
     gmem2reg_load_tile(initial_tile_k)
     reg2lds_copy_tile()
-    # TODO 1: Select this split's first K tile in the full input views.
     for tile_k in range(tile_per_split - 1):
         next_tile_k = initial_tile_k + tile_k + 1
         gmem2reg_load_tile(next_tile_k)
@@ -365,7 +367,10 @@ def _matmul_bf16(
                 ordering=fx.AtomicOrdering.AcqRel,
                 syncscope=fx.rocdl.SyncScope.Agent,
             )
-            last_arrival = arrived == SPLIT_K - 1
+            # TODO 2: Identify the peer that can see all split-K partials.
+            last_arrival = None
+            if last_arrival is None:
+                raise NotImplementedError("Fill in last_arrival.")
         finalizer = scf.IfOp(last_arrival.ir_value(), [], has_else=False)
         with ir.InsertionPoint(finalizer.then_block):
             if CTA_FINALIZER:

@@ -1,0 +1,703 @@
+{
+  "shape_MNK": [
+    16,
+    1024,
+    8192
+  ],
+  "environment": {
+    "hostname": "fedora",
+    "timestamp_utc": "2026-11-17T04:07:17.394601+00:00",
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385",
+    "kernel": "7.2.13-200.fc44.x86_64",
+    "shape_MNK": [
+      16,
+      1024,
+      8192
+    ],
+    "inputs": "row-major BF16 A/B; no packing; FP32 accumulation; BF16 output",
+    "output": "same preallocated GPU output and trailing sentinels for both implementations",
+    "timing": "synchronized host clock; graph replay or direct launch recorded per measurement; not device-only",
+    "cpu_reference_threads": 1,
+    "kernel_build_sha256": "cdc6a93f88bf33a3db60fce3942c39d0e0162f79ff951f386236a39fd759c996",
+    "source_sha256": {
+      "solution.py": "389c3975db2dce9ee24e5fecaf6b31f6ca0aacc8d808bc5c63050fbdc9e2e8a7",
+      "tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+    }
+  },
+  "L2_bytes_reported_by_HIP": 2097152,
+  "source_sha256": {
+    "tools/benchmark_group_m.py": "e1980fb7a4cb8b186a941a49349ca28853da9c4b85e4a3cb65993faab0d145d7",
+    "lessons/01-gpu-programming/13-matmul/12-operand-paths/solution.py": "a0611170b01fbc77b142c1c402b27de27c2796d39a634fef580105974bbc7d28",
+    "lessons/01-gpu-programming/13-matmul/12-operand-paths/tune.py": "e6f0a9842aa3582b4060d40a2c2539a469415a669c7312cad77fc3065b946f25",
+    "lessons/01-gpu-programming/13-matmul/09-split-k/tune.py": "c34281b183f359ef504dea83abea2aaed1798bac0a6689a6cafee9477fb9f589"
+  },
+  "scope": "Same unmodified lesson-12 kernel. Tune independent-wave geometry on seed 13, with matched group_m sweeps for every wave-group layout. Lock selections before held-out seeds. Warm reused input buffers; synchronized host timing, allocations/compilation/reference excluded. No claim of exhaustive tuning or measured cache hits from timing.",
+  "training": [],
+  "excluded": [],
+  "selections": {
+    "1x1": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      }
+    },
+    "1x2": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 2,
+        "k_unroll": 1,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      }
+    },
+    "2x1": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 2,
+        "wave_groups_n": 1,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      }
+    },
+    "2x2": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 16,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 2,
+        "wave_groups_n": 2,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      }
+    },
+    "lesson_default": {
+      "tuned_gm1": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      }
+    }
+  },
+  "verification": [
+    {
+      "seed": 101,
+      "median_ms": {
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": 0.020130657503614202,
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": 0.02953003058792092,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": 0.031524345104116946,
+        "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": 0.02003909321501851,
+        "torch": 0.03549456232576631,
+        "operand_paths": 0.02249462704639882
+      },
+      "paired_ratios": {
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": [
+          1.117431313028906
+        ],
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": [
+          0.7617542751750521
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": [
+          0.7135636592006828
+        ],
+        "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": [
+          1.1225371729664884
+        ],
+        "torch": [
+          0.6337485398451993
+        ]
+      },
+      "ratio_to_m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": 1.117431313028906,
+      "ratio_to_m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": 0.7617542751750521,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": 0.7135636592006828,
+      "ratio_to_m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": 1.1225371729664884,
+      "ratio_to_torch": 0.6337485398451993,
+      "samples_ms": {
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": [
+          0.020130657503614202
+        ],
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": [
+          0.02953003058792092
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": [
+          0.031524345104116946
+        ],
+        "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": [
+          0.02003909321501851
+        ],
+        "torch": [
+          0.03549456232576631
+        ],
+        "operand_paths": [
+          0.02249462704639882
+        ]
+      },
+      "orders": [
+        [
+          "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1",
+          "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 1,
+      "repeats": 1,
+      "warmups_per_implementation": 3,
+      "timing": "graph-host",
+      "graph_metadata": {
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "torch": {
+          "nodes": 32,
+          "kernel_nodes": 32,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        },
+        "operand_paths": {
+          "nodes": 35,
+          "kernel_nodes": 35,
+          "workspace_initialization_nodes": 3,
+          "matmuls_per_replay": 32,
+          "mutated_input_replay": "passed",
+          "nan_output_and_sentinels": "passed"
+        }
+      }
+    },
+    {
+      "seed": 101,
+      "median_ms": {
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": 0.1374350395053625,
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": 0.146326026879251,
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": 0.15068496577441692,
+        "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": 0.15059590805321932,
+        "torch": 0.07643795106559992,
+        "operand_paths": 0.14156592078506947
+      },
+      "paired_ratios": {
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": [
+          1.0300569730585027
+        ],
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": [
+          0.9674691769078811
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": [
+          0.9394827151966897
+        ],
+        "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": [
+          0.9400382959611444
+        ],
+        "torch": [
+          1.852037094290714
+        ]
+      },
+      "ratio_to_m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": 1.0300569730585027,
+      "ratio_to_m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": 0.9674691769078811,
+      "ratio_to_m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": 0.9394827151966897,
+      "ratio_to_m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": 0.9400382959611444,
+      "ratio_to_torch": 1.852037094290714,
+      "samples_ms": {
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": [
+          0.1374350395053625
+        ],
+        "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": [
+          0.146326026879251
+        ],
+        "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": [
+          0.15068496577441692
+        ],
+        "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": [
+          0.15059590805321932
+        ],
+        "torch": [
+          0.07643795106559992
+        ],
+        "operand_paths": [
+          0.14156592078506947
+        ]
+      },
+      "orders": [
+        [
+          "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1",
+          "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1",
+          "operand_paths",
+          "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1",
+          "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1",
+          "torch"
+        ]
+      ],
+      "batches": 1,
+      "repeats": 1,
+      "warmups_per_implementation": 3,
+      "timing": "direct-host",
+      "graph_metadata": {}
+    }
+  ],
+  "selection_source": "lessons/01-gpu-programming/13-matmul/12-operand-paths/results/20261117-group-m/benchmark/16x1024x8192.json",
+  "aliases": {
+    "1x1/tuned_gm1": "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x1_u4_ac0_bc2_ar1",
+    "1x2/tuned_gm1": "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1",
+    "2x1/tuned_gm1": "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1",
+    "2x2/tuned_gm1": "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1",
+    "lesson_default/tuned_gm1": "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1"
+  },
+  "validation": {
+    "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x1_u4_ac0_bc2_ar1": {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x1_u4_ac0_bc2_ar1",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32,
+            64,
+            96,
+            128
+          ],
+          "sum_before_bf16": 320
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96,
+            192,
+            288,
+            384
+          ],
+          "sum_before_bf16": 960
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224,
+            448,
+            672,
+            896
+          ],
+          "sum_before_bf16": 2240
+        },
+        {
+          "tiles_per_split": 4,
+          "partial_values": [
+            480,
+            960,
+            1440,
+            1920
+          ],
+          "sum_before_bf16": 4800
+        },
+        {
+          "tiles_per_split": 5,
+          "partial_values": [
+            992,
+            1984,
+            2976,
+            3968
+          ],
+          "sum_before_bf16": 9920
+        },
+        {
+          "tiles_per_split": 6,
+          "partial_values": [
+            2016,
+            4032,
+            6048,
+            8064
+          ],
+          "sum_before_bf16": 20160
+        }
+      ]
+    },
+    "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32,
+            64,
+            96,
+            128
+          ],
+          "sum_before_bf16": 320
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96,
+            192,
+            288,
+            384
+          ],
+          "sum_before_bf16": 960
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224,
+            448,
+            672,
+            896
+          ],
+          "sum_before_bf16": 2240
+        }
+      ]
+    },
+    "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32,
+            64,
+            96,
+            128
+          ],
+          "sum_before_bf16": 320
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96,
+            192,
+            288,
+            384
+          ],
+          "sum_before_bf16": 960
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224,
+            448,
+            672,
+            896
+          ],
+          "sum_before_bf16": 2240
+        },
+        {
+          "tiles_per_split": 8,
+          "partial_values": [
+            8160,
+            16320,
+            24480,
+            32640
+          ],
+          "sum_before_bf16": 81600
+        },
+        {
+          "tiles_per_split": 9,
+          "partial_values": [
+            16352,
+            32704,
+            49056,
+            65408
+          ],
+          "sum_before_bf16": 163520
+        },
+        {
+          "tiles_per_split": 10,
+          "partial_values": [
+            32736,
+            65472,
+            98208,
+            130944
+          ],
+          "sum_before_bf16": 327360
+        }
+      ]
+    },
+    "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            16,
+            32,
+            48,
+            64
+          ],
+          "sum_before_bf16": 160
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            48,
+            96,
+            144,
+            192
+          ],
+          "sum_before_bf16": 480
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            112,
+            224,
+            336,
+            448
+          ],
+          "sum_before_bf16": 1120
+        },
+        {
+          "tiles_per_split": 8,
+          "partial_values": [
+            4080,
+            8160,
+            12240,
+            16320
+          ],
+          "sum_before_bf16": 40800
+        },
+        {
+          "tiles_per_split": 9,
+          "partial_values": [
+            8176,
+            16352,
+            24528,
+            32704
+          ],
+          "sum_before_bf16": 81760
+        },
+        {
+          "tiles_per_split": 10,
+          "partial_values": [
+            16368,
+            32736,
+            49104,
+            65472
+          ],
+          "sum_before_bf16": 163680
+        }
+      ]
+    },
+    "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1",
+      "first_four": [
+        7.0,
+        4.0,
+        1.0,
+        -2.0
+      ],
+      "patterns": 2,
+      "workspace_reuses_per_pattern": 3,
+      "split_boundaries": [
+        {
+          "tiles_per_split": 1,
+          "partial_values": [
+            32,
+            64,
+            96,
+            128
+          ],
+          "sum_before_bf16": 320
+        },
+        {
+          "tiles_per_split": 2,
+          "partial_values": [
+            96,
+            192,
+            288,
+            384
+          ],
+          "sum_before_bf16": 960
+        },
+        {
+          "tiles_per_split": 3,
+          "partial_values": [
+            224,
+            448,
+            672,
+            896
+          ],
+          "sum_before_bf16": 2240
+        },
+        {
+          "tiles_per_split": 8,
+          "partial_values": [
+            8160,
+            16320,
+            24480,
+            32640
+          ],
+          "sum_before_bf16": 81600
+        },
+        {
+          "tiles_per_split": 9,
+          "partial_values": [
+            16352,
+            32704,
+            49056,
+            65408
+          ],
+          "sum_before_bf16": 163520
+        },
+        {
+          "tiles_per_split": 10,
+          "partial_values": [
+            32736,
+            65472,
+            98208,
+            130944
+          ],
+          "sum_before_bf16": 327360
+        }
+      ]
+    }
+  },
+  "measurement_anchor": "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x1_u4_ac0_bc2_ar1",
+  "median_ms": {
+    "graph-host": {
+      "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": 0.020130657503614202,
+      "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": 0.02953003058792092,
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": 0.031524345104116946,
+      "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": 0.02003909321501851,
+      "torch": 0.03549456232576631,
+      "operand_paths": 0.02249462704639882
+    },
+    "direct-host": {
+      "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg1x2_u1_ac0_bc2_ar1": 0.1374350395053625,
+      "m16n64k32_w1x1_prefetch_lds1_gm1_sk4_wg2x1_u8_ac0_bc2_ar1": 0.146326026879251,
+      "m16n64k16_w1x1_prefetch_lds1_gm1_sk4_wg2x2_u8_ac0_bc2_ar1": 0.15068496577441692,
+      "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u8_ac0_bc2_ar1": 0.15059590805321932,
+      "torch": 0.07643795106559992,
+      "operand_paths": 0.14156592078506947
+    }
+  }
+}

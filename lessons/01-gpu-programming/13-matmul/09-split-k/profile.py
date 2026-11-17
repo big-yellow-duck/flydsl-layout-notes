@@ -90,7 +90,7 @@ def worker(args):
     tune = runpy.run_path(str(HERE / "tune.py"))
     kernel_source = module["_matmul_bf16"]._original_func
     tune["inputs"].__globals__.update(SHAPE=shape, MODULE=module, BUILD=kernel_source)
-    config = module["CONFIGS_BY_SHAPE"][shape]
+    config = module["CONFIGS_BY_SHAPE"].get(shape)
     if args.config_json:
         config = getattr(
             module["Config"], "from_dict", lambda values: module["Config"](**values)
@@ -98,6 +98,8 @@ def worker(args):
     elif args.config:
         values = list(map(int, args.config.split(",")))
         config = module["Config"](*values[:5], group_m=1, split_k=values[5])
+    if config is None:
+        raise ValueError("An explicit configuration is required for this shape")
     data = tune["inputs"](2026111201)
     launches = {
         "native": partial(module["matmul_bf16"], config=config),

@@ -156,9 +156,10 @@ def _matmul_bf16(
     left_staging_thread_layout = fx.make_ordered_layout(
         (THREADS_PER_BLOCK // (BLOCK_K // 8), (BLOCK_K // 8)), (1, 0)
     )
-    right_staging_thread_layout = fx.make_ordered_layout(
-        (THREADS_PER_BLOCK // (BLOCK_N // 8), (BLOCK_N // 8)), (1, 0)
-    )
+    # TODO 1: Derive B's staging thread layout for eight-BF16 chunks.
+    right_staging_thread_layout = None
+    if right_staging_thread_layout is None:
+        raise NotImplementedError("Fill in right_staging_thread_layout.")
     staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
     left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
         left_staging_thread_layout, staging_value_layout
@@ -269,7 +270,10 @@ def _matmul_bf16(
 
     out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
     print(accumulator.layout)
-    ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
+    # TODO 2: Derive the value count from accumulator.shape.
+    ACCUMULATOR_VALUES = None
+    if ACCUMULATOR_VALUES is None:
+        raise NotImplementedError("Fill in ACCUMULATOR_VALUES.")
     print(ACCUMULATOR_VALUES)
 
     for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
