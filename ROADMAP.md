@@ -22,7 +22,7 @@ The course now has two sections. Work through each lesson's README and practice 
 - [12-inspect-and-tune](lessons/01-gpu-programming/12-inspect-and-tune/README.md)
 - [13-matmul](lessons/01-gpu-programming/13-matmul/README.md): BF16 GPU optimization, eighteen stages complete through 12, including the 07a buffer-access, 07b operand-staging, and 07c grouped-traversal bridges
 
-All 35 native programs (13 foundational lessons, four focused divide tutorials, eighteen completed matmul stages) compile and run on gfx1151 with the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. Lesson 12 runs a small copy benchmark; individual matmul files print local timing comparisons, and `pixi run matmul-bench` compares the twelve 1024³ kernels. Results are observations, not pass/fail performance thresholds.
+All 36 native programs (13 foundational lessons, four focused divide tutorials, eighteen BF16 matmul stages, and one quantized matmul lesson) passed `pixi run gpu-check` on Radeon 860M `gfx1152` with the pinned FlyDSL 0.4.1 / ROCm environment. Run `pixi run lessons-check`, or `pixi run gpu-check` to include the extra layout and sliced-view checks. Lesson 12 runs a small copy benchmark; individual matmul files print local timing comparisons, and `pixi run matmul-bench` compares the twelve 1024³ kernels. Lesson 14 has a separate multi-shape tuner. Results are observations, not pass/fail performance thresholds.
 
 The vector-add lesson uses per-value guarded scalar accesses for both full tiles and tails. The full-tile fragment lesson separately teaches tiled copies. A full-block vectorized path plus a guarded tail path is a useful next optimization, not a prerequisite for correctness.
 
@@ -74,5 +74,11 @@ The [HipKittens four-wave investigation](experiments/hipkittens-four-wave/README
 Asynchronous copies, reductions, dynamic shapes, general strided tilers, and broader occupancy/register-pressure tuning remain beyond the completed sequence. Extend the correctness checks before tuning a new access pattern.
 
 Stage 08 now also has a separately locked `(M,N,K)=(1024,4096,2048)` configuration with `group_m=2`. It passed all 18 direct-launch held-out win rounds against GPU Torch; graph replay met parity. This extends aligned per-shape tuning without adding general tails or changing the standard 1024³ benchmark. See the [rectangular workload measurements](lessons/01-gpu-programming/13-matmul/08-parameter-tuning/README.md#select-a-configuration-for-a-rectangular-workload).
+
+## 14 · Quantized matmul
+
+[Lesson 14](lessons/01-gpu-programming/14-quantized-matmul/README.md) begins with [MXFP4 W4A16](lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/README.md). Its fused kernel expands packed E2M1 nibbles and E8M0 block scales into each BF16 LDS tile as WMMA consumes it, avoiding a full dense BF16 matrix. The separate register decoder retains the packed-word lookup adapted from FlyDSL PR #1374. The tuner checks three skinny shapes and compares fused execution with register and scalar unpack pipelines and Torch's dense BF16 `matmul`. Native MXFP4 instructions are not available on the tested gfx1152 target.
+
+The measured configs and timing scope are in [the gfx1152 results](lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/results/README.md). The fused path is competitive with the dense Torch baseline on the tested shapes while retaining BF16 matrix instructions; later hardware targets can replace software unpacking with native MXFP4 matrix instructions.
 
 The main skinny path is **09 → 10 → 10a → 10b → 10c → 12**. [Wave specialization and semaphore handoffs](experiments/wave-specialization/README.md) are archived research. [Lesson 12](lessons/01-gpu-programming/13-matmul/12-operand-paths/README.md#why-the-course-keeps-prefetch) explains their measured tradeoffs and why ordinary prefetch remains the course strategy. Global split-K arrival counters remain part of the single-kernel finalizer.

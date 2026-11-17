@@ -1,0 +1,72 @@
+{
+  "torch": "2.13.0+rocm10.1.0",
+  "hip": "7.16.26385",
+  "shapes": [
+    {
+      "device": "AMD Radeon 860M Graphics",
+      "arch": "gfx1152",
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 4,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "config_source": "fused-specific configuration sweep",
+      "batches": 3,
+      "graph_replays_per_batch": 5,
+      "gemms_per_graph": 8,
+      "correctness": "baseline and direct decoder outputs are bitwise equal to the offline BF16 reference; baseline, direct, and fused GEMM output checks passed",
+      "comparisons": {
+        "baseline_register_unpack_plus_matmul": {
+          "median_ms": 0.4367387771606445,
+          "samples_ms": [
+            0.4301194190979004,
+            0.43704838752746583,
+            0.4367387771606445
+          ]
+        },
+        "direct_bits_unpack_plus_matmul": {
+          "median_ms": 0.3938662052154541,
+          "samples_ms": [
+            0.3938662052154541,
+            0.3994697332382202,
+            0.3938291549682617
+          ]
+        },
+        "fused_unpack_and_matmul": {
+          "median_ms": 0.23766663074493408,
+          "samples_ms": [
+            0.23766663074493408,
+            0.23809642791748048,
+            0.23636016845703126
+          ]
+        },
+        "torch_dense_bf16_matmul": {
+          "median_ms": 0.2528050661087036,
+          "samples_ms": [
+            0.2526167154312134,
+            0.25509235858917234,
+            0.2528050661087036
+          ]
+        }
+      },
+      "direct_vs_baseline_speedup": 1.1088505979377898,
+      "fused_vs_baseline_speedup": 1.8376108408308967,
+      "fused_over_torch_ratio": 0.9401181487507843
+    }
+  ]
+}

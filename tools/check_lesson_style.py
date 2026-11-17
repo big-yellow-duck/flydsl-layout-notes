@@ -32,40 +32,51 @@ def kernels(tree):
 def unfinished(source):
     """Find actual guarded TODO assignments, excluding overwritten learner values."""
     found = []
-    for kernel in kernels(ast.parse(source)):
-        for parent in ast.walk(kernel):
-            for _, statements in ast.iter_fields(parent):
-                if not isinstance(statements, list):
-                    continue
-                for index, node in enumerate(statements[:-1]):
-                    if (
-                        isinstance(node, ast.Assign)
-                        and isinstance(node.value, ast.Constant)
-                        and node.value.value is None
-                        and isinstance(statements[index + 1], ast.If)
-                        and "NotImplementedError" in ast.unparse(statements[index + 1])
-                    ):
-                        found.append(node)
+    for parent in ast.walk(ast.parse(source)):
+        for _, statements in ast.iter_fields(parent):
+            if not isinstance(statements, list):
+                continue
+            for index, node in enumerate(statements[:-1]):
+                if (
+                    isinstance(node, ast.Assign)
+                    and isinstance(node.value, ast.Constant)
+                    and node.value.value is None
+                    and isinstance(statements[index + 1], ast.If)
+                    and "NotImplementedError" in ast.unparse(statements[index + 1])
+                ):
+                    found.append(node)
     return sorted(found, key=lambda node: node.lineno)
 
 
 def complete_practice(source, solution):
     """Fill only guarded expressions in a temporary copy; keep learner code intact."""
     assignments = {}
-    for kernel in kernels(ast.parse(solution)):
-        for node in sorted(
-            (node for node in ast.walk(kernel) if isinstance(node, ast.Assign)),
-            key=lambda node: node.lineno,
-        ):
-            assignments.setdefault(ast.unparse(node.targets[0]), []).append(node.value)
+    for node in sorted(
+        (
+            node
+            for node in ast.walk(ast.parse(solution))
+            if isinstance(node, ast.Assign)
+        ),
+        key=lambda node: node.lineno,
+    ):
+        assignments.setdefault(ast.unparse(node.targets[0]), []).append(node.value)
     offsets = [0]
     for line in source.splitlines(keepends=True):
         offsets.append(offsets[-1] + len(line))
-    counts, edits = {}, []
+    source_assignments = {}
+    for node in sorted(
+        (node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.Assign)),
+        key=lambda node: node.lineno,
+    ):
+        source_assignments.setdefault(ast.unparse(node.targets[0]), []).append(node)
+    edits = []
     for node in unfinished(source):
         name = ast.unparse(node.targets[0])
-        index = counts.get(name, 0)
-        counts[name] = index + 1
+        index = next(
+            index
+            for index, assignment in enumerate(source_assignments[name])
+            if assignment.lineno == node.lineno
+        )
         expression = assignments[name][index]
         edits.append(
             (
@@ -100,6 +111,12 @@ def structure():
         ), path
         for kernel in kernel_nodes:
             operation = kernel.name[1:]
+            if operation.endswith("_impl"):
+                bridge = functions["_launch_" + operation]
+                assert any(
+                    ast.unparse(d) == "flyc.jit" for d in bridge.decorator_list
+                ), path
+                continue
             assert operation in functions and "_launch_" + operation in functions, path
             assert not functions[operation].decorator_list, path
             bridge = functions["_launch_" + operation]
@@ -169,6 +186,15 @@ def public_api_checks():
                 b = b.T.contiguous().T
             args = (a, b)
             reference = (a_cpu.float() @ b_cpu.float()).bfloat16()
+        elif operation == "matmul_mxfp4_w4a16":
+            shape = (32, 1024, 8192)
+            m, n, k = shape
+            kwargs["config"] = module["CONFIGS_BY_SHAPE"][shape]
+            a_cpu = ((torch.arange(m * k).reshape(m, k) % 5) - 2).bfloat16()
+            b_cpu = ((torch.arange(k * n).reshape(k, n) % 7) - 3).bfloat16()
+            packed_cpu, scales_cpu, dense_cpu = module["quantize_mxfp4"](b_cpu)
+            args = (a_cpu.cuda(), packed_cpu.cuda(), scales_cpu.cuda())
+            reference = (a_cpu.float() @ dense_cpu.float()).bfloat16()
         elif path.parent.name in source_cases:
             count, dtype = source_cases[path.parent.name]
             source = torch.arange(count, dtype=dtype, device="cuda")

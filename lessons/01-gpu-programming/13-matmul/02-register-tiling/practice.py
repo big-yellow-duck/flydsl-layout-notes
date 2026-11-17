@@ -59,14 +59,14 @@ def _matmul_bf16(
     accumulators.fill(0)
     # 4. One B load supplies all four owned output rows at this K position.
     for inner in range(k):
-        b = fx.Float32(right_column[inner])
+        b = fx.Float32(right_column[inner])  # noqa: F841 -- used by practice TODOs
         for slot in fx.range_constexpr(4):
-            a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
+            a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])  # noqa: F841 -- used by practice TODOs
             # TODO 2: Fill in updated; see README.md.
             updated = None
             if updated is None:
                 raise NotImplementedError("Fill in updated.")
-            accumulators[slot] += updated
+            accumulators[slot] = updated
     for slot in fx.range_constexpr(4):
         out_thread_view[fx.make_coord(slot, 0)] = accumulators[slot].to(fx.BFloat16)
 

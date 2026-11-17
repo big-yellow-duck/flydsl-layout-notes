@@ -24,12 +24,10 @@ class Config:
     waves_n: int = 2
     group_m: int = 1
     split_k: int = 4
-    counter_scope: str = "thread"
 
     @property
     def name(self):
-        suffix = "_cta" if self.counter_scope == "cta" else ""
-        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_prefetch_lds1_gm{self.group_m}_sk{self.split_k}{suffix}"
+        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_prefetch_lds1_gm{self.group_m}_sk{self.split_k}"
 
     @property
     def threads(self):
@@ -58,8 +56,6 @@ def validate_config(config, shape=(16, 1024, 8192)):
         raise ValueError("Shape must contain complete block tiles")
     if config.split_k not in (1, 2, 4):
         raise ValueError("split_k must be 1, 2, or 4")
-    if config.counter_scope not in ("thread", "cta"):
-        raise ValueError("counter_scope must be thread or cta")
     if shape[2] % (bk * config.split_k):
         raise ValueError("K must contain complete, equal split-K partitions")
     if (
@@ -88,22 +84,12 @@ def validate_config(config, shape=(16, 1024, 8192)):
     return config
 
 
-@lru_cache(None)
-def _shared_storage_type(block_m, block_n, block_k):
-    @fx.struct
-    class SharedStorage:
-        left: fx.Array[fx.BFloat16, block_m * (block_k + 8), 16]
-        right: fx.Array[fx.BFloat16, block_k * block_n, 16]
-
-    return SharedStorage
-
-
 @flyc.kernel
 def _matmul_bf16(
     left: fx.Tensor,
     right: fx.Tensor,
     out: fx.Tensor,
-    partials,  # Tensor for split-K, pointer-free Empty otherwise; inferred by FlyDSL.
+    partials,
     counters,
     m: fx.Constexpr,
     n: fx.Constexpr,
@@ -116,11 +102,9 @@ def _matmul_bf16(
     WAVES_N: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
-    CTA_FINALIZER: fx.Constexpr,
 ):
     MMA_M, MMA_N, MMA_K = 16, 16, 16
     THREADS_PER_BLOCK = 32 * WAVES_M * WAVES_N
-    # 1. Buffer resources retain the existing row-major matrix layouts.
     left_buffer = fx.rocdl.make_buffer_tensor(left)
     right_buffer = fx.rocdl.make_buffer_tensor(right)
     out_buffer = fx.rocdl.make_buffer_tensor(out)
@@ -137,12 +121,8 @@ def _matmul_bf16(
         fx.make_layout((m, n), (n, 1)),
     )
     # Keep the grouped strategy; express block selection with native layouts.
-    # for matrix shape (16, 1024, 8192), BLOCK_M=16 BLOCK_N=64 BLOCK_K=64
-    # tiles_m = 1
-    # tiles_n = 16
     tiles_m = m // BLOCK_M
     tiles_n = n // BLOCK_N
-    # group_m=1: (1,4,16,1):(1,1,4,64)
     # Visit neighboring M tiles at the same K split before advancing splits.
     group_width = min(GROUP_M, tiles_m)
     split_block_layout = fx.make_layout(
@@ -173,11 +153,13 @@ def _matmul_bf16(
     out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
 
     # 3. Keep one padded A tile and one packed B tile in LDS.
-    lds = (
-        fx.SharedAllocator()
-        .allocate(_shared_storage_type(BLOCK_M, BLOCK_N, BLOCK_K))
-        .peek()
-    )
+    @fx.struct
+    class SharedStorage:
+        # Retain stage 06's measured padded A layout and packed B layout.
+        left: fx.Array[fx.BFloat16, BLOCK_M * (BLOCK_K + 8), 16]
+        right: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
+
+    lds = fx.SharedAllocator().allocate(SharedStorage).peek()
     left_lds_view = lds.left.view(fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1)))
     right_lds_view = lds.right.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))
 
@@ -286,39 +268,41 @@ def _matmul_bf16(
 
     # 6. Prefetch next globals while consuming the current LDS tile.
     # Prologue: make tile 0 visible in LDS before any consumer reads it.
-    tile_per_split = k // (BLOCK_K * SPLIT_K)
+    tiles_per_split = k // (BLOCK_K * SPLIT_K)
     # TODO 1: Select this split's first K tile in the full input views.
     initial_tile_k = None
     if initial_tile_k is None:
         raise NotImplementedError("Fill in initial_tile_k.")
     gmem2reg_load_tile(initial_tile_k)
     reg2lds_copy_tile()
-    for tile_k in range(tile_per_split - 1):
+    # Steady state: prefetch next globals into private registers, consume LDS,
+    # protect current readers, then publish the next tile into the same LDS.
+    for tile_k in range(tiles_per_split - 1):
         next_tile_k = initial_tile_k + tile_k + 1
         gmem2reg_load_tile(next_tile_k)
         compute_lds()
         fx.barrier()
         reg2lds_copy_tile()
+    # Drain: the final tile is already in LDS; do not read a nonexistent next tile.
     compute_lds()
     fx.barrier()
 
-    # Steady state: prefetch next globals into private registers, consume LDS,
-    # protect current readers, then publish the next tile into the same LDS.
     def store_output():
         out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
         for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
             out_registers[slot] = accumulator[slot].to(fx.BFloat16)
+        # Replace stage 04's one-thread output plan with the collective C plan.
         gmem_store_16b = fx.make_copy_atom(fx.rocdl.BufferCopy16b(), fx.BFloat16)
         reg2gmem_copy_plan = fx.make_tiled_copy_C(gmem_store_16b, mma)
         reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(fx.thread_idx.x)
         reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
-        reg2gmem_destination = reg2gmem_thread_copy.partition_D(out_block_view)
-        fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_destination)
+        reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
+        fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
 
     if SPLIT_K == 1:
         store_output()
     else:
-        # Each split publishes the same FP32 fragment layout in both modes.
+        # 7. Each thread publishes its FP32 slots to a distinct split plane.
         tile_values = BLOCK_M * BLOCK_N
         thread_offset = fx.thread_idx.x * ACCUMULATOR_VALUES
         partial_offset = (
@@ -330,54 +314,24 @@ def _matmul_bf16(
         copy_128b_f32 = fx.make_copy_atom(fx.UniversalCopy128b(), fx.Float32)
         fx.copy(copy_128b_f32, accumulator, partial_view)
 
-        counter_ptr = fx.get_iter(counters) + flat_block_id
-        last_arrival = fx.Int32(0) != 0
-        if CTA_FINALIZER:
-            # Compute has drained; reuse the first aligned LDS word as a flag.
-            flag_ptr = fx.recast_iter(fx.Int32, fx.get_iter(left_lds_view))
-            # Publish every writer's global stores before the leader arrives.
-            fx.memory_fence(
-                ordering=fx.AtomicOrdering.Release,
-                syncscope=fx.rocdl.SyncScope.Agent,
-            )
-            fx.barrier()
-            leader = scf.IfOp((fx.thread_idx.x == 0).ir_value(), [], has_else=False)
-            with ir.InsertionPoint(leader.then_block):
-                arrived = fx.atomic_add(
-                    counter_ptr,
-                    1,
-                    ordering=fx.AtomicOrdering.AcqRel,
-                    syncscope=fx.rocdl.SyncScope.Agent,
-                )
-                fx.generic_store(flag_ptr, (arrived == SPLIT_K - 1).to(fx.Int32))
-                scf.yield_([])
-            # Broadcast the leader's election and acquire to the entire CTA.
-            fx.barrier()
-            last_arrival = fx.generic_load(flag_ptr) != 0
-        else:
-            # One counter per (output tile, thread), shared by split-K peers.
-            counter_ptr = (
-                fx.get_iter(counters)
-                + flat_block_id * THREADS_PER_BLOCK
-                + fx.thread_idx.x
-            )
-            arrived = fx.atomic_add(
-                counter_ptr,
-                1,
-                ordering=fx.AtomicOrdering.AcqRel,
-                syncscope=fx.rocdl.SyncScope.Agent,
-            )
-            # TODO 2: Identify the peer that can see all split-K partials.
-            last_arrival = None
-            if last_arrival is None:
-                raise NotImplementedError("Fill in last_arrival.")
+        # One counter per (output tile, thread), shared by its split-K peers.
+        # AcqRel publishes this thread's stores and acquires all earlier arrivals.
+        counter_ptr = (
+            fx.get_iter(counters) + flat_block_id * THREADS_PER_BLOCK + fx.thread_idx.x
+        )
+        arrived = fx.atomic_add(  # noqa: F841 -- used by practice TODOs
+            counter_ptr,
+            1,
+            ordering=fx.AtomicOrdering.AcqRel,
+            syncscope=fx.rocdl.SyncScope.Agent,
+        )
+        # TODO 2: Identify the peer that can see all split-K partials.
+        last_arrival = None
+        if last_arrival is None:
+            raise NotImplementedError("Fill in last_arrival.")
         finalizer = scf.IfOp(last_arrival.ir_value(), [], has_else=False)
         with ir.InsertionPoint(finalizer.then_block):
-            if CTA_FINALIZER:
-                fx.memory_fence(
-                    ordering=fx.AtomicOrdering.Acquire,
-                    syncscope=fx.rocdl.SyncScope.Agent,
-                )
+            # No polling: only the last thread for these output slots reduces.
             accumulator.fill(0)
             partial_registers = fx.make_fragment_like(accumulator)
             for part in fx.range_constexpr(SPLIT_K):
@@ -391,27 +345,13 @@ def _matmul_bf16(
                 for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
                     accumulator[slot] = accumulator[slot] + partial_registers[slot]
             store_output()
-            if CTA_FINALIZER:
-                # The predicate is CTA-uniform; finish all output stores first.
-                fx.barrier()
-                reset_leader = scf.IfOp(
-                    (fx.thread_idx.x == 0).ir_value(), [], has_else=False
-                )
-                with ir.InsertionPoint(reset_leader.then_block):
-                    fx.generic_store(
-                        counter_ptr,
-                        fx.Int32(0),
-                        memory_order=fx.AtomicOrdering.Release,
-                        syncscope=fx.rocdl.SyncScope.Agent,
-                    )
-                    scf.yield_([])
-            else:
-                fx.generic_store(
-                    counter_ptr,
-                    fx.Int32(0),
-                    memory_order=fx.AtomicOrdering.Release,
-                    syncscope=fx.rocdl.SyncScope.Agent,
-                )
+            # Same-stream launches can reuse the workspace without a clear kernel.
+            fx.generic_store(
+                counter_ptr,
+                fx.Int32(0),
+                memory_order=fx.AtomicOrdering.Release,
+                syncscope=fx.rocdl.SyncScope.Agent,
+            )
             scf.yield_([])
 
 
@@ -434,8 +374,8 @@ def _launch_matmul_bf16(
     WAVES_N: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
-    CTA_FINALIZER: fx.Constexpr,
 ):
+    THREADS_PER_BLOCK = 32 * WAVES_M * WAVES_N
     _matmul_bf16(
         left,
         right,
@@ -452,10 +392,9 @@ def _launch_matmul_bf16(
         WAVES_N=WAVES_N,
         GROUP_M=GROUP_M,
         SPLIT_K=SPLIT_K,
-        CTA_FINALIZER=CTA_FINALIZER,
     ).launch(
-        grid=((m // BLOCK_M) * (n // BLOCK_N) * SPLIT_K, 1, 1),
-        block=(32 * WAVES_M * WAVES_N, 1, 1),
+        grid=(m // BLOCK_M * (n // BLOCK_N) * SPLIT_K, 1, 1),
+        block=(THREADS_PER_BLOCK, 1, 1),
         stream=stream,
     )
 
@@ -476,7 +415,7 @@ def _workspace_for(config, shape, device, stream, capture_id):
     m, n, _ = shape
     tiles = (m // config.block_m) * (n // config.block_n)
     partial_count = tiles * config.split_k * config.block_m * config.block_n
-    counter_count = tiles * (1 if config.counter_scope == "cta" else config.threads)
+    counter_count = tiles * config.threads
     with torch.cuda.device(device), torch.cuda.stream(stream):
         partials = torch.empty(partial_count + 16, dtype=torch.float32, device=device)
         counters = torch.zeros(counter_count + 16, dtype=torch.int32, device=device)
@@ -629,7 +568,6 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
             WAVES_N=config.waves_n,
             GROUP_M=config.group_m,
             SPLIT_K=config.split_k,
-            CTA_FINALIZER=config.counter_scope == "cta",
         )
         if supplied_out:
             torch.autograd.graph.increment_version(out)
@@ -650,11 +588,8 @@ def check_boundaries(config):
         storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
         out = storage[:-16].view(m, n)
         out.fill_(float("nan"))
-        shape = (m, n, k)
+
         matmul_bf16(a, b, out=out, config=config)
-        workspace = _workspace_for(
-            config, shape, a.device, torch.cuda.current_stream(a.device), 0
-        )
         torch.cuda.synchronize()
         partials = [
             config.block_k * (part + 1) * (2**tiles_per_split - 1)
@@ -663,7 +598,13 @@ def check_boundaries(config):
         expected = torch.full((m, n), sum(partials), dtype=torch.bfloat16)
         torch.testing.assert_close(out.cpu(), expected, rtol=0, atol=0)
         if config.split_k > 1:
-            actual_partials = workspace[0][:-16].view(config.split_k, -1).cpu()
+            actual_partials = (
+                _workspace_for(
+                    config, (m, n, k), a.device, torch.cuda.current_stream(a.device), 0
+                )[0][:-16]
+                .view(config.split_k, -1)
+                .cpu()
+            )
             for part, expected_partial in enumerate(partials):
                 torch.testing.assert_close(
                     actual_partials[part],
@@ -671,7 +612,11 @@ def check_boundaries(config):
                     rtol=0,
                     atol=0,
                 )
-        check_workspace(workspace)
+        check_workspace(
+            _workspace_for(
+                config, (m, n, k), a.device, torch.cuda.current_stream(a.device), 0
+            )
+        )
         assert torch.all(storage[-16:] == -99).item(), (
             "Boundary output sentinel changed"
         )
@@ -693,6 +638,7 @@ def solve(config=None, shape=SHAPES[0], seed=13):
     if arch not in ("gfx1151", "gfx1152"):
         raise RuntimeError(f"This lesson supports gfx1151/gfx1152; detected {arch}")
     m, n, k = shape
+
     generator = torch.Generator().manual_seed(seed)
     boundaries = check_boundaries(config)
     first_four = None
@@ -722,7 +668,7 @@ def solve(config=None, shape=SHAPES[0], seed=13):
             assert torch.all(storage[-16:] == -99).item(), "Output sentinel changed"
             check_workspace(
                 _workspace_for(
-                    config, shape, a.device, torch.cuda.current_stream(a.device), 0
+                    config, (m, n, k), a.device, torch.cuda.current_stream(a.device), 0
                 )
             )
         if pattern == "trace":
@@ -753,7 +699,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shape", type=int, nargs=3, default=SHAPES[0])
     parser.add_argument("--split-k", type=int, choices=(1, 2, 4), default=None)
-    parser.add_argument("--counter-scope", choices=("thread", "cta"), default="thread")
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument(
         "--timing", choices=("graph-host", "direct-host"), default="graph-host"
@@ -763,13 +708,10 @@ def main():
     if shape not in CONFIGS_BY_SHAPE:
         parser.error("Choose a supported skinny shape")
     config = CONFIGS_BY_SHAPE[shape]
-    from dataclasses import replace
+    if args.split_k is not None:
+        from dataclasses import replace
 
-    config = replace(
-        config,
-        counter_scope=args.counter_scope,
-        split_k=config.split_k if args.split_k is None else args.split_k,
-    )
+        config = replace(config, split_k=args.split_k)
     try:
         print("Exercise passed:", solve(config, shape), flush=True)
         if not args.check_only:

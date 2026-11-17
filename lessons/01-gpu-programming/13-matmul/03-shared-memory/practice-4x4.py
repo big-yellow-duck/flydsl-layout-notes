@@ -55,7 +55,7 @@ def _matmul_bf16(
     out_thread_view = fx.slice(
         out_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
     )
-    left_thread_tiled_view = fx.flat_divide(left_lds_view, (4, BLOCK_K))
+    left_thread_tiled_view = fx.flat_divide(left_lds_view, (4, BLOCK_K))  # noqa: F841 -- used by practice TODOs
     # TODO 1: Select this thread's four A rows from the tiled LDS view.
     left_thread_view = None
     if left_thread_view is None:

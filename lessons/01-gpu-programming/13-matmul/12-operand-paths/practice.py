@@ -363,7 +363,7 @@ def _matmul_bf16(
 
     left_full_fragment = thread_mma.make_fragment_A(left_global_model)
     left_compute_fragment = fx.make_fragment_like(left_full_fragment)
-    left_full_tiled = fx.flat_divide(
+    left_full_tiled = fx.flat_divide(  # noqa: F841 -- used by practice TODOs
         left_compute_fragment, (16, GROUP_TILE_M // (16 * WAVES_M), 1)
     )
     left_direct_atom = fx.make_copy_atom(

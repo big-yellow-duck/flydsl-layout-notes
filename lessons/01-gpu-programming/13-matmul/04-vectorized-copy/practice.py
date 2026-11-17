@@ -54,7 +54,7 @@ def _matmul_bf16(
     staging_thread_layout = fx.make_ordered_layout((32, 8), (1, 0))
     staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
     # logical elements shape covered = (32,64)
-    staging_copy_tile, staging_copy_tv = fx.make_layout_tv(
+    staging_copy_tile, staging_copy_tv = fx.make_layout_tv(  # noqa: RUF059 -- used by practice TODOs
         staging_thread_layout, staging_value_layout
     )
     # TODO 1: Build the global-to-LDS plan from its atom and thread/value layout.
@@ -75,7 +75,7 @@ def _matmul_bf16(
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
     left_lds2reg_thread_layout = fx.make_ordered_layout((16, 1), (1, 0))
     left_lds2reg_value_layout = fx.make_ordered_layout((4, 1), (1, 0))
-    left_lds2reg_copy_tile, left_lds2reg_copy_tv = fx.make_layout_tv(
+    left_lds2reg_copy_tile, left_lds2reg_copy_tv = fx.make_layout_tv(  # noqa: RUF059 -- used by practice TODOs
         left_lds2reg_thread_layout, left_lds2reg_value_layout
     )
     # TODO 2: Build A's LDS-to-register copy plan.
@@ -86,7 +86,7 @@ def _matmul_bf16(
     copy_64b = fx.make_copy_atom(fx.UniversalCopy64b(), fx.BFloat16)
     right_lds2reg_thread_layout = fx.make_ordered_layout((1, 16), (1, 0))
     right_lds2reg_value_layout = fx.make_ordered_layout((1, 4), (1, 0))
-    right_lds2reg_copy_tile, right_lds2reg_copy_tv = fx.make_layout_tv(
+    right_lds2reg_copy_tile, right_lds2reg_copy_tv = fx.make_layout_tv(  # noqa: RUF059 -- used by practice TODOs
         right_lds2reg_thread_layout, right_lds2reg_value_layout
     )
     # TODO 3: Build B's LDS-to-register copy plan.
@@ -190,7 +190,7 @@ def _matmul_bf16(
     # Use one logical copy thread; each row is one 64-bit BF16 store.
     reg2gmem_thread_layout = fx.make_layout((1, 1), (1, 1))
     reg2gmem_val_layout = fx.make_ordered_layout((4, 4), (1, 0))
-    reg2gmem_tilemn, reg2gmem_tv_layout = fx.make_layout_tv(
+    reg2gmem_tilemn, reg2gmem_tv_layout = fx.make_layout_tv(  # noqa: RUF059 -- used by practice TODOs
         reg2gmem_thread_layout, reg2gmem_val_layout
     )
     # TODO 4: Build the register-to-global output copy plan.

@@ -109,4 +109,4 @@ These eighteen stages execute on Radeon 8060S (`gfx1151`) with FlyDSL 0.4.1 and 
 
 The [roadmap](../../../ROADMAP.md#matmul-continuation-planned) continues with deeper prefetch pipelines, shape/resource tuning, and a named-library challenge. Those stages are planned. Preserve the fixed 1024³ comparison while testing new optimizations; do not infer a general GPU result from one shape.
 
-[Previous: inspect and measure](../12-inspect-and-tune/README.md) · [GPU programming](../README.md) · [Course overview](../../../README.md)
+[Previous: inspect and measure](../12-inspect-and-tune/README.md) · [Next: quantized matmul](../14-quantized-matmul/README.md) · [GPU programming](../README.md) · [Course overview](../../../README.md)

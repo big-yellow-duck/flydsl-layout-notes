@@ -12,7 +12,7 @@ import flydsl.compiler as flyc
 import flydsl.expr as fx
 import torch
 from flydsl._mlir import ir
-from flydsl._mlir.dialects import gpu, scf
+from flydsl._mlir.dialects import gpu, scf  # noqa: F401 -- used by practice TODOs
 
 
 @dataclass(frozen=True)

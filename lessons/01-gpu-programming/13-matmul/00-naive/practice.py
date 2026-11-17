@@ -38,8 +38,8 @@ def _matmul_bf16(
     # 2. A 16 x 16 row major thread layout assigns one local output coordinate per thread.
     thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
     thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
-    left_row = fx.slice(left_block_view, (thread_coordinate[0], None))
-    right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))
+    left_row = fx.slice(left_block_view, (thread_coordinate[0], None))  # noqa: F841 -- used by practice TODOs
+    right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))  # noqa: F841 -- used by practice TODOs
 
     # 3. Reduce this thread's row and column in FP32, then store through its tile.
     accumulator = fx.Float32(0)

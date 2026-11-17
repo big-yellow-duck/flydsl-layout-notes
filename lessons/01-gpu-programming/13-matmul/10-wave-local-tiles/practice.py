@@ -148,7 +148,7 @@ def _matmul_bf16(
     BLOCK_M = GROUP_TILE_M * WAVE_GROUPS_M
     BLOCK_N = GROUP_TILE_N * WAVE_GROUPS_N
     THREADS_PER_GROUP = 32 * WAVES_M * WAVES_N
-    wave_group = fx.thread_idx.x // THREADS_PER_GROUP
+    wave_group = fx.thread_idx.x // THREADS_PER_GROUP  # noqa: F841 -- used by practice TODOs
     thread_id_in_wave_group = fx.thread_idx.x % THREADS_PER_GROUP
 
     def lds_barrier():
@@ -172,7 +172,7 @@ def _matmul_bf16(
         fx.make_layout((m, n), (n, 1)),
     )
     # 2. Decode block traversal separately from groups inside the block.
-    group_layout = fx.make_layout((WAVE_GROUPS_M, WAVE_GROUPS_N), (WAVE_GROUPS_N, 1))
+    group_layout = fx.make_layout((WAVE_GROUPS_M, WAVE_GROUPS_N), (WAVE_GROUPS_N, 1))  # noqa: F841 -- used by practice TODOs
     # TODO 1: Decode this compute group's coordinates inside the block.
     group_coords = None
     if group_coords is None:
@@ -234,7 +234,7 @@ def _matmul_bf16(
             ),
         )
     )
-    right_lds_all = lds.right.view(
+    right_lds_all = lds.right.view(  # noqa: F841 -- used by practice TODOs
         fx.make_layout(
             (WAVE_GROUPS_M, WAVE_GROUPS_N, STAGE_K, GROUP_TILE_N),
             (WAVE_GROUPS_N * STAGE_K * GROUP_TILE_N, STAGE_K * GROUP_TILE_N, GROUP_TILE_N, 1),

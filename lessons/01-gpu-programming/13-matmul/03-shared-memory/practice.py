@@ -40,7 +40,7 @@ def _matmul_bf16(
     lds = fx.SharedAllocator().allocate(SharedStorage).peek()
     left_shared_view = lds.left.view(fx.make_layout((16, 16), (16, 1)))
     right_shared_view = lds.right.view(fx.make_layout((16, 16), (16, 1)))
-    copy_layout = fx.make_ordered_layout((16, 16), (1, 0))
+    copy_layout = fx.make_ordered_layout((16, 16), (1, 0))  # noqa: F841 -- used by practice TODOs
 
     # 3. A (4,16) thread layout selects a four-row group and one column.
     thread_layout = fx.make_ordered_layout((4, 16), (1, 0))
@@ -50,7 +50,7 @@ def _matmul_bf16(
         out_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
     )
     left_thread_tiled_view = fx.flat_divide(left_shared_view, (4, 16))
-    left_thread_view = fx.slice(
+    left_thread_view = fx.slice(  # noqa: F841 -- used by practice TODOs
         left_thread_tiled_view, (None, None, thread_coordinate[0], 0)
     )
     right_column = fx.slice(right_shared_view, (None, thread_coordinate[1]))
