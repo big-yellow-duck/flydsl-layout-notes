@@ -100,6 +100,12 @@ def structure():
         ), path
         for kernel in kernel_nodes:
             operation = kernel.name[1:]
+            if operation.endswith("_impl"):
+                bridge = functions["_launch_" + operation]
+                assert any(ast.unparse(d) == "flyc.jit" for d in bridge.decorator_list), (
+                    path
+                )
+                continue
             assert operation in functions and "_launch_" + operation in functions, path
             assert not functions[operation].decorator_list, path
             bridge = functions["_launch_" + operation]
@@ -169,6 +175,15 @@ def public_api_checks():
                 b = b.T.contiguous().T
             args = (a, b)
             reference = (a_cpu.float() @ b_cpu.float()).bfloat16()
+        elif operation == "matmul_mxfp4_w4a16":
+            shape = (32, 1024, 8192)
+            m, n, k = shape
+            kwargs["config"] = module["CONFIGS_BY_SHAPE"][shape]
+            a_cpu = ((torch.arange(m * k).reshape(m, k) % 5) - 2).bfloat16()
+            b_cpu = ((torch.arange(k * n).reshape(k, n) % 7) - 3).bfloat16()
+            packed_cpu, scales_cpu, dense_cpu = module["quantize_mxfp4"](b_cpu)
+            args = (a_cpu.cuda(), packed_cpu.cuda(), scales_cpu.cuda())
+            reference = (a_cpu.float() @ dense_cpu.float()).bfloat16()
         elif path.parent.name in source_cases:
             count, dtype = source_cases[path.parent.name]
             source = torch.arange(count, dtype=dtype, device="cuda")

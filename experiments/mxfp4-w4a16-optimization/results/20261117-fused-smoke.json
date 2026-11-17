@@ -1,0 +1,69 @@
+{
+  "torch": "2.13.0+rocm10.1.0",
+  "hip": "7.16.26385",
+  "shapes": [
+    {
+      "device": "AMD Radeon 860M Graphics",
+      "arch": "gfx1152",
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 8,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "batches": 3,
+      "graph_replays_per_batch": 5,
+      "gemms_per_graph": 8,
+      "correctness": "baseline and direct decoder outputs are bitwise equal to the offline BF16 reference; GEMM output checks passed",
+      "comparisons": {
+        "baseline_register_unpack_plus_matmul": {
+          "median_ms": 0.4050603866577148,
+          "samples_ms": [
+            0.40893068313598635,
+            0.4000860691070557,
+            0.4050603866577148
+          ]
+        },
+        "direct_bits_unpack_plus_matmul": {
+          "median_ms": 0.40537080764770506,
+          "samples_ms": [
+            0.4038378715515137,
+            0.40570740699768065,
+            0.40537080764770506
+          ]
+        },
+        "fused_unpack_and_matmul": {
+          "median_ms": 0.30325984954833984,
+          "samples_ms": [
+            0.293428373336792,
+            0.3203269004821777,
+            0.30325984954833984
+          ]
+        },
+        "torch_dense_bf16_matmul": {
+          "median_ms": 0.25479578971862793,
+          "samples_ms": [
+            0.25359954833984377,
+            0.25479578971862793,
+            0.26592268943786623
+          ]
+        }
+      },
+      "direct_vs_baseline_speedup": 0.9992342295396367
+    }
+  ]
+}

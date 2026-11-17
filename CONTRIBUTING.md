@@ -40,6 +40,7 @@ python3 tools/draw_grouped_traversal.py
 python3 tools/draw_split_k.py
 python3 tools/draw_skinny_lessons.py
 python3 tools/draw_operand_paths.py
+python3 tools/draw_mxfp4_lesson.py
 python3 tools/animate_matmul_tuning.py
 ```
 

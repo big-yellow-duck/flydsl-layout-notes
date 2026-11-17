@@ -27,25 +27,27 @@ assets/
     ├── 10-predicates-and-tails/
     ├── 11-vector-addition/
     ├── 12-inspect-and-tune/
-    └── 13-matmul/
-        ├── 00-naive/
-        ├── 01-coalesced-access/
-        ├── 02-register-tiling/
-        ├── 03-shared-memory/
-        ├── 04-vectorized-copy/
-        ├── 05-matrix-instructions/
-        ├── 06-lds-swizzle/
-        ├── 07-interleaved-loads/
-        ├── 07a-buffer-access/
-        ├── 07b-operand-staging/
-        ├── 07c-grouped-traversal/
-        ├── 08-parameter-tuning/
-        ├── 09-split-k/
-        ├── 10-wave-local-tiles/
-        ├── 10a-synchronization-scope/
-        ├── 10b-cache-policy/
-        ├── 10c-k-unrolling/
-        └── 12-operand-paths/
+    ├── 13-matmul/
+    │   ├── 00-naive/
+    │   ├── 01-coalesced-access/
+    │   ├── 02-register-tiling/
+    │   ├── 03-shared-memory/
+    │   ├── 04-vectorized-copy/
+    │   ├── 05-matrix-instructions/
+    │   ├── 06-lds-swizzle/
+    │   ├── 07-interleaved-loads/
+    │   ├── 07a-buffer-access/
+    │   ├── 07b-operand-staging/
+    │   ├── 07c-grouped-traversal/
+    │   ├── 08-parameter-tuning/
+    │   ├── 09-split-k/
+    │   ├── 10-wave-local-tiles/
+    │   ├── 10a-synchronization-scope/
+    │   ├── 10b-cache-policy/
+    │   ├── 10c-k-unrolling/
+    │   └── 12-operand-paths/
+    └── 14-quantized-matmul/
+        └── 01-mxfp4-w4a16/
 ```
 
 Stage 05 includes `tiled-mma-waves.svg` and its PNG preview, showing the four wave32 groups in a 32×32 output block.

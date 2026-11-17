@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="820" viewBox="0 0 960 820" role="img" aria-labelledby="title desc">
+<title id="title">14.1 - Fuse MXFP4 decode into W4A16 matmul</title>
+<desc id="desc">OCP MXFP4 stores two E2M1 values per byte and one E8M0 scale per 32 K values in each output column. The gfx1152 kernel decodes packed B words into BF16 registers and stages each tile in LDS before WMMA consumes it.</desc>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">14.1 - Fuse MXFP4 decode into W4A16 matmul</text>
+<text x="32" y="68" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="23" fill="#14253d">Packed B tile: K values are grouped in blocks of 32</text>
+<rect x="32" y="150" width="230" height="87" fill="#ffedbe" stroke="#8294aa"/>
+<text x="44" y="162" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">PACKED + SCALE</text>
+<text x="44" y="199" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">0x32; E8M0 byte 127</text>
+<polyline points="270,193 286,193 278,188 286,193 278,198" fill="none" stroke="#14253d" stroke-width="2"/>
+<rect x="298" y="150" width="208" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="310" y="162" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">DECODE</text>
+<text x="310" y="199" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">8 BF16 register values</text>
+<polyline points="514,201 562,201 554,196 562,201 554,206" fill="none" stroke="#14253d" stroke-width="2"/>
+<rect x="575" y="150" width="210" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="587" y="162" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">BF16 B TILE</text>
+<text x="587" y="199" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">one 128-bit LDS store</text>
+<text x="32" y="365" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="23" fill="#14253d">Stage B while the WMMA tile is being computed</text>
+<rect x="32" y="410" width="220" height="87" fill="#ffedbe" stroke="#8294aa"/>
+<text x="44" y="422" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">ACTIVATION A</text>
+<text x="44" y="459" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">BF16; registers or LDS</text>
+<polyline points="262,454 702,454 694,449 702,454 694,459" fill="none" stroke="#14253d" stroke-width="2"/>
+<rect x="32" y="530" width="190" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="542" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">PACKED B</text>
+<text x="44" y="579" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">coalesced global reads</text>
+<rect x="267" y="530" width="190" height="87" fill="#dcecff" stroke="#8294aa"/>
+<text x="279" y="542" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">DECODE</text>
+<text x="279" y="579" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">private BF16 registers</text>
+<rect x="502" y="530" width="190" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="514" y="542" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">LDS</text>
+<text x="514" y="579" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">private B tile</text>
+<polyline points="232,574 257,574 249,569 257,574 249,579" fill="none" stroke="#14253d" stroke-width="2"/>
+<polyline points="467,574 492,574 484,569 492,574 484,579" fill="none" stroke="#14253d" stroke-width="2"/>
+<polyline points="680,574 702,500 694,495 702,500 694,505" fill="none" stroke="#14253d" stroke-width="2"/>
+<rect x="715" y="410" width="210" height="87" fill="#ffedbe" stroke="#8294aa"/>
+<text x="727" y="422" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">WMMA</text>
+<text x="727" y="459" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">FP32 sum; BF16 C</text>
+<text x="32" y="645" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">BF16 exists only in the LDS tile; the full (K,N) matrix is never materialized.</text>
+<text x="32" y="690" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">32 packed values use 16 data bytes plus one scale byte; as BF16 they use 64 bytes.</text>
+<text x="32" y="735" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="17" fill="#14253d">The fused path uses BF16 WMMA, not native MXFP4 matrix instructions.</text>
+</svg>

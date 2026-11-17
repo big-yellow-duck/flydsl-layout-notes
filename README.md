@@ -9,7 +9,7 @@ The course begins with small mappings that can be traced by hand, then builds to
 | Section | Lessons | What you learn |
 | --- | --- | --- |
 | [00 · Layout algebra](lessons/00-layout-algebra/README.md) | 00–07 | Shapes, coordinates, composition, coalescing, tiling, block windows, thread/value ownership |
-| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–13 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, and BF16 matmul through LDS layout tuning, load/compute interleaving, verified parameter tuning, skinny split-K, independent wave tiles, synchronization scope, cache policy, K-loop unrolling, and operand paths |
+| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–14 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, BF16 matmul optimization, and a quantized MXFP4 W4A16 path |
 
 Start with layout algebra; lessons 06 and 07 still develop the coordinate and ownership fundamentals. Actual copy plans begin in lesson 08.
 
@@ -58,7 +58,7 @@ A memory view combines a storage iterator (a typed pointer) with a layout. Use `
 
 The early algebra lessons intentionally stop at mapping coordinates to offsets. Copy lessons begin with their data views. Tail lessons use a separate coordinate-only view to decide whether a memory access is valid. The combined divide exercise is an explicit cross-check, while the four focused tutorials show one direct access path each.
 
-The 35 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
+The 36 practice exercises provide expression-sized TODOs inside the kernel, together with the launch and host checker. Implement the requested FlyDSL operations so that the checker evaluates the mapping or memory accesses across the complete example.
 
 ## What executes where
 
@@ -78,7 +78,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all 35 native programs: thirteen foundational lessons, four focused divide tutorials, and eighteen matmul stages:
+Run all 36 native programs: thirteen foundational lessons, four focused divide tutorials, eighteen BF16 matmul stages, and the first quantized matmul lesson:
 
 ```bash
 pixi run lessons-check
@@ -90,9 +90,11 @@ Run the lessons plus the additional examples from the notes:
 pixi run gpu-check
 ```
 
+Lesson 14 adds an MXFP4 W4A16 pipeline to `gpu-check`. On gfx1152, the fused FlyDSL kernel decodes each packed B tile into BF16 LDS as the lesson-12 WMMA path consumes it; the full dense BF16 matrix is not materialized. It is a software compatibility path, not native MXFP4 matrix execution. Its shape tuner compares fused execution with separate register and scalar unpack pipelines and a GPU Torch dense-BF16 baseline.
+
 The GPU check covers padding, aliasing, scalar and nested coordinates, full and subset composition, coalescing (including size-1 and unmergeable cases), every position across all four 2-D divide groupings, and actual loads through sliced 1-D and 2-D tensor views. The selected matrix tile returns values from offsets `20,21,22,23,28,29,30,31`.
 
-Originally validated on AMD Radeon 860M Graphics (`gfx1152`). On 2026-10-31, the shared environment passed all 22 solutions and the additional GPU checks on AMD Radeon 8060S Graphics (`gfx1151`) with Pixi 0.67.2. The updated shared lock has not yet been rerun on gfx1152. The five new BF16 matmul stages also passed on gfx1151 at M=N=K=1024; their gfx1152 hardware validation is pending. The checks include copy plans, register fragments, guarded vector addition, and a small copy-width benchmark.
+Originally validated on AMD Radeon 860M Graphics (`gfx1152`). On 2026-10-31, the shared environment passed all 22 solutions and the additional GPU checks on AMD Radeon 8060S Graphics (`gfx1151`) with Pixi 0.67.2. On 2026-11-17, `pixi run gpu-check` passed all 36 native solutions and the additional GPU checks on gfx1152 with FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. The quantized matmul results remain specific to the three tested shapes.
 
 On the gfx1151 setup, GPU event durations reported zero, including for a standalone PyTorch operation. Lesson 12 still checks copy correctness and reports timing and bandwidth as unavailable instead of dividing by zero. Lesson 12 explains how to dump generated ISA and interpret timing results.
 
@@ -101,6 +103,8 @@ On the gfx1151 setup, GPU event durations reported zero, including for a standal
 ## Practice BF16 matmul optimization
 
 After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions → LDS bank-conflict measurement → interleaved loads and compute → buffer access → separate A/B staging plans → grouped block traversal → parameter tuning → skinny split-K → independent wave tiles → synchronization scope → B cache policy → K-loop unrolling → operand-specific memory paths. Stages 00–08 use **M=N=K=1024**; stages 09–12 target three skinny K=8192 workloads. All retain BF16 inputs/output and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. Each contains a diagram, two practice TODOs, a commented solution, and a full-output checker.
+
+Then continue to [14 · Quantized matmul](lessons/01-gpu-programming/14-quantized-matmul/README.md). Its first lesson fuses OCP MXFP4 unpacking into BF16 B-tile staging on gfx1152 and reuses lesson 12's WMMA operand route. The measured path includes unpacking and is compared with Torch's dense BF16 matmul baseline.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py
