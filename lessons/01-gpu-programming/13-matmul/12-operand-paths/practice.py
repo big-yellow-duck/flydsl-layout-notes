@@ -1,4 +1,4 @@
-"""Practice 12: choose the A operand path. Fill the two TODOs in README.md."""
+"""Practice 12: choose the A operand path for BF16 WMMA matmul."""
 
 import argparse
 import ctypes
@@ -129,7 +129,7 @@ def validate_config(config, shape=(16, 1024, 8192)):
 
 
 def _create_staging_views(
-    left_model,
+    left_group_global_view,
     GROUP_TILE_M,
     GROUP_TILE_N,
     STAGE_K,
@@ -153,7 +153,7 @@ def _create_staging_views(
 
     if LEFT_IN_REGISTERS:
         lds = fx.SharedAllocator().allocate(SharedStorage).peek()
-        left_view = left_model
+        left_group_staging_view = left_group_global_view
     else:
         lds = fx.SharedAllocator().allocate(BothSharedStorage).peek()
         left_lds_all = lds.left.view(
@@ -167,16 +167,25 @@ def _create_staging_views(
                 ),
             )
         )
-        left_view = fx.slice(left_lds_all, (group_row, group_col, None, None))
+        left_group_staging_view = fx.slice(
+            left_lds_all, (group_row, group_col, None, None)
+        )
     right_lds_all = lds.right.view(
         fx.make_layout(
             (WAVE_GROUPS_M, WAVE_GROUPS_N, STAGE_K, GROUP_TILE_N),
-            (WAVE_GROUPS_N * STAGE_K * GROUP_TILE_N, STAGE_K * GROUP_TILE_N, GROUP_TILE_N, 1),
+            (
+                WAVE_GROUPS_N * STAGE_K * GROUP_TILE_N,
+                STAGE_K * GROUP_TILE_N,
+                GROUP_TILE_N,
+                1,
+            ),
         )
     )
     # Slice both group axes to select this group's disjoint B tile.
-    right_view = fx.slice(right_lds_all, (group_row, group_col, None, None))
-    return left_view, right_view
+    right_group_staging_view = fx.slice(
+        right_lds_all, (group_row, group_col, None, None)
+    )
+    return left_group_staging_view, right_group_staging_view
 
 
 @flyc.kernel
@@ -186,9 +195,9 @@ def _matmul_bf16(
     out: fx.Tensor,
     partials,
     counters,
-    m: fx.Constexpr,
-    n: fx.Constexpr,
-    k: fx.Constexpr,
+    M: fx.Constexpr,
+    N: fx.Constexpr,
+    K: fx.Constexpr,
     *,
     GROUP_TILE_M: fx.Constexpr,
     GROUP_TILE_N: fx.Constexpr,
@@ -204,16 +213,19 @@ def _matmul_bf16(
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
 ):
-    MMA_M, MMA_N, MMA_K = 16, 16, 16
+    MMA_M = 16
+    MMA_N = 16
+    MMA_K = 16
     WAVE_GROUPS = WAVE_GROUPS_M * WAVE_GROUPS_N
     BLOCK_M = GROUP_TILE_M * WAVE_GROUPS_M
     BLOCK_N = GROUP_TILE_N * WAVE_GROUPS_N
     THREADS_PER_GROUP = 32 * WAVES_M * WAVES_N
     wave_group = fx.thread_idx.x // THREADS_PER_GROUP
     thread_id_in_wave_group = fx.thread_idx.x % THREADS_PER_GROUP
-    lds_address_spaces = ir.ArrayAttr.get(
-        [ir.Attribute.parse("#gpu.address_space<workgroup>")]
-    )
+
+    lds_address_spaces = ir.ArrayAttr.get([
+        ir.Attribute.parse("#gpu.address_space<workgroup>")
+    ])
     barrier_scope = (
         gpu.BarrierScope.Subgroup if WAVE_GROUPS > 1 else gpu.BarrierScope.Workgroup
     )
@@ -222,27 +234,35 @@ def _matmul_bf16(
         # LDS-only ordering; global split-K publication keeps its agent atomics.
         fx.barrier(address_spaces=lds_address_spaces, scope=barrier_scope)
 
+    mma_atom = fx.make_mma_atom(
+        fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
+    )
+    mma = fx.make_tiled_mma(
+        mma_atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0))
+    )
+    copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
+    copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
+
     # 1. Buffer resources retain the existing row-major matrix layouts.
     # M tails use descriptor bounds: missing A rows read zero, C stores drop.
-    PADDED_M = ((m + BLOCK_M - 1) // BLOCK_M) * BLOCK_M
     left_buffer = fx.rocdl.make_buffer_tensor(
-        left, num_records_bytes=m * k * 2 if m % BLOCK_M else None
+        left, num_records_bytes=M * K * 2 if M % BLOCK_M else None
     )
     right_buffer = fx.rocdl.make_buffer_tensor(right)
     out_buffer = fx.rocdl.make_buffer_tensor(
-        out, num_records_bytes=m * n * 2 if m % BLOCK_M else None
+        out, num_records_bytes=M * N * 2 if M % BLOCK_M else None
     )
     left_global_view = fx.make_view(
         fx.get_iter(left_buffer),
-        fx.make_layout((PADDED_M, k), (k, 1)),
+        fx.make_layout((M, K), (K, 1)),
     )
     right_global_view = fx.make_view(
         fx.get_iter(right_buffer),
-        fx.make_layout((k, n), (n, 1)),
+        fx.make_layout((K, N), (N, 1)),
     )
     out_global_view = fx.make_view(
         fx.get_iter(out_buffer),
-        fx.make_layout((PADDED_M, n), (n, 1)),
+        fx.make_layout((M, N), (N, 1)),
     )
     # 2. Decode block traversal separately from groups inside the block.
     group_layout = fx.make_layout((WAVE_GROUPS_M, WAVE_GROUPS_N), (WAVE_GROUPS_N, 1))
@@ -250,8 +270,9 @@ def _matmul_bf16(
     group_row = fx.get_scalar(group_coords[0])
     group_col = fx.get_scalar(group_coords[1])
 
-    blocks_m = PADDED_M // BLOCK_M
-    blocks_n = n // BLOCK_N
+    out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
+    blocks_m = fx.size(out_block_tiles.shape[2]).to_py_value()
+    blocks_n = N // BLOCK_N
     group_m_width = min(GROUP_M, blocks_m)
     split_block_layout = fx.make_ordered_layout(
         (group_m_width, SPLIT_K, blocks_n, blocks_m // group_m_width),
@@ -265,15 +286,14 @@ def _matmul_bf16(
     block_row = m_group_id * group_m_width + row_in_group
 
     # Select the complete block output, then this group's output tile.
-    out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
     out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))
     out_group_tiles = fx.flat_divide(out_block_view, (GROUP_TILE_M, GROUP_TILE_N))
     out_group_view = fx.slice(out_group_tiles, (None, None, group_row, group_col))
 
     # Workspace IDs name group output tiles independently of launch order.
     output_group_layout = fx.make_layout(
-        (PADDED_M // GROUP_TILE_M, n // GROUP_TILE_N),
-        (n // GROUP_TILE_N, 1),
+        (blocks_m * WAVE_GROUPS_M, blocks_n * WAVE_GROUPS_N),
+        (N // GROUP_TILE_N, 1),
     )
     output_group_row = block_row * WAVE_GROUPS_M + group_row
     output_group_col = block_col * WAVE_GROUPS_N + group_col
@@ -285,12 +305,15 @@ def _matmul_bf16(
     left_block_tiles = fx.flat_divide(left_global_view, (BLOCK_M, STAGE_K))
     right_block_tiles = fx.flat_divide(right_global_view, (STAGE_K, BLOCK_N))
 
-    # 3. Keep one packed B tile per independent wave group in LDS.
+    # The first global A tile supplies the full-stage shape (GROUP_TILE_M, STAGE_K).
+    # load_stage selects the actual source using block_row, group_row, and tile_k.
     left_block_model = fx.slice(left_block_tiles, (None, None, 0, 0))
     left_group_models = fx.flat_divide(left_block_model, (GROUP_TILE_M, STAGE_K))
-    left_global_model = fx.slice(left_group_models, (None, None, 0, 0))
-    left_group_lds_view, right_group_lds_view = _create_staging_views(
-        left_global_model,
+    left_group_global_view = fx.slice(left_group_models, (None, None, 0, 0))
+
+    # Direct A uses the global shape model and skips LDS allocation for A.
+    left_group_staging_view, right_group_staging_view = _create_staging_views(
+        left_group_global_view,
         GROUP_TILE_M,
         GROUP_TILE_N,
         STAGE_K,
@@ -301,172 +324,186 @@ def _matmul_bf16(
         group_col,
     )
 
-    # 4. Preserve coalesced global reads for B, whose K axis is strided.
-    copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
+    thread_mma = mma.thr_slice(thread_id_in_wave_group)
+    accumulator = thread_mma.make_fragment_C(out_group_view)
+    ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
+    accumulator.fill(0)
+
+    # Staging copies for A and B.
+    staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
+    gmem_left_load_128b = fx.make_copy_atom(
+        fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
+    )
+    if fx.const_expr(LEFT_IN_REGISTERS):
+        # Allocate per-thread registers for two full A stages in WMMA layout.
+        # Staging holds the next load while compute holds the current stage.
+        left_staging_fragment = thread_mma.make_fragment_A(left_group_global_view)
+        left_compute_fragment = fx.make_fragment_like(left_staging_fragment)
+        # The copy plan assigns global values to WMMA lanes. Retile gives the
+        # staging registers the view that this copy plan expects.
+        left_staging_thread_copy = fx.make_tiled_copy_A(
+            gmem_left_load_128b, mma
+        ).get_slice(thread_id_in_wave_group)
+        left_staging_destination = left_staging_thread_copy.retile(
+            left_staging_fragment
+        )
+    else:
+        # Cooperatively load contiguous K chunks for the padded A tile in LDS.
+        left_staging_thread_layout = fx.make_ordered_layout(
+            (THREADS_PER_GROUP // (STAGE_K // 8), STAGE_K // 8), (1, 0)
+        )
+        left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
+            left_staging_thread_layout, staging_value_layout
+        )
+        left_staging_thread_copy = fx.make_tiled_copy(
+            copy_128b, left_staging_copy_tv, left_staging_copy_tile
+        ).get_slice(thread_id_in_wave_group)
+        left_staging_destination = left_staging_thread_copy.partition_D(
+            left_group_staging_view
+        )
+        left_staging_fragment = fx.make_fragment_like(left_staging_destination)
+
+    # Cooperatively load contiguous N chunks for B's tile in LDS.
     gmem_right_load_128b = fx.make_copy_atom(
         fx.rocdl.BufferCopy128b(RIGHT_CACHE_MODIFIER), fx.BFloat16
     )
     right_staging_thread_layout = fx.make_ordered_layout(
         (THREADS_PER_GROUP // (GROUP_TILE_N // 8), GROUP_TILE_N // 8), (1, 0)
     )
-    staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
     right_staging_copy_tile, right_staging_copy_tv = fx.make_layout_tv(
         right_staging_thread_layout, staging_value_layout
     )
     right_staging_copy_plan = fx.make_tiled_copy(
         copy_128b, right_staging_copy_tv, right_staging_copy_tile
     )
-    right_thread_staging_copy = right_staging_copy_plan.get_slice(thread_id_in_wave_group)
-    right_lds_destination = right_thread_staging_copy.partition_D(right_group_lds_view)
-    right_staging_fragment = fx.make_fragment_like(right_lds_destination)
+    right_thread_staging_copy = right_staging_copy_plan.get_slice(
+        thread_id_in_wave_group
+    )
+    right_staging_destination = right_thread_staging_copy.partition_D(
+        right_group_staging_view
+    )
+    right_staging_fragment = fx.make_fragment_like(right_staging_destination)
+
+    # MMA copies for A and B.
+    left_group_staging_tiled = fx.flat_divide(
+        left_group_staging_view, (GROUP_TILE_M, MMA_K)
+    )
+    left_group_staging_mma_initial_view = fx.slice(
+        left_group_staging_tiled, (None, None, 0, 0)
+    )
+    # WMMA consumes one MMA_K step at a time.
+    left_r_tile = thread_mma.make_fragment_A(left_group_staging_mma_initial_view)
+    if fx.const_expr(LEFT_IN_REGISTERS):
+        # Divide the three fragment axes into three inner and three outer axes.
+        # For example, (16, 2, 2) becomes (16, 2, 1, 1, 1, 2) for two K steps.
+        left_compute_tiled = fx.flat_divide(
+            left_compute_fragment, (MMA_K, GROUP_TILE_M // (MMA_M * WAVES_M), 1)
+        )
+        left_r_destination = left_r_tile
+    else:
+        left_lds2reg_thread_copy = fx.make_tiled_copy_A(copy_16b, mma).get_slice(
+            thread_id_in_wave_group
+        )
+        left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
 
     # Reinterpret B as (N,K) for WMMA without moving its physical data.
-    right_lds_group_transposed_view = fx.make_view(
-        fx.get_iter(right_group_lds_view),
+    right_group_staging_transposed_view = fx.make_view(
+        fx.get_iter(right_group_staging_view),
         fx.make_layout((GROUP_TILE_N, STAGE_K), (1, GROUP_TILE_N)),
     )
-    right_lds_group_transposed_tiled = fx.flat_divide(
-        right_lds_group_transposed_view, (GROUP_TILE_N, MMA_K)
+    right_group_staging_transposed_tiled = fx.flat_divide(
+        right_group_staging_transposed_view, (GROUP_TILE_N, MMA_K)
     )
 
-    # A single K=16 B view determines the operand register shape.
-    right_lds_group_transposed_initial_view = fx.slice(
-        right_lds_group_transposed_tiled, (None, None, 0, 0)
-    )
-    # 5. Retain native WMMA ownership and its FP32 accumulator.
-    mma_atom = fx.make_mma_atom(
-        fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32)
-    )
-    mma = fx.make_tiled_mma(
-        mma_atom, fx.make_layout((WAVES_M, WAVES_N, 1), (1, WAVES_M, 0))
+    # One K=16 slice of B determines the operand register shape.
+    right_group_staging_transposed_initial_view = fx.slice(
+        right_group_staging_transposed_tiled, (None, None, 0, 0)
     )
 
-    thread_mma = mma.thr_slice(thread_id_in_wave_group)
-    accumulator = thread_mma.make_fragment_C(out_group_view)
-    ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
-    accumulator.fill(0)
+    right_group_staging2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-    # B uses the existing MMA-compatible LDS copy plan.
-    copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-    right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
-
-    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(thread_id_in_wave_group)
-
-    # A has contiguous K: partition global memory with a WMMA A copy plan.
-    left_k16_model = fx.slice(
-        fx.flat_divide(left_global_model, (GROUP_TILE_M, MMA_K)), (None, None, 0, 0)
+    right_lds2reg_thread_copy = right_group_staging2reg_copy_plan.get_slice(
+        thread_id_in_wave_group
     )
-    left_r_tile = thread_mma.make_fragment_A(left_k16_model)
-    right_r_tile = thread_mma.make_fragment_B(right_lds_group_transposed_initial_view)
+
+    right_r_tile = thread_mma.make_fragment_B(
+        right_group_staging_transposed_initial_view
+    )
 
     right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
 
-    left_full_fragment = thread_mma.make_fragment_A(left_global_model)
-    left_compute_fragment = fx.make_fragment_like(left_full_fragment)
-    left_full_tiled = fx.flat_divide(  # noqa: F841 -- used by practice TODOs
-        left_compute_fragment, (16, GROUP_TILE_M // (16 * WAVES_M), 1)
-    )
-    left_direct_atom = fx.make_copy_atom(
-        fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
-    )
-    # TODO 1: Match the global A copy plan to WMMA ownership.
-    left_direct_plan = None
-    if left_direct_plan is None:
-        raise NotImplementedError("Fill in left_direct_plan.")
-    left_direct_destination = left_direct_plan.retile(left_full_fragment)
-
-    # The optional A staging path is the stage-10 control, selected for wide N.
-    # Clamp this unused model's thread layout in register mode, where A need
-    # not satisfy cooperative staging geometry.
-    LEFT_COPY_THREADS = THREADS_PER_GROUP if not LEFT_IN_REGISTERS else 32
-    left_staging_thread_layout = fx.make_ordered_layout(
-        (LEFT_COPY_THREADS // (STAGE_K // 8), STAGE_K // 8), (1, 0)
-    )
-    left_staging_copy_tile, left_staging_copy_tv = fx.make_layout_tv(
-        left_staging_thread_layout, staging_value_layout
-    )
-    left_thread_staging_copy = fx.make_tiled_copy(
-        copy_128b, left_staging_copy_tv, left_staging_copy_tile
-    ).get_slice(thread_id_in_wave_group)
-    left_lds_destination = left_thread_staging_copy.partition_D(left_group_lds_view)
-    left_staging_fragment = fx.make_fragment_like(left_lds_destination)
-    left_staging_atom = fx.make_copy_atom(
-        fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
-    )
-    left_group_lds_tiled = fx.flat_divide(left_group_lds_view, (GROUP_TILE_M, MMA_K))
-    left_operand_plan = fx.make_tiled_copy_A(copy_16b, mma).get_slice(thread_id_in_wave_group)
-    left_operand_destination = left_operand_plan.retile(left_r_tile)
-
-    def gmem2reg_load_tile(tile_k):
-        # tile_k includes the split's global starting K stage.
+    def load_stage(tile_k):
+        # Select A and B tiles for this wave group and the split's global K stage.
         left_block_view = fx.slice(left_block_tiles, (None, None, block_row, tile_k))
         right_block_view = fx.slice(right_block_tiles, (None, None, tile_k, block_col))
         left_group_tiles = fx.flat_divide(left_block_view, (GROUP_TILE_M, STAGE_K))
         right_group_tiles = fx.flat_divide(right_block_view, (STAGE_K, GROUP_TILE_N))
         left_group_view = fx.slice(left_group_tiles, (None, None, group_row, 0))
         right_group_view = fx.slice(right_group_tiles, (None, None, 0, group_col))
-        right_global_source = right_thread_staging_copy.partition_S(right_group_view)
-        left_direct_source = left_direct_plan.partition_S(left_group_view)
-        left_global_source = left_thread_staging_copy.partition_S(left_group_view)
-        if LEFT_IN_REGISTERS:
-            fx.copy(left_direct_atom, left_direct_source, left_direct_destination)
+        left_source = left_staging_thread_copy.partition_S(left_group_view)
+        right_source = right_thread_staging_copy.partition_S(right_group_view)
+        if fx.const_expr(LEFT_IN_REGISTERS):
+            # Load the selected global tile directly into the prefetch registers.
+            fx.copy(gmem_left_load_128b, left_source, left_staging_destination)
         else:
-            fx.copy(left_staging_atom, left_global_source, left_staging_fragment)
-        fx.copy(gmem_right_load_128b, right_global_source, right_staging_fragment)
+            fx.copy(gmem_left_load_128b, left_source, left_staging_fragment)
+        fx.copy(gmem_right_load_128b, right_source, right_staging_fragment)
 
-    def reg2lds_copy_tile():
-        # Advance A privately; publish only B to the shared tile.
-        if LEFT_IN_REGISTERS:
-            fx.copy(copy_16b, left_full_fragment, left_compute_fragment)
+    def publish_stage():
+        if fx.const_expr(LEFT_IN_REGISTERS):
+            # Make the prefetched A stage current within each lane. This frees
+            # the staging registers for the next global load.
+            fx.copy(copy_16b, left_staging_fragment, left_compute_fragment)
         else:
-            fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
-        fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
+            fx.copy(copy_128b, left_staging_fragment, left_staging_destination)
+        fx.copy(copy_128b, right_staging_fragment, right_staging_destination)
         lds_barrier()
 
-    def compute_lds():
+    def compute_stage():
         for inner_k in fx.range_constexpr(STAGE_K // MMA_K):
-            right_mma_view = fx.slice(
-                right_lds_group_transposed_tiled, (None, None, 0, inner_k)
-            )
-            right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
-            # TODO 2: Select this K=16 register fragment.
-            left_current = None
-            if left_current is None:
-                raise NotImplementedError("Fill in left_current.")
-            left_mma_view = fx.slice(left_group_lds_tiled, (None, None, 0, inner_k))
-            left_operand_source = left_operand_plan.partition_S(left_mma_view)
-            if LEFT_IN_REGISTERS:
-                fx.copy(copy_16b, left_current, left_r_tile)
+            if fx.const_expr(LEFT_IN_REGISTERS):
+                # Keep the three inner axes that match left_r_tile. The outer
+                # register-slot and M axes have one tile each, so only K varies.
+                # The copy below moves this chunk into left_r_tile within the lane.
+                left_source = fx.slice(
+                    left_compute_tiled, (None, None, None, 0, 0, inner_k)
+                )
             else:
-                fx.copy(copy_16b, left_operand_source, left_operand_destination)
-            fx.copy(copy_16b, right_r_source, right_r_destination)
+                left_mma_view = fx.slice(
+                    left_group_staging_tiled, (None, None, 0, inner_k)
+                )
+                left_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
+            right_mma_view = fx.slice(
+                right_group_staging_transposed_tiled, (None, None, 0, inner_k)
+            )
+            right_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
+            fx.copy(copy_16b, left_source, left_r_destination)
+            fx.copy(copy_16b, right_source, right_r_destination)
             fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
 
-    # 6. Prefetch next globals while consuming the current LDS tile.
-    # Prologue: make tile 0 visible in LDS before any consumer reads it.
-    tiles_per_split = k // (STAGE_K * SPLIT_K)
+    # Prime one stage, then prefetch the next stage before consuming the current one.
+    tiles_per_split = K // (STAGE_K * SPLIT_K)
     initial_tile_k = split_id * tiles_per_split
-    gmem2reg_load_tile(initial_tile_k)
-    reg2lds_copy_tile()
-    # Steady state: prefetch next globals into private registers, consume LDS,
-    # protect current readers, then publish the next tile into the same LDS.
-    for group_k in range((tiles_per_split - 1) // K_UNROLL):
+    load_stage(initial_tile_k)
+    publish_stage()
+
+    full_groups, tail_stages = divmod(tiles_per_split - 1, K_UNROLL)
+    for group_k in range(full_groups):
         for step in fx.range_constexpr(K_UNROLL):
             next_tile_k = initial_tile_k + group_k * K_UNROLL + step + 1
-            gmem2reg_load_tile(next_tile_k)
-            compute_lds()
+            load_stage(next_tile_k)
+            compute_stage()
             lds_barrier()
-            reg2lds_copy_tile()
-    for tail in fx.range_constexpr((tiles_per_split - 1) % K_UNROLL):
-        next_tile_k = (
-            initial_tile_k + ((tiles_per_split - 1) // K_UNROLL) * K_UNROLL + tail + 1
-        )
-        gmem2reg_load_tile(next_tile_k)
-        compute_lds()
+            publish_stage()
+    for tail in fx.range_constexpr(tail_stages):
+        next_tile_k = initial_tile_k + full_groups * K_UNROLL + tail + 1
+        load_stage(next_tile_k)
+        compute_stage()
         lds_barrier()
-        reg2lds_copy_tile()
-    # Drain: the final tile is already in LDS; do not read a nonexistent next tile.
-    compute_lds()
+        publish_stage()
+
+    # Drain the last published stage.
+    compute_stage()
     lds_barrier()
 
     def store_output():
@@ -481,10 +518,9 @@ def _matmul_bf16(
         reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_group_view)
         fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
 
-    if SPLIT_K == 1:
+    if fx.const_expr(SPLIT_K == 1):
         store_output()
     else:
-
         # Publish each thread's FP32 slots to the group's distinct split plane.
         tile_values = GROUP_TILE_M * GROUP_TILE_N
         thread_offset = thread_id_in_wave_group * ACCUMULATOR_VALUES
@@ -832,9 +868,14 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
 def check_boundaries(config):
     """Trace every split's partials through one, two, and three local K tiles."""
     checked = []
-    for tiles_per_split in sorted(
-        {1, 2, 3, config.k_unroll, config.k_unroll + 1, config.k_unroll + 2}
-    ):
+    for tiles_per_split in sorted({
+        1,
+        2,
+        3,
+        config.k_unroll,
+        config.k_unroll + 1,
+        config.k_unroll + 2,
+    }):
         m, n = (
             config.block_m * config.wave_groups_m,
             config.block_n * config.wave_groups_n,
@@ -880,13 +921,11 @@ def check_boundaries(config):
         assert torch.all(storage[-16:] == -99).item(), (
             "Boundary output sentinel changed"
         )
-        checked.append(
-            {
-                "tiles_per_split": tiles_per_split,
-                "partial_values": partials,
-                "sum_before_bf16": sum(partials),
-            }
-        )
+        checked.append({
+            "tiles_per_split": tiles_per_split,
+            "partial_values": partials,
+            "sum_before_bf16": sum(partials),
+        })
     return checked
 
 
@@ -980,14 +1019,12 @@ def main():
                 config, shape, args.timing, matmul=matmul_bf16
             )
             print(
-                json.dumps(
-                    {
-                        "timing": args.timing,
-                        "shape_MNK": shape,
-                        "graph_metadata": report["graph_metadata"],
-                        "scope": "warm inputs, preallocated output, cached workspace; graph workspace initialization included",
-                    }
-                )
+                json.dumps({
+                    "timing": args.timing,
+                    "shape_MNK": shape,
+                    "graph_metadata": report["graph_metadata"],
+                    "scope": "warm inputs, preallocated output, cached workspace; graph workspace initialization included",
+                })
             )
             labels = {
                 "operand_paths": config.name,
@@ -997,25 +1034,21 @@ def main():
             }
             for name, elapsed in report["median_ms"].items():
                 print(
-                    json.dumps(
-                        {
-                            "name": labels[name],
-                            "ms": elapsed,
-                            "effective_TFLOP_s": 2
-                            * shape[0]
-                            * shape[1]
-                            * shape[2]
-                            / (elapsed * 1e9),
-                        }
-                    )
+                    json.dumps({
+                        "name": labels[name],
+                        "ms": elapsed,
+                        "effective_TFLOP_s": 2
+                        * shape[0]
+                        * shape[1]
+                        * shape[2]
+                        / (elapsed * 1e9),
+                    })
                 )
             print(
-                json.dumps(
-                    {
-                        "paired_native_prefetch_ratio": report["ratio_to_prefetch"],
-                        "paired_native_torch_ratio": report["paired_ratio"],
-                    }
-                )
+                json.dumps({
+                    "paired_native_prefetch_ratio": report["ratio_to_prefetch"],
+                    "paired_native_torch_ratio": report["paired_ratio"],
+                })
             )
     except NotImplementedError as error:
         raise SystemExit(f"Practice not finished: {error}") from None

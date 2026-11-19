@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="532" viewBox="0 0 960 532" role="img" aria-labelledby="title desc">
+<title id="title">14 - Which matrix edges need a coordinate check?</title>
+<desc id="desc">For M=17, N=65, K=33, the first excess M row of A begins outside the descriptor, and an excess K row of B is outside its descriptor at a valid column. An excess K column of A and an excess N column of C can each alias the following row inside the buffer. Masks protect these columns. A stage with no real K tile is rejected before selecting either input view.</desc>
+<rect width="100%" height="100%" fill="#f8fafc"/>
+<text x="32" y="20" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="27" fill="#14253d">14 - Which matrix edges need a coordinate check?</text>
+<text x="32" y="63" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="19" fill="#14253d">M=17, N=65, K=33. Offsets count BF16 elements from each matrix base.</text>
+<rect x="32" y="108" width="896" height="64" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="120" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">M row in A</text>
+<text x="239" y="121" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">A[17,0] at 561, beyond element 560</text>
+<text x="656" y="121" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Descriptor returns zero</text>
+<rect x="32" y="187" width="896" height="64" fill="#dcecff" stroke="#8294aa"/>
+<text x="44" y="199" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">K row in B</text>
+<text x="239" y="200" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">B[33,64] at 2209, beyond element 2144</text>
+<text x="656" y="200" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Descriptor returns zero</text>
+<rect x="32" y="266" width="896" height="64" fill="#ffedbe" stroke="#8294aa"/>
+<text x="44" y="278" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">K column in A</text>
+<text x="239" y="279" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">A[15,33] at 528 aliases A[16,0]</text>
+<text x="656" y="279" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Mask A&#x27;s final K stage</text>
+<rect x="32" y="345" width="896" height="64" fill="#ffedbe" stroke="#8294aa"/>
+<text x="44" y="357" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="20" fill="#14253d">N column in C</text>
+<text x="239" y="358" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">C[15,65] at 1040 aliases C[16,0]</text>
+<text x="656" y="358" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Mask C&#x27;s edge group</text>
+<rect x="32" y="424" width="896" height="87" fill="#ccefe6" stroke="#8294aa"/>
+<text x="44" y="436" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="21" fill="#14253d">Empty split-K stage</text>
+<text x="44" y="473" dominant-baseline="text-before-edge" font-family="Noto Sans, sans-serif" font-size="18" fill="#14253d">Real stages are 0 and 1. Slots 2 and 3 zero both inputs before any tile selection.</text>
+</svg>

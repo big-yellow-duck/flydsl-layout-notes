@@ -61,4 +61,4 @@ The block index selects the correct K group, but the scale also depends on the o
 
 </details>
 
-[Previous: BF16 operand paths](../../13-matmul/12-operand-paths/README.md) · [Quantized matmul](../README.md) · [Course overview](../../../../README.md)
+[Previous: mixed-width BF16 edge loads](../../13-matmul/15-edge-load-widths/README.md) · [Quantized matmul](../README.md) · [Course overview](../../../../README.md)

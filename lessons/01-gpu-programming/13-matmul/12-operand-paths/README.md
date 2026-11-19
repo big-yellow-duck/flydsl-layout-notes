@@ -53,10 +53,10 @@ The input views remain:
 
 ```python
 left_global_view = fx.make_view(
-    fx.get_iter(left_buffer), fx.make_layout((m, k), (k, 1))
+    fx.get_iter(left_buffer), fx.make_layout((M, K), (K, 1))
 )
 right_global_view = fx.make_view(
-    fx.get_iter(right_buffer), fx.make_layout((k, n), (n, 1))
+    fx.get_iter(right_buffer), fx.make_layout((K, N), (N, 1))
 )
 ```
 
@@ -64,22 +64,22 @@ A's `(row,K)` layout has strides `(8192,1)`; B's `(K,column)` layout has strides
 
 ## Load A using the WMMA ownership plan
 
-`thread_mma.make_fragment_A(left_global_model)` allocates an uninitialized register fragment for a complete A K chunk. The model view supplies its shape; actual reads use the block/tile view selected in `gmem2reg_load_tile(tile_k)`.
+`thread_mma.make_fragment_A(left_group_global_view)` allocates each thread’s registers for a full A stage. The first global tile supplies the shape `(GROUP_TILE_M, STAGE_K)`. `load_stage(tile_k)` selects the tile that the copy actually reads.
 
 The copy plan uses the MMA's A ownership directly:
 
 ```python
-left_direct_atom = fx.make_copy_atom(
+gmem_left_load_128b = fx.make_copy_atom(
     fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
 )
-left_direct_plan = fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(
+left_staging_thread_copy = fx.make_tiled_copy_A(gmem_left_load_128b, mma).get_slice(
     thread_id_in_wave_group
 )
-left_direct_destination = left_direct_plan.retile(left_full_fragment)
+left_staging_destination = left_staging_thread_copy.retile(left_staging_fragment)
 
-# Inside gmem2reg_load_tile(tile_k), after selecting left_group_view:
-left_direct_source = left_direct_plan.partition_S(left_group_view)
-fx.copy(left_direct_atom, left_direct_source, left_direct_destination)
+# Inside load_stage(tile_k), after selecting left_group_view.
+left_source = left_staging_thread_copy.partition_S(left_group_view)
+fx.copy(gmem_left_load_128b, left_source, left_staging_destination)
 ```
 
 These are API fragments from the [runnable solution](solution.py). The copy atom transfers eight BF16 values, or 128 bits, per complete vector. Retiling describes the same register values in the copy plan's domain; it does not change their numerical type.
@@ -102,17 +102,17 @@ Loading B directly with the WMMA plan required many narrow global reads in the e
 
 ## Advance A privately while protecting B
 
-`left_full_fragment` holds the prefetched A chunk. `left_compute_fragment` holds the current chunk. It contains 16 values per K slice, two row repetitions, and four K slices per thread in this example. `left_full_tiled` exposes those K slices using native layout division:
+`left_staging_fragment` holds the prefetched A stage. `publish_stage()` copies it to `left_compute_fragment` so the next global load can reuse the staging registers. In the K=64 walkthrough, the compute fragment has shape `(16, 2, 4)` per thread, with 16 slots per WMMA operand, two M repetitions, and four K steps. `fx.flat_divide` exposes the K steps as separate tiles.
 
 ```python
-left_full_tiled = fx.flat_divide(
-    left_compute_fragment, (16, GROUP_TILE_M // (16 * WAVES_M), 1)
+left_compute_tiled = fx.flat_divide(
+    left_compute_fragment, (MMA_K, GROUP_TILE_M // (MMA_M * WAVES_M), 1)
 )
-left_current = fx.slice(left_full_tiled, (None, None, None, 0, 0, inner_k))
-fx.copy(copy_16b, left_current, left_r_tile)
+left_source = fx.slice(left_compute_tiled, (None, None, None, 0, 0, inner_k))
+fx.copy(copy_16b, left_source, left_r_destination)
 ```
 
-The first three modes retain one complete operand fragment; the first two quotient coordinates are zero, and the last selects `inner_k`. This copy moves register values into the fragment consumed by `fx.gemm`. It performs no LDS read for A.
+The divided shape is `(16, 2, 1, 1, 1, 4)`. The three `None`s keep the inner `(16, 2, 1)` operand tile. The first two outer axes each have one tile, so their coordinates are zero. `inner_k` selects one of the four K steps. The copy stays within each lane and fills `left_r_tile` for `fx.gemm`.
 
 The steady state remains prefetched:
 
@@ -132,10 +132,11 @@ LDS views retain lesson 10's two group axes: B has shape
 LDS its full shape is `(WAVE_GROUPS_M,WAVE_GROUPS_N,GROUP_TILE_M,STAGE_K)` with
 padded K rows. No A/B tile is shared between independent groups. The explicit
 physical output view is sliced into wave tiles before WMMA ownership is applied.
-M bounds round to the full physical block height, so `(2,1)` and `(2,2)` can
-include completely inactive wave rows. A buffer reads beyond logical M return
+Native `flat_divide` covers the exact-shaped `(M,K)` and `(M,N)` views with
+complete physical block windows, so `(2,1)` and `(2,2)` can include completely
+inactive wave rows. A buffer reads beyond logical M return
 zero and C stores beyond logical M are discarded; workspace includes every
-padded wave tile. The tail checker covers all four group shapes for both A paths.
+launched wave tile. The tail checker covers all four group shapes for both A paths.
 
 The 32×64×64 walkthrough allocates **8192 LDS bytes** for B. Staging padded A as well would use **12800 bytes**. Register pressure can rise because A's current and next chunks remain private; the selected native resource reports and scratch checks are in [the results](results/README.md).
 
@@ -155,16 +156,16 @@ The controlled M=32 profile holds geometry and scheduling fixed while switching 
 
 ## Practice
 
-[practice.py](practice.py) supplies global/block views, storage, register allocation, the B path, synchronization, split-K finalization, and the complete checker. Fill two expressions:
+[practice.py](practice.py) contains the runnable walkthrough. Follow two expressions in the direct A path:
 
-1. `left_direct_plan`: derive the A copy plan from `left_direct_atom` and `mma`, then select `thread_id_in_wave_group`.
-2. `left_current`: select `inner_k` from `left_full_tiled`, retaining the operand's first three modes.
+1. `left_staging_thread_copy` derives A’s copy plan from `gmem_left_load_128b` and `mma`, then selects `thread_id_in_wave_group`.
+2. `left_source` selects `inner_k` from `left_compute_tiled` and keeps the operand’s first three axes.
 
 The default full-size trace checkpoint is **`[7,4,1,-2]`**, the first four outputs in row 0. The wide selector's checkpoint is `[8,5,2,-1]`. These are BF16 output values, not addresses or per-split partials.
 
 The checker compares every output with CPU FP32 arithmetic on the actual BF16 inputs, rounded to BF16. It tests structured and random data, signed input changes across workspace reuses, NaN output replacement, output/workspace sentinels, counter reset, and exact FP32 partials at tagged K boundaries. The course check covers all three shapes with split counts 1, 2 and 4. Complete N/K tiles and contiguous inputs are required. Random tolerances are `rtol=0.016, atol=0.03125`.
 
-Explicit configurations also support partial M tiles, including M=1,2,4,8. The kernel rounds the logical row domain up to `GROUP_TILE_M`, while bounding A and output buffer descriptors to their actual byte counts. Missing A rows read zero and output stores beyond M are discarded. No padding allocation or extra kernel is required; complete M tiles retain the existing unbounded descriptors. Grid sizing and split-K workspace sizing count the rounded-up row tiles. The [small-M tuning study](results/small-m-shapes.md) compares these cases with Torch at N=K=1024 and 2048; the teaching CLI keeps its original three default selectors.
+Explicit configurations also support partial M tiles, including M=1,2,4,8. The kernel keeps exact-shaped matrix views and lets `fx.flat_divide` supply full tile windows, while bounding A and output buffer descriptors to their actual byte counts. Missing A rows read zero and output stores beyond M are discarded. No padding allocation or extra kernel is required; complete M tiles retain the existing unbounded descriptors. Grid sizing and split-K workspace sizing count the tile domain produced by division. N and K still require complete tiles; [13 · Edge safety](../13-edge-safety/README.md) adds per-axis predicates for arbitrary positive M,N,K. The [small-M tuning study](results/small-m-shapes.md) compares these cases with Torch at N=K=1024 and 2048; the teaching CLI keeps its original three default selectors.
 
 ## Revision question
 
@@ -185,6 +186,6 @@ pixi run python lessons/01-gpu-programming/13-matmul/12-operand-paths/ownership.
 pixi run gpu-check
 ```
 
-The unfinished starter reports `Practice not finished:`. A completed program reports `Exercise passed:`; compare the [worked solution](solution.py). Each timed GEMM remains one native kernel, including split-K reduction and counter reset. Workspace reuse is serialized on one stream.
+Both the walkthrough and the [worked solution](solution.py) report `Exercise passed:` after checking the output. Each timed GEMM runs in one native kernel, including split-K reduction and counter reset. Workspace reuse is serialized on one stream.
 
-[Previous: K-loop unrolling](../10c-k-unrolling/README.md) · [Matmul series](../README.md) · [Next experiments](../../../../ROADMAP.md#matmul-continuation-planned)
+[Previous: K-loop unrolling](../10c-k-unrolling/README.md) · [Matmul series](../README.md) · [Next: edge safety](../13-edge-safety/README.md)

@@ -158,9 +158,9 @@ def _matmul_bf16(
     THREADS_PER_GROUP = 32 * WAVES_M * WAVES_N
     wave_group = fx.thread_idx.x // THREADS_PER_GROUP
     thread_id_in_wave_group = fx.thread_idx.x % THREADS_PER_GROUP
-    lds_address_spaces = ir.ArrayAttr.get(
-        [ir.Attribute.parse("#gpu.address_space<workgroup>")]
-    )
+    lds_address_spaces = ir.ArrayAttr.get([
+        ir.Attribute.parse("#gpu.address_space<workgroup>")
+    ])
     barrier_scope = (
         gpu.BarrierScope.Subgroup if WAVE_GROUPS > 1 else gpu.BarrierScope.Workgroup
     )
@@ -213,7 +213,7 @@ def _matmul_bf16(
 
     # Workspace IDs name group output tiles independently of launch order.
     output_group_layout = fx.make_layout(
-        (m // GROUP_TILE_M, n // GROUP_TILE_N),
+        (blocks_m * WAVE_GROUPS_M, blocks_n * WAVE_GROUPS_N),
         (n // GROUP_TILE_N, 1),
     )
     output_group_row = block_row * WAVE_GROUPS_M + group_row
@@ -248,7 +248,12 @@ def _matmul_bf16(
     right_lds_all = lds.right.view(
         fx.make_layout(
             (WAVE_GROUPS_M, WAVE_GROUPS_N, STAGE_K, GROUP_TILE_N),
-            (WAVE_GROUPS_N * STAGE_K * GROUP_TILE_N, STAGE_K * GROUP_TILE_N, GROUP_TILE_N, 1),
+            (
+                WAVE_GROUPS_N * STAGE_K * GROUP_TILE_N,
+                STAGE_K * GROUP_TILE_N,
+                GROUP_TILE_N,
+                1,
+            ),
         )
     )
 
@@ -282,7 +287,9 @@ def _matmul_bf16(
         copy_128b, right_staging_copy_tv, right_staging_copy_tile
     )
     left_thread_staging_copy = left_staging_copy_plan.get_slice(thread_id_in_wave_group)
-    right_thread_staging_copy = right_staging_copy_plan.get_slice(thread_id_in_wave_group)
+    right_thread_staging_copy = right_staging_copy_plan.get_slice(
+        thread_id_in_wave_group
+    )
     left_lds_destination = left_thread_staging_copy.partition_D(left_group_lds_view)
     right_lds_destination = right_thread_staging_copy.partition_D(right_group_lds_view)
     left_staging_fragment = fx.make_fragment_like(left_lds_destination)
@@ -322,7 +329,9 @@ def _matmul_bf16(
     right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
     left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(thread_id_in_wave_group)
-    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(thread_id_in_wave_group)
+    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(
+        thread_id_in_wave_group
+    )
 
     left_r_tile = thread_mma.make_fragment_A(left_lds_group_initial_view)
     right_r_tile = thread_mma.make_fragment_B(right_lds_group_transposed_initial_view)
@@ -413,7 +422,6 @@ def _matmul_bf16(
     if SPLIT_K == 1:
         store_output()
     else:
-
         # Publish each thread's FP32 slots to the group's distinct split plane.
         tile_values = GROUP_TILE_M * GROUP_TILE_N
         thread_offset = thread_id_in_wave_group * ACCUMULATOR_VALUES
@@ -740,9 +748,14 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
 def check_boundaries(config):
     """Trace every split's partials through one, two, and three local K tiles."""
     checked = []
-    for tiles_per_split in sorted(
-        {1, 2, 3, config.k_unroll, config.k_unroll + 1, config.k_unroll + 2}
-    ):
+    for tiles_per_split in sorted({
+        1,
+        2,
+        3,
+        config.k_unroll,
+        config.k_unroll + 1,
+        config.k_unroll + 2,
+    }):
         m, n = (
             config.block_m * config.wave_groups_m,
             config.block_n * config.wave_groups_n,
@@ -788,13 +801,11 @@ def check_boundaries(config):
         assert torch.all(storage[-16:] == -99).item(), (
             "Boundary output sentinel changed"
         )
-        checked.append(
-            {
-                "tiles_per_split": tiles_per_split,
-                "partial_values": partials,
-                "sum_before_bf16": sum(partials),
-            }
-        )
+        checked.append({
+            "tiles_per_split": tiles_per_split,
+            "partial_values": partials,
+            "sum_before_bf16": sum(partials),
+        })
     return checked
 
 
@@ -888,29 +899,25 @@ def main():
                 config, shape, args.timing, matmul=matmul_bf16
             )
             print(
-                json.dumps(
-                    {
-                        "timing": args.timing,
-                        "shape_MNK": shape,
-                        "graph_metadata": report["graph_metadata"],
-                        "scope": "warm inputs, preallocated output, cached workspace; graph workspace initialization included",
-                    }
-                )
+                json.dumps({
+                    "timing": args.timing,
+                    "shape_MNK": shape,
+                    "graph_metadata": report["graph_metadata"],
+                    "scope": "warm inputs, preallocated output, cached workspace; graph workspace initialization included",
+                })
             )
             for name, elapsed in report["median_ms"].items():
                 label = config.name if name == "stage" else name
                 print(
-                    json.dumps(
-                        {
-                            "name": label,
-                            "ms": elapsed,
-                            "effective_TFLOP_s": 2
-                            * shape[0]
-                            * shape[1]
-                            * shape[2]
-                            / (elapsed * 1e9),
-                        }
-                    )
+                    json.dumps({
+                        "name": label,
+                        "ms": elapsed,
+                        "effective_TFLOP_s": 2
+                        * shape[0]
+                        * shape[1]
+                        * shape[2]
+                        / (elapsed * 1e9),
+                    })
                 )
             print(json.dumps({"paired_native_torch_ratio": report["paired_ratio"]}))
     except NotImplementedError as error:

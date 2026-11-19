@@ -45,7 +45,10 @@ assets/
     │   ├── 10a-synchronization-scope/
     │   ├── 10b-cache-policy/
     │   ├── 10c-k-unrolling/
-    │   └── 12-operand-paths/
+    │   ├── 12-operand-paths/
+    │   ├── 13-edge-safety/
+    │   ├── 14-targeted-guards/
+    │   └── 15-edge-load-widths/
     └── 14-quantized-matmul/
         └── 01-mxfp4-w4a16/
 ```
@@ -79,3 +82,9 @@ The original combined-wave and specialized-wave figures live with their [researc
 Stage 12 includes `operand-paths` and `operand-trace` SVG/PNG pairs. They show the private A register path, coalesced B staging through LDS, and exact global/LDS element offsets for native compute thread 3. Regenerate with `python3 tools/draw_operand_paths.py`; `ownership.py` checks every illustrated ownership mapping.
 
 Stage 10 also includes `wave-grid-2d.svg` and its PNG: a 32×128 physical output region is sliced into four independent 16×64 wave tiles. Regenerate with `python3 tools/draw_wave_tiles.py` or the skinny-lesson generator.
+
+Stage 13 includes `edge-predicates` and `cross-row-bounds` SVG/PNG pairs. Regenerate with `python3 tools/draw_edge_safety.py`; the figures follow the 17×65×33 trace and a separate 3×5 address example.
+
+Stage 14 includes the `guarded-axes` SVG/PNG pair. Regenerate with `python3 tools/draw_targeted_guards.py`. It follows the same corner trace to identify the accesses that require explicit guards.
+
+Stage 15 includes the `mixed-width-tail` SVG/PNG pair. Regenerate with `python3 tools/draw_edge_load_widths.py`. The figure traces the eight-, four-, and two-value copies in the 17×78×46 example.

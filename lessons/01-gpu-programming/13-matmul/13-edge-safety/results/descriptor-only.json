@@ -1,0 +1,2809 @@
+{
+  "environment": {
+    "gpu": "AMD Radeon 8060S Graphics",
+    "architecture": "gfx1151",
+    "flydsl": "0.4.1",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385"
+  },
+  "solution_sha256": "e188c44bcbc0e5d445e6a997ce7be725d2c33afec8c569c5896a43a5798930db",
+  "descriptor_only_sha256": "5e52ce0ddd0f996453704597f7e156209868f654df56912c3893b450b5780ff1",
+  "timing": "graph-host median per GEMM, including captured workspace initialization",
+  "batches": 9,
+  "repeats_per_batch": 10,
+  "rows": [
+    {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": true
+      },
+      "median_ms": {
+        "predicated": 0.02175796907977201,
+        "torch": 0.03442874731263146,
+        "descriptor_only": 0.021749065490439534
+      },
+      "effective_tflops": {
+        "predicated": 12.337339712903608,
+        "torch": 7.796840633278415,
+        "descriptor_only": 12.342390348587575
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.021686224499717355,
+              0.02168569408240728,
+              0.021538477449212223,
+              0.021623756765620783,
+              0.021731721790274605,
+              0.02174615947296843,
+              0.02150735308532603,
+              0.021761940297437832,
+              0.021605134679703042
+            ],
+            "torch": [
+              0.03447468116064556,
+              0.0343326224538032,
+              0.03438121566432528,
+              0.03436824699747376,
+              0.03436400002101436,
+              0.03433640667935833,
+              0.034359999699518085,
+              0.03443455934757367,
+              0.034451184183126315
+            ],
+            "descriptor_only": [
+              0.021755971829406917,
+              0.021668131375918165,
+              0.021814503270434216,
+              0.021707256382796913,
+              0.02150666550733149,
+              0.021557725267484784,
+              0.02183703109039925,
+              0.02165166224585846,
+              0.021877406106796116
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.024541824677726254,
+              0.02249188764835708,
+              0.021842624846613035,
+              0.021764972188975662,
+              0.02158525603590533,
+              0.02175796907977201,
+              0.021547322103288025,
+              0.02170934676541947,
+              0.02161485026590526
+            ],
+            "torch": [
+              0.037385534233180806,
+              0.038374440919142216,
+              0.034405184123897925,
+              0.03440987202338874,
+              0.03443337191129103,
+              0.03442281304160133,
+              0.034443965705577284,
+              0.03445121619733982,
+              0.034486278309486806
+            ],
+            "descriptor_only": [
+              0.02400243465672247,
+              0.023992778005776927,
+              0.021581662440439686,
+              0.02168360006180592,
+              0.02186768761021085,
+              0.021665849635610357,
+              0.021889527852181345,
+              0.02179319053539075,
+              0.021829565230291337
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.02438217561575584,
+              0.024144900089595467,
+              0.0218011875404045,
+              0.021633350115735084,
+              0.021594321879092604,
+              0.02179309376515448,
+              0.021554134582402185,
+              0.02181621821364388,
+              0.021894527890253812
+            ],
+            "torch": [
+              0.038558372034458444,
+              0.03865258768200874,
+              0.034407497150823474,
+              0.03441527805989608,
+              0.03442159068072215,
+              0.03439787542447448,
+              0.03442874731263146,
+              0.03444174653850496,
+              0.034453246917109936
+            ],
+            "descriptor_only": [
+              0.023535106447525322,
+              0.022648880985798314,
+              0.021528697106987238,
+              0.021749065490439534,
+              0.021799503156216815,
+              0.02168322171200998,
+              0.02188252765336074,
+              0.02164069373975508,
+              0.021605068468488753
+            ]
+          },
+          "batch_orders": [
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        17,
+        1024,
+        8192
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": true
+      },
+      "median_ms": {
+        "predicated": 0.03952356273657642,
+        "torch": 0.06508966907858849,
+        "descriptor_only": 0.034522243367973715
+      },
+      "effective_tflops": {
+        "predicated": 7.216269289814167,
+        "torch": 4.381842403525476,
+        "descriptor_only": 8.261707356613789
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.04469618797884323,
+              0.03942247203667648,
+              0.03944253403460607,
+              0.039422284316970035,
+              0.039479877887060866,
+              0.039532715891255066,
+              0.03952490660594776,
+              0.03960321846534498,
+              0.039579434087499976
+            ],
+            "torch": [
+              0.06909089352120645,
+              0.06507898069685325,
+              0.06505154378828593,
+              0.0650151094305329,
+              0.06501588795799762,
+              0.06509794984594919,
+              0.06505332785309292,
+              0.06511582469101995,
+              0.06505607816507109
+            ],
+            "descriptor_only": [
+              0.03471761228865944,
+              0.03452636883594096,
+              0.03442818415351212,
+              0.034581462386995554,
+              0.0346259621437639,
+              0.034462372423149645,
+              0.03456899066804908,
+              0.034494900319259614,
+              0.03448689967626706
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.04028050898341462,
+              0.03939084999728948,
+              0.03942981566069648,
+              0.039482847205363214,
+              0.039484469016315416,
+              0.03947340665035881,
+              0.0395487186324317,
+              0.03949993770220317,
+              0.039574437687406316
+            ],
+            "torch": [
+              0.06964581552892923,
+              0.06502232790808193,
+              0.06507548459921964,
+              0.06506048448500223,
+              0.06512388717965223,
+              0.0651248250505887,
+              0.06507385623990558,
+              0.06514388805953786,
+              0.06511660612886772
+            ],
+            "descriptor_only": [
+              0.03883439640048891,
+              0.034551181306596845,
+              0.03459577201283537,
+              0.03449180658208206,
+              0.03446568443905562,
+              0.03451258744462393,
+              0.03441899680183269,
+              0.03463195971562527,
+              0.034456150024197996
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.039566090708831325,
+              0.03950478421756998,
+              0.0394108152249828,
+              0.03947953082388267,
+              0.03952356273657642,
+              0.0395425311580766,
+              0.03953268751502037,
+              0.03954634375986643,
+              0.039475753146689385
+            ],
+            "torch": [
+              0.07004814688116312,
+              0.06509535669465549,
+              0.06507244979729876,
+              0.06508966907858849,
+              0.06509569939225912,
+              0.0650731373752933,
+              0.06506066929432563,
+              0.06511713727377355,
+              0.0650671063340269
+            ],
+            "descriptor_only": [
+              0.04085796244908124,
+              0.03452102464507334,
+              0.03464014662313275,
+              0.034585274988785386,
+              0.03441484077484347,
+              0.03446871560299769,
+              0.034522243367973715,
+              0.034517431049607694,
+              0.034611868613865227
+            ]
+          },
+          "batch_orders": [
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        16,
+        1032,
+        8192
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": false,
+        "detail": "Tensor-likes are not close!\n\nMismatched elements: 738 / 16512 (4.5%)\nGreatest absolute difference: 9.0 at index (1, 3) (up to 0.001 allowed)\nGreatest relative difference: inf at index (3, 3) (up to 0 allowed)"
+      },
+      "median_ms": {
+        "predicated": 0.02942474020528607,
+        "torch": 0.033272378641413525
+      },
+      "effective_tflops": {
+        "predicated": 9.194052559600834,
+        "torch": 8.130846637555182
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.03204475578968413,
+              0.032870168070076033,
+              0.032719893351895735,
+              0.02930555638158694,
+              0.02916621888289228,
+              0.029535205976571888,
+              0.029322712362045422,
+              0.02942474020528607,
+              0.029212216031737626
+            ],
+            "torch": [
+              0.037446000351337716,
+              0.037665431591449305,
+              0.035205659514758736,
+              0.03314400601084344,
+              0.033203843486262485,
+              0.03327821905259043,
+              0.033236562012461945,
+              0.03328981256345287,
+              0.03328646926092915
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.03284085905761458,
+              0.03313012784929015,
+              0.03002522498718463,
+              0.029520959651563317,
+              0.029318090673768893,
+              0.029548987367888913,
+              0.029439428180921823,
+              0.029536733927670866,
+              0.029299243760760874
+            ],
+            "torch": [
+              0.037410346703836694,
+              0.03796254677581601,
+              0.037705772410845384,
+              0.03327893791720271,
+              0.03326306541566737,
+              0.03325628422317095,
+              0.033272378641413525,
+              0.033253346919082105,
+              0.03321750336908735
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.032813262077979743,
+              0.03312581902719103,
+              0.030663109646411613,
+              0.02932368151959963,
+              0.029132062627468258,
+              0.02943361541838385,
+              0.02933709110948257,
+              0.029374618316069245,
+              0.02917575038736686
+            ],
+            "torch": [
+              0.03757005906663835,
+              0.03804170046350919,
+              0.03809191839536652,
+              0.03323053097119555,
+              0.03322394040878862,
+              0.03324318749946542,
+              0.03320843752590008,
+              0.03325259385746904,
+              0.03325521829538047
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        16,
+        1024,
+        8200
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": true
+      },
+      "median_ms": {
+        "predicated": 0.036007637390866876,
+        "torch": 0.03505454078549519,
+        "descriptor_only": 0.02214217820437625
+      },
+      "effective_tflops": {
+        "predicated": 7.462239110088172,
+        "torch": 7.66512965165361,
+        "descriptor_only": 12.13510240590936
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.03833719092654064,
+              0.035895984183298424,
+              0.03582998469937593,
+              0.035924609983339906,
+              0.036112384259467945,
+              0.0360426063707564,
+              0.035927606222685426,
+              0.03602582510211505,
+              0.03592707507777959
+            ],
+            "torch": [
+              0.038290037628030404,
+              0.03733222183655016,
+              0.03499441882013343,
+              0.035008697159355506,
+              0.03504222841002047,
+              0.03503938496578485,
+              0.035047790879616514,
+              0.03503160332911648,
+              0.035070634476142004
+            ],
+            "descriptor_only": [
+              0.024598134768893942,
+              0.02494584332453087,
+              0.02214217820437625,
+              0.02205030614277348,
+              0.021862934227101505,
+              0.02193046602769755,
+              0.022207331494428217,
+              0.021973309776512906,
+              0.02217827204731293
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.039513780939159915,
+              0.03598729308578186,
+              0.03606735335779376,
+              0.0360344500222709,
+              0.03593723158701323,
+              0.03604179437388666,
+              0.03595435919123702,
+              0.036007637390866876,
+              0.035942949762102216
+            ],
+            "torch": [
+              0.03813354414887726,
+              0.03824875602731481,
+              0.03499725935398601,
+              0.03501329047139734,
+              0.035051602753810585,
+              0.03506335269776173,
+              0.035054665204370394,
+              0.03505454078549519,
+              0.035004884557565674
+            ],
+            "descriptor_only": [
+              0.024412078346358612,
+              0.022695631196256727,
+              0.02186728161177598,
+              0.021931465744273737,
+              0.022217928199097514,
+              0.02199305599788204,
+              0.022235115466173738,
+              0.022103553055785596,
+              0.022261487174546346
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.03937512810807675,
+              0.0371281654224731,
+              0.03610816565924324,
+              0.03598860639613122,
+              0.03596057867980562,
+              0.03604572848416865,
+              0.03594157824409194,
+              0.036042012652615085,
+              0.036088853084947914
+            ],
+            "torch": [
+              0.03904744953615591,
+              0.038429597043432295,
+              0.03502469990053214,
+              0.035036290501011536,
+              0.035058759385719895,
+              0.0350683847500477,
+              0.03506172797642648,
+              0.0350514157616999,
+              0.035048228164669126
+            ],
+            "descriptor_only": [
+              0.024014465452637523,
+              0.022073240688769147,
+              0.021891871438128874,
+              0.022089928097557276,
+              0.022213675401872024,
+              0.02199396549258381,
+              0.022205799905350432,
+              0.021989181550452486,
+              0.02191287203459069
+            ]
+          },
+          "batch_orders": [
+            [
+              "descriptor_only",
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated",
+              "descriptor_only"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch",
+              "descriptor_only"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "predicated",
+              "descriptor_only",
+              "torch"
+            ],
+            [
+              "torch",
+              "descriptor_only",
+              "predicated"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "descriptor_only": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        16,
+        64,
+        24
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": false,
+        "detail": "Tensor-likes are not close!\n\nMismatched elements: 958 / 1024 (93.6%)\nGreatest absolute difference: 48.0 at index (0, 5) (up to 0.001 allowed)\nGreatest relative difference: 3.0 at index (0, 0) (up to 0 allowed)"
+      },
+      "median_ms": {
+        "predicated": 0.0031085932278074324,
+        "torch": 0.003739828389370814
+      },
+      "effective_tflops": {
+        "predicated": 0.015811653824732843,
+        "torch": 0.013142849051495997
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.0031163122912403196,
+              0.0030696901376359165,
+              0.00306262809317559,
+              0.0031089068215806037,
+              0.0031059375032782555,
+              0.003105687937932089,
+              0.0030662500648759305,
+              0.0030656905437354,
+              0.003107312659267336
+            ],
+            "torch": [
+              0.00373788716387935,
+              0.0037211379094514996,
+              0.003699106309795752,
+              0.0037381061702035367,
+              0.0037917940062470734,
+              0.0037391997466329485,
+              0.0037373873055912554,
+              0.0037358251574914902,
+              0.003741887485375628
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.0031135932658798993,
+              0.0030648465326521546,
+              0.0031106559617910534,
+              0.003110093530267477,
+              0.003111780824838206,
+              0.0031104056688491255,
+              0.0031088158721104264,
+              0.003110156103502959,
+              0.0031097537430468947
+            ],
+            "torch": [
+              0.00374060618923977,
+              0.0037343248550314456,
+              0.003740668762475252,
+              0.0037380123103503138,
+              0.0037401689041871578,
+              0.0037402001908048987,
+              0.003740762622328475,
+              0.003739137900993228,
+              0.0037416968552861363
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.0031098126783035696,
+              0.003108719101874158,
+              0.0031093120924197137,
+              0.0031074720027390867,
+              0.003093346458626911,
+              0.003109999670414254,
+              0.0031085932278074324,
+              0.0031078125175554305,
+              0.0031083443900570273
+            ],
+            "torch": [
+              0.003738825034815818,
+              0.003694387123687193,
+              0.00370595371350646,
+              0.0037419493310153484,
+              0.003738793748198077,
+              0.0037427933420985937,
+              0.003739828389370814,
+              0.0037402001908048987,
+              0.0037403246096801013
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        17,
+        65,
+        33
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": false,
+        "detail": "Tensor-likes are not close!\n\nMismatched elements: 918 / 1105 (83.1%)\nGreatest absolute difference: 15.0 at index (5, 2) (up to 0.001 allowed)\nGreatest relative difference: inf at index (1, 0) (up to 0 allowed)"
+      },
+      "median_ms": {
+        "predicated": 0.007919980998849496,
+        "torch": 0.0038898222555872053
+      },
+      "effective_tflops": {
+        "predicated": 0.009208355425422643,
+        "torch": 0.018748928667690633
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.00793273065937683,
+              0.00792044957051985,
+              0.007905918755568564,
+              0.007926949911052361,
+              0.0079166995419655,
+              0.007991572056198493,
+              0.007922103395685554,
+              0.007918574556242675,
+              0.007924446981633082
+            ],
+            "torch": [
+              0.0038894431781955063,
+              0.0038922276871744543,
+              0.0038682905142195523,
+              0.0038898222555872053,
+              0.00395697497879155,
+              0.0038886035326868296,
+              0.0038468213460873812,
+              0.003892571839969605,
+              0.0038944468542467803
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.00792413775343448,
+              0.00786723176133819,
+              0.007908356201369315,
+              0.007911731518106535,
+              0.00791619677329436,
+              0.007912449655123055,
+              0.007916825416032225,
+              0.007908606494311243,
+              0.007910137355793267
+            ],
+            "torch": [
+              0.0038661346479784697,
+              0.0038909754948690534,
+              0.003892759559676051,
+              0.003894912515534088,
+              0.0038914156903047115,
+              0.003892009408446029,
+              0.0038923812098801136,
+              0.0038507598219439387,
+              0.0038917562051210552
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.00793301296653226,
+              0.0078762968769297,
+              0.00789248151704669,
+              0.00792282517068088,
+              0.007927603292046115,
+              0.00791569982538931,
+              0.007919512427179143,
+              0.007919980998849496,
+              0.007924043165985495
+            ],
+            "torch": [
+              0.0038857906474731863,
+              0.0038837875763420016,
+              0.00388319676858373,
+              0.003881506563629955,
+              0.0038863843656145036,
+              0.0038880090869497508,
+              0.0038837250031065196,
+              0.00388206826755777,
+              0.003884291072608903
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        7,
+        1032,
+        8200
+      ],
+      "config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": false,
+        "detail": "Tensor-likes are not close!\n\nMismatched elements: 336 / 7224 (4.7%)\nGreatest absolute difference: 20.0 at index (1, 5) (up to 0.001 allowed)\nGreatest relative difference: 5.0 at index (1, 4) (up to 0 allowed)"
+      },
+      "median_ms": {
+        "predicated": 0.027251650317339227,
+        "torch": 0.033653740683803335
+      },
+      "effective_tflops": {
+        "predicated": 4.347391758678908,
+        "torch": 3.5203694327215826
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.030305024847621098,
+              0.03042021271539852,
+              0.030837353551760316,
+              0.02740376876317896,
+              0.027197462623007596,
+              0.027170059183845297,
+              0.027198340103495866,
+              0.02724134028539993,
+              0.027258681075181812
+            ],
+            "torch": [
+              0.03852846857625991,
+              0.03777936508413404,
+              0.038134012720547616,
+              0.033545900078024715,
+              0.033551712112966925,
+              0.033642521884758025,
+              0.033645178336882964,
+              0.03364908407093026,
+              0.03360280315973796
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.030745075491722673,
+              0.030647234234493226,
+              0.030368337320396677,
+              0.027176681760465726,
+              0.02724564983509481,
+              0.027200149634154513,
+              0.02720243137446232,
+              0.027213493740418926,
+              0.027252212748862803
+            ],
+            "torch": [
+              0.037433781108120456,
+              0.03869568172376603,
+              0.03841540892608464,
+              0.03420125285629183,
+              0.03361261624377221,
+              0.03362089701113291,
+              0.03364527219673619,
+              0.03364102158229798,
+              0.03366186283528805
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.030763168615521863,
+              0.03090869722655043,
+              0.030432899802690372,
+              0.027234930894337595,
+              0.02726611855905503,
+              0.027251650317339227,
+              0.02722265271586366,
+              0.027181837504031137,
+              0.02723715006140992
+            ],
+            "torch": [
+              0.03760671243071556,
+              0.0384755629056599,
+              0.03769305694731884,
+              0.03424240640015341,
+              0.033578115835553035,
+              0.033600240567466244,
+              0.033644737413851544,
+              0.033653740683803335,
+              0.03362767456565052
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        17,
+        1032,
+        8200
+      ],
+      "config": {
+        "block_m": 32,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "descriptor_only_correctness": {
+        "passed": false,
+        "detail": "Tensor-likes are not close!\n\nMismatched elements: 896 / 17544 (5.1%)\nGreatest absolute difference: 20.0 at index (1, 5) (up to 0.001 allowed)\nGreatest relative difference: 5.0 at index (1, 4) (up to 0 allowed)"
+      },
+      "median_ms": {
+        "predicated": 0.03522428451105952,
+        "torch": 0.05496172234416008
+      },
+      "effective_tflops": {
+        "predicated": 8.168273791612794,
+        "torch": 5.234945116864076
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.04064178065164015,
+              0.037270506436470896,
+              0.03514710333547555,
+              0.03516000579111278,
+              0.03518319354043342,
+              0.03522428451105952,
+              0.035266940540168434,
+              0.03526372165651992,
+              0.035208537155995145
+            ],
+            "torch": [
+              0.06386105014826171,
+              0.06319863459793851,
+              0.05493769349413924,
+              0.05498022510437295,
+              0.05496188168763183,
+              0.0549863776541315,
+              0.05500603438122198,
+              0.055003534362185746,
+              0.0549773161765188
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.04069199712830596,
+              0.037275096838129684,
+              0.03522887782310136,
+              0.035200068668928,
+              0.03520400568959303,
+              0.035158037644578144,
+              0.03517975637805648,
+              0.03520540922181681,
+              0.03517753793857992
+            ],
+            "torch": [
+              0.06294807826634496,
+              0.06362549684126861,
+              0.054851134336786345,
+              0.05487563103088178,
+              0.05487131857080385,
+              0.054894568893359974,
+              0.05510221890290268,
+              0.05485885340021923,
+              0.054825915867695585
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.04072115334565751,
+              0.04095883123227395,
+              0.03516719370963983,
+              0.03517669319990091,
+              0.035268627834739164,
+              0.03511460017762147,
+              0.0352246621332597,
+              0.03529859386617318,
+              0.035228815249865875
+            ],
+            "torch": [
+              0.06316475919447839,
+              0.059848547243746,
+              0.05491350675583817,
+              0.054937224922468886,
+              0.05496172234416008,
+              0.05497066231328063,
+              0.054977006220724434,
+              0.05494928773259744,
+              0.05495003788382746
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        31,
+        1048,
+        8184
+      ],
+      "config": {
+        "block_m": 32,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "descriptor_only_correctness": {
+        "passed": false,
+        "detail": "Tensor-likes are not close!\n\nMismatched elements: 816 / 32488 (2.5%)\nGreatest absolute difference: 6.0 at index (1, 0) (up to 0.001 allowed)\nGreatest relative difference: 6.0 at index (1, 6) (up to 0 allowed)"
+      },
+      "median_ms": {
+        "predicated": 0.03241930608055554,
+        "torch": 0.05512753123184666
+      },
+      "effective_tflops": {
+        "predicated": 16.40268248427875,
+        "torch": 9.646061996928408
+      },
+      "rounds": [
+        {
+          "seed": 1616,
+          "samples_ms": {
+            "predicated": [
+              0.038673462404403836,
+              0.03297075891168788,
+              0.03222768718842417,
+              0.032258155988529325,
+              0.03212247174815275,
+              0.03233555908082053,
+              0.032120377727551386,
+              0.03232274975744076,
+              0.0320854720484931
+            ],
+            "torch": [
+              0.06841894355602562,
+              0.06665159089607187,
+              0.05505744047695771,
+              0.05509531547431834,
+              0.05507990645128302,
+              0.055197531037265435,
+              0.055169183906400576,
+              0.05510631235665642,
+              0.055089690431486815
+            ]
+          },
+          "batch_orders": [
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1717,
+          "samples_ms": {
+            "predicated": [
+              0.03859534044750035,
+              0.033856387744890526,
+              0.03212022202205844,
+              0.03208890921087004,
+              0.03241930608055554,
+              0.03206875335308723,
+              0.03254686525906436,
+              0.032963728153845295,
+              0.03233659372199327
+            ],
+            "torch": [
+              0.06643963133683428,
+              0.06726138744852506,
+              0.055174062435980886,
+              0.05513771902769804,
+              0.055103500199038535,
+              0.05510287810466252,
+              0.055114687711466104,
+              0.0551088473002892,
+              0.05519312180695124
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        },
+        {
+          "seed": 1818,
+          "samples_ms": {
+            "predicated": [
+              0.038907831185497344,
+              0.03957109365728684,
+              0.032630550413159654,
+              0.03238074714317918,
+              0.03242564998799935,
+              0.03247074346290901,
+              0.03244202525820583,
+              0.03254845942137763,
+              0.032937853393377736
+            ],
+            "torch": [
+              0.06803604992455803,
+              0.059399715973995626,
+              0.05501319028553553,
+              0.05502028434420936,
+              0.05510756600415334,
+              0.055088468798203394,
+              0.05512753123184666,
+              0.05515678130905144,
+              0.055213777523022145
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "torch",
+              "predicated"
+            ],
+            [
+              "predicated",
+              "torch"
+            ],
+            [
+              "predicated",
+              "torch"
+            ]
+          ],
+          "graph_metadata": {
+            "predicated": {
+              "nodes": 35,
+              "kernel_nodes": 35,
+              "workspace_initialization_nodes": 3,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            },
+            "torch": {
+              "nodes": 32,
+              "kernel_nodes": 32,
+              "matmuls_per_replay": 32,
+              "mutated_input_replay": "passed",
+              "nan_output_and_sentinels": "passed"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

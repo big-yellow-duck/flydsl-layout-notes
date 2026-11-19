@@ -9,7 +9,6 @@ import re
 import runpy
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -23,16 +22,18 @@ def complete_practice(source=None, solution=None):
         "left_direct_plan": "fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(compute_thread_id)",
         "left_current": "fx.slice(left_full_tiled, (None, None, None, 0, 0, inner_k))",
     }
-    for name, expression in expressions.items():
-        pattern = rf'(?m)^([ ]*){name} = None\n\1if {name} is None:\n\1    raise NotImplementedError\("Fill in {name}\."\)'
-        source, count = re.subn(
-            pattern,
-            lambda match, name=name, expression=expression: (
-                match[1] + name + " = " + expression
-            ),
-            source,
-        )
-        assert count == 1, name
+    # Retained benchmark snapshots still contain the original practice TODOs.
+    if "raise NotImplementedError" in source:
+        for name, expression in expressions.items():
+            pattern = rf'(?m)^([ ]*){name} = None\n\1if {name} is None:\n\1    raise NotImplementedError\("Fill in {name}\."\)'
+            source, count = re.subn(
+                pattern,
+                lambda match, name=name, expression=expression: (
+                    match[1] + name + " = " + expression
+                ),
+                source,
+            )
+            assert count == 1, name
     assert "raise NotImplementedError" not in source
 
     def normalized(text):
@@ -94,19 +95,13 @@ def main():
     completed = complete_practice()
     (args.output / "completed-practice-source.txt").write_text(completed)
 
-    def execute(label, command, expected_unfinished=False):
+    def execute(label, command):
         print("START", label, flush=True)
         with (args.output / f"{label}.log").open("w") as log:
             result = subprocess.run(
                 command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=False
             )
-        text = (args.output / f"{label}.log").read_text()
-        if expected_unfinished:
-            assert (
-                result.returncode != 0
-                and "Practice not finished: Fill in left_direct_plan." in text
-            )
-        elif result.returncode:
+        if result.returncode:
             raise RuntimeError(f"{label} failed: {args.output / (label + '.log')}")
         print("DONE", label, result.returncode, flush=True)
 
@@ -145,25 +140,16 @@ def main():
         )
     execute("ownership", [sys.executable, str(HERE / "ownership.py")])
     execute("ordinary-solution", [sys.executable, str(HERE / "solution.py")])
+    practice_path = str(HERE / "practice.py")
     execute(
-        "unfinished-practice",
-        [sys.executable, str(HERE / "practice.py"), "--check-only"],
-        expected_unfinished=True,
+        "completed-practice-all",
+        [
+            sys.executable,
+            "-c",
+            f'import runpy; runpy.run_path({practice_path!r}, run_name="__main__", init_globals={{"_COURSE_CHECK_ONLY":True}})',
+        ],
     )
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".py", prefix="_completed_practice_", dir=HERE
-    ) as temporary:
-        temporary.write(completed)
-        temporary.flush()
-        execute(
-            "completed-practice-all",
-            [
-                sys.executable,
-                "-c",
-                f'import runpy; runpy.run_path({temporary.name!r}, run_name="__main__", init_globals={{"_COURSE_CHECK_ONLY":True}})',
-            ],
-        )
-        execute("completed-practice-cli", [sys.executable, temporary.name])
+    execute("completed-practice-cli", [sys.executable, practice_path])
     execute("course-check", ["pixi", "run", "gpu-check"])
     (args.output / "validation.json").write_text(
         json.dumps(
