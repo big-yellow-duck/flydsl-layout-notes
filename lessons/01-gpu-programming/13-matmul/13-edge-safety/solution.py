@@ -117,7 +117,13 @@ def validate_config(config, shape=(16, 1024, 8192)):
 
 
 def _predicated_copy(
-    atom, source, destination, coordinates, rows, columns, width, stage_valid=True
+    atom,
+    source,
+    destination,
+    coordinates,
+    rows,
+    columns,
+    width,
 ):
     """One scalar predicate per copy atom, following its native partition."""
     values = fx.size(coordinates.shape[0]).to_py_value()
@@ -137,7 +143,7 @@ def _predicated_copy(
                 coordinate = coordinates[(x * width, y, z)]
                 row = fx.get_scalar(coordinate[0])
                 column = fx.get_scalar(coordinate[1])
-                valid = (row < rows) & (column + width <= columns) & stage_valid
+                valid = (row < rows) & (column + width <= columns)
                 predicate[(x, y, z)] = valid
     fx.copy(atom, source, destination, pred=predicate)
 
@@ -237,9 +243,9 @@ def _matmul_bf16(
     wave_group = fx.thread_idx.x // THREADS_PER_GROUP
     thread_id_in_wave_group = fx.thread_idx.x % THREADS_PER_GROUP
 
-    lds_address_spaces = ir.ArrayAttr.get(
-        [ir.Attribute.parse("#gpu.address_space<workgroup>")]
-    )
+    lds_address_spaces = ir.ArrayAttr.get([
+        ir.Attribute.parse("#gpu.address_space<workgroup>")
+    ])
     barrier_scope = (
         gpu.BarrierScope.Subgroup if WAVE_GROUPS > 1 else gpu.BarrierScope.Workgroup
     )
@@ -302,31 +308,31 @@ def _matmul_bf16(
     group_m_width = min(GROUP_M, blocks_m)
     full_m_groups, tail_m_group_rows = divmod(blocks_m, group_m_width)
     split_block_layout = fx.make_ordered_layout(
-        (group_m_width, SPLIT_K, blocks_n, fx.ceildiv(blocks_m, group_m_width)),
+        (group_m_width, SPLIT_K, blocks_n, full_m_groups),
         (0, 1, 2, 3),
     )
-    block_coords = fx.idx2crd(fx.block_idx.x, split_block_layout)
-    m_group_id = fx.get_scalar(block_coords[3])
+    full_block_count = full_m_groups * group_m_width * SPLIT_K * blocks_n
 
     # FlyDSL uses these initial values to type the runtime if/else results.
-    row_in_group = fx.Int32(0)
+    block_row = fx.Int32(0)
     split_id = fx.Int32(0)
     block_col = fx.Int32(0)
-    if tail_m_group_rows > 0 and m_group_id == full_m_groups:
+    if tail_m_group_rows > 0 and fx.block_idx.x >= full_block_count:
         # Decode the short final group with the same axis order and its real row count.
-        blocks_per_m_group = group_m_width * SPLIT_K * blocks_n
         tail_block_layout = fx.make_ordered_layout(
             (tail_m_group_rows, SPLIT_K, blocks_n), (0, 1, 2)
         )
-        tail_coords = fx.idx2crd(fx.block_idx.x % blocks_per_m_group, tail_block_layout)
-        row_in_group = fx.get_scalar(tail_coords[0])
+        tail_coords = fx.idx2crd(fx.block_idx.x - full_block_count, tail_block_layout)
+        block_row = full_m_groups * group_m_width + fx.get_scalar(tail_coords[0])
         split_id = fx.get_scalar(tail_coords[1])
         block_col = fx.get_scalar(tail_coords[2])
     else:
-        row_in_group = fx.get_scalar(block_coords[0])
+        block_coords = fx.idx2crd(fx.block_idx.x, split_block_layout)
+        block_row = fx.get_scalar(block_coords[3]) * group_m_width + fx.get_scalar(
+            block_coords[0]
+        )
         split_id = fx.get_scalar(block_coords[1])
         block_col = fx.get_scalar(block_coords[2])
-    block_row = m_group_id * group_m_width + row_in_group
 
     # Select the complete block output, then this group's output tile.
     out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))

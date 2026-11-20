@@ -111,11 +111,11 @@ The block decoder keeps Lesson 12’s `fx.idx2crd` order `(row_in_group, split_i
 
 `divmod(blocks_m, group_m_width)` gives the number of complete groups and the number of physical **tile rows** left over. A tile row counts even when its matrix window is partial. For a traversal example, take five tile rows, two tile columns, two K splits, and `group_m=3`. The first group has rows 0–2 and uses block IDs 0–11. The final group has rows 3–4 and uses block IDs 12–19.
 
-The first condition, `tail_m_group_rows > 0`, is known at tracing time. For a shape with a short group, the block uses the tail branch when `m_group_id == full_m_groups`. That branch builds `tail_block_layout` with shape `(tail_m_group_rows, SPLIT_K, blocks_n)`. The `else` branch takes its coordinates from the regular layout. Both branches assign `row_in_group`, `split_id`, and `block_col`. The initial `fx.Int32(0)` values give FlyDSL the types of those branch results. [Block decoder](solution.py#L302-L330)
+The full-group layout ends at the exclusive block count `full_m_groups * group_m_width * SPLIT_K * blocks_n`. If a tail exists, its first block has exactly that ID. Subtracting the count gives a zero-based index into the tail layout `(tail_m_group_rows, SPLIT_K, blocks_n)`. Both branches produce the physical tile row, split, and column. [Block decoder](solution.py#L302-L327)
 
 In this example, `fx.make_ordered_layout((2, 2, 2), (0, 1, 2))` gives shape `(2, 2, 2)` and strides `(1, 2, 4)`. For `tail_coords = (row_in_group, split_id, block_col)`, stepping one row advances the local ID by 1, stepping one split advances it by 2, and stepping one column advances it by 4. `fx.idx2crd` maps the local ID back to the coordinates.
 
-| Block ID | Local ID (`block_id % 12`) | `tail_coords` (row, split, column) | Physical tile row |
+| Block ID | Local ID (`block_id - 12`) | `tail_coords` (row, split, column) | Physical tile row |
 | ---: | ---: | --- | ---: |
 | 12 | 0 | `(0, 0, 0)` | 3 |
 | 13 | 1 | `(1, 0, 0)` | 4 |
@@ -126,7 +126,7 @@ In this example, `fx.make_ordered_layout((2, 2, 2), (0, 1, 2))` gives shape `(2,
 | 18 | 6 | `(0, 1, 1)` | 3 |
 | 19 | 7 | `(1, 1, 1)` | 4 |
 
-Follow block 14. Its local ID is `14 % 12 = 2`, where 12 is the number of blocks in a complete group. The tail layout decodes local ID 2 as `(0, 1, 0)`. Adding the group's starting row gives `block_row = 3 + 0 = 3`.
+Follow block 14. Its local ID is `14 - 12 = 2`, where 12 is the first tail block ID. The tail layout decodes local ID 2 as `(0, 1, 0)`. Adding the group's starting row gives `block_row = 3 + 0 = 3`.
 
 An ordered layout gives each group the same row extent. The second layout supplies the shorter extent while keeping Lesson 12’s axis order. The grid launches exactly `blocks_m * blocks_n * SPLIT_K` blocks, which is 20 in this example.
 

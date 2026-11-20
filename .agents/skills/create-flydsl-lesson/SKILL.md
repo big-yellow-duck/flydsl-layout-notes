@@ -47,6 +47,10 @@ create or reuse data views → select work → assign ownership
 
 Name intermediate views. Reuse incoming views when their layouts already fit. Mapping-only lessons can evaluate layouts and record offsets without inventing input storage or a data movement step.
 
+- Keep `slice → flat_divide → slice` explicit when it shows how a block tile becomes a wave group's view. Repeat the sequence for data and coordinates so readers can compare the selected axes and trace which lane owns each access.
+- For grouped traversal with a short final group, give the full groups and the tail disjoint block-ID ranges. Subtract the first tail ID before decoding with the tail's actual row count. Use one worked comment with checked dimensions and ID ranges. For example, five tile rows, two columns, two K splits and a group width of three give full IDs 0–11 and tail IDs 12–19. When checking the decoder, also exercise a later full group and a tail after multiple full groups.
+- Put each guard where its condition is shared. For split-K loads, clear both staging destinations, then guard both loads with one stage-exists check in `load_stage`. Keep row and vector-width bounds in the copy helper so it also works for output stores. Empty stages publish zeros and partial stages still mask individual accesses.
+
 Preserve these distinctions in the prose, diagrams, and code:
 
 - A scalar logical coordinate, tuple coordinate, element offset, byte displacement, and stored value have different meanings. Show parentheses and units explicitly.

@@ -116,9 +116,7 @@ def validate_config(config, shape=(16, 1024, 8192)):
     return config
 
 
-def _predicated_copy(
-    atom, source, destination, coordinates, rows, columns, width, stage_valid=True
-):
+def _predicated_copy(atom, source, destination, coordinates, rows, columns, width):
     """One scalar predicate per copy atom, following its native partition."""
     values = fx.size(coordinates.shape[0]).to_py_value()
     rest_rows = fx.size(coordinates.shape[1]).to_py_value()
@@ -139,6 +137,7 @@ def _predicated_copy(
                 column = fx.get_scalar(coordinate[1])  # noqa: F841 -- used in TODO 1
                 # TODO 1: Fill in valid; see README.md.
                 valid = None
+                valid = (row < rows) & (column + width <= columns)
                 if valid is None:
                     raise NotImplementedError("Fill in valid.")
                 predicate[(x, y, z)] = valid
@@ -299,47 +298,40 @@ def _matmul_bf16(
     group_row = fx.get_scalar(group_coords[0])
     group_col = fx.get_scalar(group_coords[1])
 
-    # for shape (17, 1024, 8192)
-    # BLOCK_M=32, BLOCK_N=128
-    # blocks_m=1, blocks_n = 64
     out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
     blocks_m = fx.size(out_block_tiles.shape[2]).to_py_value()
     blocks_n = fx.size(out_block_tiles.shape[3]).to_py_value()
 
+    # Five tile rows, two columns, GROUP_M=3 and SPLIT_K=2 launch 20 blocks.
+    # IDs 0–11 cover rows 0–2. IDs 12–19 use tail-local IDs 0–7 for rows 3–4.
     group_m_width = min(GROUP_M, blocks_m)
-    # for shape (17, 1024, 8192)
-    # (1, 4, 64, 1): (1,1,4,256)
+    full_m_groups, tail_m_group_rows = divmod(blocks_m, group_m_width)
     split_block_layout = fx.make_ordered_layout(
-        (group_m_width, SPLIT_K, blocks_n, fx.ceildiv(blocks_m, group_m_width)),
+        (group_m_width, SPLIT_K, blocks_n, full_m_groups),
         (0, 1, 2, 3),
     )
-    print(M)
-    print(N)
-    print(K) 
-    print(split_block_layout)
-    block_coords = fx.idx2crd(fx.block_idx.x, split_block_layout)
-    m_group_id = fx.get_scalar(block_coords[3])
+    full_block_count = full_m_groups * group_m_width * SPLIT_K * blocks_n
 
-    full_m_groups, tail_m_group_rows = divmod(blocks_m, group_m_width)
     # FlyDSL uses these initial values to type the runtime if/else results.
-    row_in_group = fx.Int32(0)
+    block_row = fx.Int32(0)
     split_id = fx.Int32(0)
     block_col = fx.Int32(0)
-    if tail_m_group_rows > 0 and m_group_id == full_m_groups:
+    if tail_m_group_rows > 0 and fx.block_idx.x >= full_block_count:
         # Decode the short final group with the same axis order and its real row count.
-        blocks_per_m_group = group_m_width * SPLIT_K * blocks_n
         tail_block_layout = fx.make_ordered_layout(
             (tail_m_group_rows, SPLIT_K, blocks_n), (0, 1, 2)
         )
-        tail_coords = fx.idx2crd(fx.block_idx.x % blocks_per_m_group, tail_block_layout)
-        row_in_group = fx.get_scalar(tail_coords[0])
+        tail_coords = fx.idx2crd(fx.block_idx.x - full_block_count, tail_block_layout)
+        block_row = full_m_groups * group_m_width + fx.get_scalar(tail_coords[0])
         split_id = fx.get_scalar(tail_coords[1])
         block_col = fx.get_scalar(tail_coords[2])
     else:
-        row_in_group = fx.get_scalar(block_coords[0])
+        block_coords = fx.idx2crd(fx.block_idx.x, split_block_layout)
+        block_row = fx.get_scalar(block_coords[3]) * group_m_width + fx.get_scalar(
+            block_coords[0]
+        )
         split_id = fx.get_scalar(block_coords[1])
         block_col = fx.get_scalar(block_coords[2])
-    block_row = m_group_id * group_m_width + row_in_group
 
     # Select the complete block output, then this group's output tile.
     out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))
@@ -358,12 +350,12 @@ def _matmul_bf16(
     )
 
     # A/B block tiles cover the same output rows/columns for one K stage.
-    left_block_tiles = fx.flat_divide(left_global_view, (BLOCK_M, STAGE_K))
-    right_block_tiles = fx.flat_divide(right_global_view, (STAGE_K, BLOCK_N))
+    left_block_gmem_tiles = fx.flat_divide(left_global_view, (BLOCK_M, STAGE_K))
+    right_block_gmem_tiles = fx.flat_divide(right_global_view, (STAGE_K, BLOCK_N))
 
     # The first global A tile supplies the full-stage shape (GROUP_TILE_M, STAGE_K).
     # load_stage selects the actual source using block_row, group_row, and tile_k.
-    left_block_model = fx.slice(left_block_tiles, (None, None, 0, 0))
+    left_block_model = fx.slice(left_block_gmem_tiles, (None, None, 0, 0))
     left_group_models = fx.flat_divide(left_block_model, (GROUP_TILE_M, STAGE_K))
     left_group_global_view = fx.slice(left_group_models, (None, None, 0, 0))
 
@@ -387,7 +379,7 @@ def _matmul_bf16(
 
     # Staging copies for A and B.
     staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
-    gmem_left_load = fx.make_copy_atom(
+    gmem_left_copy_atom = fx.make_copy_atom(
         fx.rocdl.BufferCopy(16 * LEFT_VECTOR_WIDTH, LEFT_CACHE_MODIFIER), fx.BFloat16
     )
     if fx.const_expr(LEFT_IN_REGISTERS):
@@ -397,10 +389,10 @@ def _matmul_bf16(
         left_compute_fragment = fx.make_fragment_like(left_staging_fragment)
         # The copy plan assigns global values to WMMA lanes. Retile gives the
         # staging registers the view that this copy plan expects.
-        left_global_thread_copy = fx.make_tiled_copy_A(gmem_left_load, mma).get_slice(
-            thread_id_in_wave_group
-        )
-        left_global_destination = left_global_thread_copy.retile(left_staging_fragment)
+        left_gmem_thread_copy = fx.make_tiled_copy_A(
+            gmem_left_copy_atom, mma
+        ).get_slice(thread_id_in_wave_group)
+        left_gmem_destination = left_gmem_thread_copy.retile(left_staging_fragment)
     else:
         # Cooperatively load contiguous K chunks for the padded A tile in LDS.
         left_staging_thread_layout = fx.make_ordered_layout(
@@ -417,10 +409,10 @@ def _matmul_bf16(
         )
         left_staging_fragment = fx.make_fragment_like(left_staging_destination)
         # Use the same cooperative ownership for the width-selected global load.
-        left_global_thread_copy = fx.make_tiled_copy(
-            gmem_left_load, left_staging_copy_tv, left_staging_copy_tile
+        left_gmem_thread_copy = fx.make_tiled_copy(
+            gmem_left_copy_atom, left_staging_copy_tv, left_staging_copy_tile
         ).get_slice(thread_id_in_wave_group)
-        left_global_destination = left_global_thread_copy.retile(left_staging_fragment)
+        left_gmem_destination = left_gmem_thread_copy.retile(left_staging_fragment)
 
     # Cooperatively load contiguous N chunks for B's tile in LDS.
     gmem_right_load = fx.make_copy_atom(
@@ -497,14 +489,27 @@ def _matmul_bf16(
 
     def load_stage(tile_k):
         # Select matching data and coordinate tiles for this wave group and K stage.
-        left_block_view = fx.slice(left_block_tiles, (None, None, block_row, tile_k))
-        right_block_view = fx.slice(right_block_tiles, (None, None, tile_k, block_col))
-        left_group_tiles = fx.flat_divide(left_block_view, (GROUP_TILE_M, STAGE_K))
-        right_group_tiles = fx.flat_divide(right_block_view, (STAGE_K, GROUP_TILE_N))
-        left_group_view = fx.slice(left_group_tiles, (None, None, group_row, 0))
-        right_group_view = fx.slice(right_group_tiles, (None, None, 0, group_col))
-        left_global_source = left_global_thread_copy.partition_S(left_group_view)
-        right_global_source = right_global_thread_copy.partition_S(right_group_view)
+        left_block_gmem_view = fx.slice(
+            left_block_gmem_tiles, (None, None, block_row, tile_k)
+        )
+        right_block_gmem_view = fx.slice(
+            right_block_gmem_tiles, (None, None, tile_k, block_col)
+        )
+        left_group_gmem_tiles = fx.flat_divide(
+            left_block_gmem_view, (GROUP_TILE_M, STAGE_K)
+        )
+        right_group_gmem_tiles = fx.flat_divide(
+            right_block_gmem_view, (STAGE_K, GROUP_TILE_N)
+        )
+        left_group_gmem_view = fx.slice(
+            left_group_gmem_tiles, (None, None, group_row, 0)
+        )
+        right_group_gmem_view = fx.slice(
+            right_group_gmem_tiles, (None, None, 0, group_col)
+        )
+        left_gmem_source = left_gmem_thread_copy.partition_S(left_group_gmem_view)
+        right_gmem_source = right_global_thread_copy.partition_S(right_group_gmem_view)
+
         left_coordinate_block = fx.slice(
             left_coordinate_tiles, (None, None, block_row, tile_k)
         )
@@ -524,36 +529,34 @@ def _matmul_bf16(
             right_coordinate_groups, (None, None, 0, group_col)
         )
         # Each predicate follows the same lane ownership as its global load.
-        left_thread_coordinates = left_global_thread_copy.partition_S(
+        left_thread_coordinates = left_gmem_thread_copy.partition_S(
             left_group_coordinates
-        )
-        # A skipped load preserves its destination. Clear every new stage.
-        left_global_destination.fill(0)
-        stage_valid = tile_k * STAGE_K < K
-        _predicated_copy(
-            gmem_left_load,
-            left_global_source,
-            left_global_destination,
-            left_thread_coordinates,
-            M,
-            K,
-            LEFT_VECTOR_WIDTH,
-            stage_valid,
         )
         right_thread_coordinates = right_global_thread_copy.partition_S(
             right_group_coordinates
         )
+        # A skipped load preserves its destination. Clear every new stage.
+        left_gmem_destination.fill(0)
         right_global_destination.fill(0)
-        _predicated_copy(
-            gmem_right_load,
-            right_global_source,
-            right_global_destination,
-            right_thread_coordinates,
-            K,
-            N,
-            RIGHT_VECTOR_WIDTH,
-            stage_valid,
-        )
+        if tile_k * STAGE_K < K:
+            _predicated_copy(
+                gmem_left_copy_atom,
+                left_gmem_source,
+                left_gmem_destination,
+                left_thread_coordinates,
+                M,
+                K,
+                LEFT_VECTOR_WIDTH,
+            )
+            _predicated_copy(
+                gmem_right_load,
+                right_gmem_source,
+                right_global_destination,
+                right_thread_coordinates,
+                K,
+                N,
+                RIGHT_VECTOR_WIDTH,
+            )
 
     def publish_stage():
         if fx.const_expr(LEFT_IN_REGISTERS):
@@ -634,6 +637,7 @@ def _matmul_bf16(
         )
         # TODO 2: Fill in output_thread_coordinates; see README.md.
         output_thread_coordinates = None
+        output_thread_coordinates = reg2gmem_thread_copy.partition_D(group_coordinates)
         if output_thread_coordinates is None:
             raise NotImplementedError("Fill in output_thread_coordinates.")
         _predicated_copy(
@@ -644,7 +648,6 @@ def _matmul_bf16(
             M,
             N,
             1,
-            True,
         )
 
     if SPLIT_K == 1:
