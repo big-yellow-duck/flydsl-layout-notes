@@ -6,6 +6,8 @@ Keep arbitrary positive `M`, `N`, and `K` for contiguous BF16 matrices while mov
 
 Use `M=17`, `N=65`, `K=33` and a `16×64×32` tile. The row-major layouts are A `(17,33):(33,1)`, B `(33,65):(65,1)`, and C `(17,65):(65,1)`. All three descriptors have their exact byte bounds. The bottom-right tile starts at C row 16 and column 64. Its last real K stage starts at K=32.
 
+Use `Config(block_k=32, waves_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
+
 ![Four address examples distinguish M and B’s K rows beyond the buffer from A’s K columns and C’s N columns that alias the next row. A final panel shows the two empty split-K slots.](../../../../assets/01-gpu-programming/13-matmul/14-targeted-guards/guarded-axes.svg)
 
 Follow the two offsets that alias another row. For A, the extra K coordinate `(15,33)` maps to offset 528, which stores `A[16,0]`. For C, the extra N coordinate `(15,65)` maps to offset 1040, which stores `C[16,0]`. Both addresses are in bounds. At the bottom-right corner, A `[16,32]` supplies −2 and B `[32,64]` supplies −1 for the trace inputs. That K stage contributes 2 to C `[16,64]`. The full reduction gives 1 there.
@@ -96,6 +98,10 @@ pixi run python lessons/01-gpu-programming/13-matmul/14-targeted-guards/tune.py 
 pixi run python lessons/01-gpu-programming/13-matmul/14-targeted-guards/tune.py --suite square --timing both --seeds 2727 2828 2929 --output /tmp/targeted-square-verify.json
 pixi run python lessons/01-gpu-programming/13-matmul/14-targeted-guards/solution.py --shape 1024 1024 1024
 ```
+
+## Tuned shape defaults
+
+The solution and practice use independently tuned defaults for all 14 benchmark shapes. In the matched graph replay, the isolated M-tail shape `17×1024×8192` went from 0.03451 to 0.02659 ms, while Torch took 0.05828 ms. The `512³`, `1024³`, and `2048³` defaults held up in the fresh comparison. [Configurations and raw samples](results/retuned-workloads.json)
 
 ## Revision question
 

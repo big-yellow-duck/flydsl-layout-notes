@@ -1,7 +1,10 @@
 # 14 · Quantized matrix multiplication
 
-This sequence studies how low-bit weights change the path into a matrix multiply. It keeps activations in BF16, accumulates in FP32, and returns BF16 output. Begin with [01 · MXFP4 W4A16](01-mxfp4-w4a16/README.md), which decodes packed OCP MXFP4 weights and then reuses the measured operand-specific WMMA path from [lesson 12](../13-matmul/12-operand-paths/README.md).
+These lessons fuse low-bit decoding into the [mixed-width WMMA pipeline](../13-matmul/15-edge-load-widths/README.md). Both kernels prefetch compact operands, decode into BF16 tile storage, accumulate in FP32, and return BF16 output. The measured kernels use BF16 WMMA on gfx1151.
 
-The first implementation targets gfx1151/gfx1152. Those GPUs run the BF16 WMMA kernel, so the lesson makes its MXFP4-to-BF16 conversion explicit as a preceding GPU kernel. This provides a portable correctness and measurement baseline for later hardware-specific MXFP4 instructions.
+| Lesson | What to trace |
+| --- | --- |
+| [01 · MXFP4 W4A16](01-mxfp4-w4a16/README.md) | BF16 activations and packed E2M1 weights. Follow the nibble shift and the separate weight and scale byte limits. |
+| [02 · MXFP8 block-scale matmul](02-mxfp8-blockscale/README.md) | E4M3FN values on both operands. Follow the two E8M0 scale addresses for the same K coordinate. |
 
 [Previous: BF16 matmul](../13-matmul/README.md) · [GPU programming](../README.md) · [Course overview](../../../README.md)

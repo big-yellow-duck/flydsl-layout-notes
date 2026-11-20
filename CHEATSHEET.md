@@ -62,7 +62,11 @@ For the [1024³ matmul series](lessons/01-gpu-programming/13-matmul/README.md), 
 
 ### MXFP4 W4A16 weights
 
-[Lesson 14.1](lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/README.md) stores two E2M1 values per byte, with the even flat value in the low nibble. One E8M0 scale is shared by 32 K values in each N column: `scale = 2^(scale_byte - 127)`. E2M1 code bits are sign, 2-bit exponent, and 1-bit mantissa; exponent zero is subnormal. On gfx1152, the fused kernel decodes B tiles to BF16 in LDS before the existing BF16 WMMA path consumes them. It avoids a full dense temporary but does not use native MXFP4 matrix hardware.
+[Lesson 14.1](lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/README.md) stores two E2M1 values per byte, with the even flat value in the low nibble. The fused kernel decodes B tiles to BF16 in LDS for gfx11 WMMA. E8M0 uses `2^(scale_byte - 127)` for finite scales. Byte `255` supplies a NaN scale.
+
+### MXFP8 block scales
+
+Both A and B use one E4M3FN code per byte. With `Q = ceil(K/32)`, A's scale tensor is `(M,Q)` and B's is `(Q,N)`. For K coordinate `k`, read `a_scales[m,k//32]` and `b_scales[k//32,n]`. [Lesson 14.2](lessons/01-gpu-programming/14-quantized-matmul/02-mxfp8-blockscale/README.md)
 
 `fx.make_rmem_tensor(layout, fx.Float32)` allocates private accumulator slots; initialize them with `fill(0)`. Declare named `fx.Array` fields in an `@fx.struct` storage type, then use `lds = fx.SharedAllocator().allocate(SharedStorage).peek()` inside the kernel and `lds.left.view(layout)` to create a workgroup LDS view (see [matmul lesson 03](lessons/01-gpu-programming/13-matmul/03-shared-memory/README.md#2-declare-shared-storage-and-create-row-major-lds-views)). Use `fx.gpu.barrier()` both after cooperative staging and before overwriting a tile still in use.
 

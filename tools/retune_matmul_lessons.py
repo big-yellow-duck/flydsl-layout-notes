@@ -9,6 +9,7 @@ from dataclasses import asdict, replace
 from functools import partial
 from importlib.metadata import version
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import torch
 from flydsl.compiler.diagnostics import DSLCompileError
@@ -280,6 +281,9 @@ def main():
         workloads, module, _ = suites[stage]
         path = args.output / f"{stage}-{key(shape)}.json"
         if path.exists():
+            record = read(path)
+            if record["stage"] != stage or tuple(record["shape_MNK"]) != shape:
+                raise ValueError(f"Checkpoint does not match its workload: {path}")
             print(f"Reuse {number}/{len(jobs)} stage {stage} {key(shape)}", flush=True)
             continue
         print(f"Start {number}/{len(jobs)} stage {stage} {key(shape)}", flush=True)
@@ -322,9 +326,15 @@ def main():
                 (ROOT / STAGES[stage] / "solution.py").read_bytes()
             ).hexdigest(),
         )
-        with path.open("x") as output:
-            json.dump(result, output, indent=2)
-            output.write("\n")
+        with NamedTemporaryFile("w", dir=args.output, delete=False) as output:
+            temporary = Path(output.name)
+            try:
+                json.dump(result, output, indent=2)
+                output.write("\n")
+                output.flush()
+                path.hardlink_to(temporary)
+            finally:
+                temporary.unlink()
         lane = result["selected_lane"]
         rates = {
             name: statistics.median(

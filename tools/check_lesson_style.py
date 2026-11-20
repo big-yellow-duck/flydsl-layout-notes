@@ -195,6 +195,22 @@ def public_api_checks():
             packed_cpu, scales_cpu, dense_cpu = module["quantize_mxfp4"](b_cpu)
             args = (a_cpu.cuda(), packed_cpu.cuda(), scales_cpu.cuda())
             reference = (a_cpu.float() @ dense_cpu.float()).bfloat16()
+        elif operation == "matmul_mxfp8":
+            shape = module["TRACE_SHAPE"]
+            m, n, k = shape
+            kwargs["config"] = module["CONFIGS_BY_SHAPE"][shape]
+            a_cpu = ((torch.arange(m * k).reshape(m, k) % 5) - 2).bfloat16()
+            b_cpu = ((torch.arange(k * n).reshape(k, n) % 7) - 3).bfloat16()
+            encode = module["quantize_mxfp8"]
+            a, a_scales, dense_a = encode(a_cpu.T)
+            b, b_scales, dense_b = encode(b_cpu)
+            args = (
+                a.T.contiguous().cuda(),
+                b.cuda(),
+                a_scales.T.contiguous().cuda(),
+                b_scales.cuda(),
+            )
+            reference = (dense_a.T.float() @ dense_b.float()).bfloat16()
         elif path.parent.name in source_cases:
             count, dtype = source_cases[path.parent.name]
             source = torch.arange(count, dtype=dtype, device="cuda")

@@ -645,13 +645,18 @@ CONFIGS_BY_SHAPE = {
         block_k=32,
         waves_m=1,
         waves_n=2,
-        group_m=1,
         split_k=4,
-        wave_groups_m=1,
-        wave_groups_n=1,
         k_unroll=8,
-        right_cache_modifier=2,
-        left_cache_modifier=0,
+        left_in_registers=True,
+    ),
+    (32, 1024, 8192): Config(
+        block_m=32,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        split_k=4,
+        k_unroll=8,
         left_in_registers=True,
     ),
     (16, 4096, 8192): Config(
@@ -660,28 +665,162 @@ CONFIGS_BY_SHAPE = {
         block_k=16,
         waves_m=1,
         waves_n=1,
-        group_m=1,
         split_k=1,
-        wave_groups_m=1,
         wave_groups_n=2,
         k_unroll=4,
-        right_cache_modifier=2,
-        left_cache_modifier=0,
         left_in_registers=False,
     ),
-    (32, 1024, 8192): Config(
-        block_m=32,
+    (1024, 1024, 1024): Config(
+        block_m=128,
+        block_n=128,
+        block_k=32,
+        waves_m=1,
+        waves_n=4,
+        group_m=2,
+        split_k=1,
+        k_unroll=2,
+        right_cache_modifier=0,
+        left_in_registers=False,
+    ),
+    (2048, 2048, 2048): Config(
+        block_m=64,
+        block_n=64,
+        block_k=64,
+        waves_m=1,
+        waves_n=2,
+        group_m=4,
+        split_k=1,
+        k_unroll=2,
+        right_cache_modifier=1,
+        left_in_registers=True,
+    ),
+    (1, 1024, 1024): Config(
+        block_m=16,
         block_n=64,
         block_k=32,
         waves_m=1,
         waves_n=2,
-        group_m=1,
         split_k=4,
-        wave_groups_m=1,
-        wave_groups_n=1,
-        k_unroll=8,
-        right_cache_modifier=2,
-        left_cache_modifier=0,
+        k_unroll=2,
+        left_in_registers=True,
+    ),
+    (2, 1024, 1024): Config(
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        split_k=4,
+        k_unroll=1,
+        left_in_registers=True,
+    ),
+    (4, 1024, 1024): Config(
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        split_k=4,
+        k_unroll=2,
+        left_in_registers=True,
+    ),
+    (8, 1024, 1024): Config(
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        split_k=4,
+        k_unroll=2,
+        left_in_registers=True,
+    ),
+    (1, 2048, 2048): Config(
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        split_k=4,
+        k_unroll=4,
+        left_cache_modifier=2,
+        left_in_registers=True,
+    ),
+    (2, 2048, 2048): Config(
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        group_m=8,
+        split_k=4,
+        k_unroll=4,
+        left_in_registers=True,
+    ),
+    (4, 2048, 2048): Config(
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        group_m=4,
+        split_k=4,
+        k_unroll=2,
+        left_in_registers=True,
+    ),
+    (8, 2048, 2048): Config(
+        block_m=16,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=2,
+        split_k=4,
+        k_unroll=4,
+        left_in_registers=True,
+    ),
+    (2048, 512, 1024): Config(
+        block_m=64,
+        block_n=128,
+        block_k=64,
+        waves_m=2,
+        waves_n=2,
+        split_k=1,
+        k_unroll=4,
+        right_cache_modifier=0,
+        left_in_registers=False,
+    ),
+    (256, 4096, 8192): Config(
+        block_m=128,
+        block_n=128,
+        block_k=32,
+        waves_m=1,
+        waves_n=4,
+        split_k=1,
+        k_unroll=4,
+        right_cache_modifier=0,
+        left_in_registers=False,
+    ),
+    (4096, 4096, 4096): Config(
+        block_m=128,
+        block_n=128,
+        block_k=32,
+        waves_m=1,
+        waves_n=4,
+        split_k=1,
+        k_unroll=1,
+        left_in_registers=False,
+    ),
+    (512, 2048, 1024): Config(
+        block_m=32,
+        block_n=64,
+        block_k=32,
+        waves_m=1,
+        waves_n=1,
+        group_m=4,
+        split_k=1,
+        wave_groups_m=2,
+        wave_groups_n=2,
+        k_unroll=4,
+        right_cache_modifier=1,
         left_in_registers=True,
     ),
 }
@@ -984,7 +1123,8 @@ def main():
     if globals().get("_COURSE_CHECK_ONLY", False):
         from dataclasses import replace
 
-        for shape, config in CONFIGS_BY_SHAPE.items():
+        for shape in SHAPES:
+            config = CONFIGS_BY_SHAPE[shape]
             for split_k in (1, 2, 4):
                 print(
                     "Exercise passed:",
@@ -1002,7 +1142,7 @@ def main():
     args = parser.parse_args()
     shape = tuple(args.shape)
     if shape not in CONFIGS_BY_SHAPE:
-        parser.error("Choose a supported skinny shape")
+        parser.error("Choose a tuned lesson shape")
     config = CONFIGS_BY_SHAPE[shape]
     if args.split_k is not None:
         from dataclasses import replace
@@ -1045,14 +1185,19 @@ def main():
                         }
                     )
                 )
-            print(
-                json.dumps(
-                    {
-                        "paired_native_prefetch_ratio": report["ratio_to_prefetch"],
-                        "paired_native_torch_ratio": report["paired_ratio"],
-                    }
+            ratios = {
+                label: report[field]
+                for label, field in (
+                    ("paired_native_prefetch_ratio", "ratio_to_prefetch"),
+                    (
+                        "paired_native_same_geometry_prefetch_ratio",
+                        "ratio_to_matched_prefetch",
+                    ),
+                    ("paired_native_torch_ratio", "paired_ratio"),
                 )
-            )
+                if field in report
+            }
+            print(json.dumps(ratios))
     except NotImplementedError as error:
         raise SystemExit(f"Practice not finished: {error}") from None
 

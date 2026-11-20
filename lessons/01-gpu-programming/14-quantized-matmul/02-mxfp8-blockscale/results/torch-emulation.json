@@ -1,0 +1,1112 @@
+{
+  "device": "AMD Radeon 8060S Graphics",
+  "arch": "gfx1151",
+  "flydsl": "0.4.1",
+  "torch": "2.13.0+rocm10.1.0",
+  "hip": "7.16.26385",
+  "timing": "GPU event time per GEMM across shuffled graph replay batches",
+  "torch_emulation": "TorchInductor MXFP8 decode of A and B to BF16, followed by torch.matmul",
+  "native_kernel_sha256": "d9a37c2653fdbd1b9c57b802233de6892a2580e1842aedcbed83301c0532843e",
+  "shapes": [
+    {
+      "shape_MNK": [
+        17,
+        77,
+        46
+      ],
+      "selected_config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 1,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "selected_config_name": "m16n64k64_w1x2_prefetch_lds1_gm1_sk1_wg1x1_u2_ac0_bc1_ar0",
+      "selected_lane": "fused_mxfp8",
+      "verification": [
+        {
+          "seed": 5101,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.003150531277060509,
+            "torch_mxfp8_emulation": 0.007562772184610367,
+            "lesson_15_bf16": 0.0036321405321359636
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 0.03822466416278878,
+            "torch_mxfp8_emulation": 0.01592379051759106,
+            "lesson_15_bf16": 0.033156206081370855
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.0032092779874801636,
+              0.003147781267762184,
+              0.0031469061970710753,
+              0.0031574029475450517,
+              0.003150531277060509,
+              0.0031542781740427016,
+              0.003136653080582619
+            ],
+            "torch_mxfp8_emulation": [
+              0.007634647190570831,
+              0.007572771608829498,
+              0.007564149796962738,
+              0.007562772184610367,
+              0.0075508996844291685,
+              0.007542525231838226,
+              0.007562647014856339
+            ],
+            "lesson_15_bf16": [
+              0.0036321405321359636,
+              0.003631390631198883,
+              0.003638765588402748,
+              0.0036341406404972075,
+              0.0036261405795812605,
+              0.0036328904330730437,
+              0.0036298904567956926
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        },
+        {
+          "seed": 5202,
+          "replay_modified_operand": "B",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.003110906295478344,
+            "torch_mxfp8_emulation": 0.007494147121906281,
+            "lesson_15_bf16": 0.003597640618681908
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 0.03871154852045538,
+            "torch_mxfp8_emulation": 0.016069607126870337,
+            "lesson_15_bf16": 0.033474160641460075
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.0031745310872793196,
+              0.003122031316161156,
+              0.003128281235694885,
+              0.003099403157830238,
+              0.003110906295478344,
+              0.0031011562794446947,
+              0.0031085312366485596
+            ],
+            "torch_mxfp8_emulation": [
+              0.007539147138595581,
+              0.007500900328159333,
+              0.007468525320291519,
+              0.007498899847269059,
+              0.007471147179603577,
+              0.007494147121906281,
+              0.007486274838447571
+            ],
+            "lesson_15_bf16": [
+              0.0035992655903100967,
+              0.0035933904349803925,
+              0.0035995155572891234,
+              0.0035893935710191727,
+              0.003597640618681908,
+              0.0035943906754255296,
+              0.003598390519618988
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ]
+          ]
+        },
+        {
+          "seed": 5303,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.0031314030289649963,
+            "torch_mxfp8_emulation": 0.007520397007465362,
+            "lesson_15_bf16": 0.003601640462875366
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 0.03845816041118295,
+            "torch_mxfp8_emulation": 0.016013516291819872,
+            "lesson_15_bf16": 0.03343698551849798
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.0031724032014608383,
+              0.003124031238257885,
+              0.0031259063631296157,
+              0.0031862780451774597,
+              0.003128531202673912,
+              0.00315752811729908,
+              0.0031314030289649963
+            ],
+            "torch_mxfp8_emulation": [
+              0.007510522007942199,
+              0.007488896697759628,
+              0.007456649839878082,
+              0.007520397007465362,
+              0.007561022043228149,
+              0.007534399628639221,
+              0.007565893977880478
+            ],
+            "lesson_15_bf16": [
+              0.0035897687077522276,
+              0.0035916436463594437,
+              0.0036008905619382857,
+              0.003601640462875366,
+              0.003630015626549721,
+              0.0036226406693458555,
+              0.003636637330055237
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "selected_config": {
+        "block_m": 32,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 4,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "selected_config_name": "m32n128k32_w1x4_prefetch_lds1_gm1_sk4_wg1x1_u2_ac0_bc2_ar0",
+      "selected_lane": "fused_mxfp8",
+      "verification": [
+        {
+          "seed": 5101,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.0781310260295868,
+            "torch_mxfp8_emulation": 0.12800090312957763,
+            "lesson_15_bf16": 0.03515343964099884
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 6.871417659313686,
+            "torch_mxfp8_emulation": 4.194274406458804,
+            "lesson_15_bf16": 15.272215677405772
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.0781310260295868,
+              0.07804564833641052,
+              0.07821563482284546,
+              0.07821977734565735,
+              0.07821152210235596,
+              0.07805364727973937,
+              0.07804265022277831
+            ],
+            "torch_mxfp8_emulation": [
+              0.12786604166030885,
+              0.12837626934051513,
+              0.1280997633934021,
+              0.12800090312957763,
+              0.12738841772079468,
+              0.1279626488685608,
+              0.12902287244796753
+            ],
+            "lesson_15_bf16": [
+              0.03481695353984833,
+              0.03444834053516388,
+              0.0383534699678421,
+              0.03515343964099884,
+              0.03529818654060364,
+              0.0348486989736557,
+              0.03780099153518677
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        },
+        {
+          "seed": 5202,
+          "replay_modified_operand": "B",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.07814890146255493,
+            "torch_mxfp8_emulation": 0.12866376638412474,
+            "lesson_15_bf16": 0.03532281517982483
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 6.869845921727279,
+            "torch_mxfp8_emulation": 4.17266591121836,
+            "lesson_15_bf16": 15.198984261782229
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.08471808433532715,
+              0.07807265520095825,
+              0.07811252474784851,
+              0.07812402248382569,
+              0.07818177342414856,
+              0.07814890146255493,
+              0.07816677689552307
+            ],
+            "torch_mxfp8_emulation": [
+              0.1381179690361023,
+              0.12778329849243164,
+              0.1286734938621521,
+              0.12866376638412474,
+              0.12811415195465087,
+              0.12762153148651123,
+              0.12902624607086183
+            ],
+            "lesson_15_bf16": [
+              0.03520019352436066,
+              0.0350456953048706,
+              0.03549330830574036,
+              0.03532281517982483,
+              0.03847221732139587,
+              0.03496969938278198,
+              0.0354186862707138
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ]
+          ]
+        },
+        {
+          "seed": 5303,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.07818840146064758,
+            "torch_mxfp8_emulation": 0.12836364507675171,
+            "lesson_15_bf16": 0.03703589141368866
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 6.866375344304852,
+            "torch_mxfp8_emulation": 4.182421835084162,
+            "lesson_15_bf16": 14.49596301066942
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.08529381155967712,
+              0.07817327380180358,
+              0.07811252474784851,
+              0.07813289761543274,
+              0.07830914855003357,
+              0.07826877236366273,
+              0.07818840146064758
+            ],
+            "torch_mxfp8_emulation": [
+              0.13276513814926147,
+              0.12836364507675171,
+              0.12874774932861327,
+              0.12767316102981568,
+              0.1280840277671814,
+              0.12860764265060426,
+              0.12815824747085572
+            ],
+            "lesson_15_bf16": [
+              0.04170799255371094,
+              0.03512094616889953,
+              0.035284686088562014,
+              0.035298189520835875,
+              0.0388837069272995,
+              0.03895970582962036,
+              0.03703589141368866
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        31,
+        1025,
+        8193
+      ],
+      "selected_config": {
+        "block_m": 32,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 4,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "selected_config_name": "m32n128k32_w1x4_prefetch_lds1_gm1_sk4_wg1x1_u2_ac0_bc2_ar0",
+      "selected_lane": "fused_mxfp8",
+      "verification": [
+        {
+          "seed": 5101,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.09966738820075989,
+            "torch_mxfp8_emulation": 0.13922507762908937,
+            "lesson_15_bf16": 0.03403559923171997
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 5.224027230965708,
+            "torch_mxfp8_emulation": 3.7397368266305313,
+            "lesson_15_bf16": 15.297663674296604
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.09966738820075989,
+              0.09939063787460327,
+              0.09998762607574463,
+              0.09941401481628417,
+              0.09968637824058532,
+              0.09976363182067871,
+              0.09965413808822632
+            ],
+            "torch_mxfp8_emulation": [
+              0.14035441875457763,
+              0.14285471439361572,
+              0.14051727056503296,
+              0.13922507762908937,
+              0.13852596282958984,
+              0.13841233253479004,
+              0.13841758966445922
+            ],
+            "lesson_15_bf16": [
+              0.03403559923171997,
+              0.03370798826217651,
+              0.03403897881507874,
+              0.03411697149276734,
+              0.03354023993015289,
+              0.0333776205778122,
+              0.037911486625671384
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        },
+        {
+          "seed": 5202,
+          "replay_modified_operand": "B",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.09982075691223144,
+            "torch_mxfp8_emulation": 0.13838285207748413,
+            "lesson_15_bf16": 0.0333392471075058
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 5.216000820929467,
+            "torch_mxfp8_emulation": 3.762497608507636,
+            "lesson_15_bf16": 15.617183805053012
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.11131541728973389,
+              0.0995315134525299,
+              0.09976263046264648,
+              0.09981287717819214,
+              0.09991062283515931,
+              0.09982075691223144,
+              0.09989562630653381
+            ],
+            "torch_mxfp8_emulation": [
+              0.144538414478302,
+              0.13844084739685059,
+              0.13831809759140015,
+              0.1386470913887024,
+              0.13838285207748413,
+              0.13827985525131226,
+              0.13828535079956056
+            ],
+            "lesson_15_bf16": [
+              0.03352074325084686,
+              0.032985880970954895,
+              0.0333392471075058,
+              0.03648790419101715,
+              0.03709213733673096,
+              0.03299263417720795,
+              0.03327049612998963
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ]
+          ]
+        },
+        {
+          "seed": 5303,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.09988112449645996,
+            "torch_mxfp8_emulation": 0.13821197748184205,
+            "lesson_15_bf16": 0.03679214715957642
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 5.212848299665005,
+            "torch_mxfp8_emulation": 3.7671492694502815,
+            "lesson_15_bf16": 14.151529339718872
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.11019407510757447,
+              0.09960238933563233,
+              0.09988112449645996,
+              0.09978000521659851,
+              0.10021086931228637,
+              0.09997425079345704,
+              0.09981874823570251
+            ],
+            "torch_mxfp8_emulation": [
+              0.1386547088623047,
+              0.1386345863342285,
+              0.1382237195968628,
+              0.13821197748184205,
+              0.13803797960281372,
+              0.1379079818725586,
+              0.1380253553390503
+            ],
+            "lesson_15_bf16": [
+              0.03828747570514679,
+              0.033271750807762145,
+              0.033198752999305726,
+              0.03316200375556946,
+              0.03679214715957642,
+              0.03701276481151581,
+              0.03685326874256134
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        512,
+        512,
+        512
+      ],
+      "selected_config": {
+        "block_m": 64,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 2,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 2,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 1,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": false
+      },
+      "selected_config_name": "m64n64k32_w2x2_prefetch_lds1_gm1_sk2_wg1x1_u1_ac0_bc2_ar0",
+      "selected_lane": "fused_mxfp8",
+      "verification": [
+        {
+          "seed": 5101,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.02657857835292816,
+            "torch_mxfp8_emulation": 0.02421939969062805,
+            "lesson_15_bf16": 0.010503934323787689
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 10.09969203151253,
+            "torch_mxfp8_emulation": 11.083489245353752,
+            "lesson_15_bf16": 25.555705864619586
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.0263423353433609,
+              0.026654326915740968,
+              0.02645457983016968,
+              0.026656949520111085,
+              0.02656932771205902,
+              0.02657857835292816,
+              0.02674594223499298
+            ],
+            "torch_mxfp8_emulation": [
+              0.0241217777132988,
+              0.02421939969062805,
+              0.024155527353286743,
+              0.02426289618015289,
+              0.02423527240753174,
+              0.024157024919986725,
+              0.024260272085666657
+            ],
+            "lesson_15_bf16": [
+              0.010463937371969222,
+              0.010477312654256821,
+              0.010597559064626694,
+              0.010500309616327285,
+              0.010524309426546096,
+              0.010503934323787689,
+              0.010562305897474289
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        },
+        {
+          "seed": 5202,
+          "replay_modified_operand": "B",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.027081561088562012,
+            "torch_mxfp8_emulation": 0.02428564727306366,
+            "lesson_15_bf16": 0.011716271936893462
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 9.912111606940362,
+            "torch_mxfp8_emulation": 11.053255158561669,
+            "lesson_15_bf16": 22.911337108412567
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.0301238477230072,
+              0.03245740234851837,
+              0.032104161381721494,
+              0.027081561088562012,
+              0.026523327827453612,
+              0.026673200726509094,
+              0.026548951864242554
+            ],
+            "torch_mxfp8_emulation": [
+              0.02801291048526764,
+              0.028001660108566286,
+              0.026547953486442566,
+              0.02425926923751831,
+              0.024229900538921358,
+              0.02428564727306366,
+              0.02424852252006531
+            ],
+            "lesson_15_bf16": [
+              0.011716271936893462,
+              0.012268628180027007,
+              0.01177389696240425,
+              0.01241837814450264,
+              0.010605434328317643,
+              0.010568306595087052,
+              0.010559559613466264
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "fused_mxfp8",
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16"
+            ]
+          ]
+        },
+        {
+          "seed": 5303,
+          "replay_modified_operand": "A",
+          "gemms_per_graph": 32,
+          "graph_replays_per_batch": 10,
+          "batches": 7,
+          "median_ms": {
+            "fused_mxfp8": 0.026714950799942017,
+            "torch_mxfp8_emulation": 0.025420737266540528,
+            "lesson_15_bf16": 0.010619430989027023
+          },
+          "effective_tflops": {
+            "fused_mxfp8": 10.048135892527364,
+            "torch_mxfp8_emulation": 10.559703803450347,
+            "lesson_15_bf16": 25.277762648240973
+          },
+          "samples_ms": {
+            "fused_mxfp8": [
+              0.02983860671520233,
+              0.03178117275238037,
+              0.031225061416625975,
+              0.026655951142311098,
+              0.026659324765205383,
+              0.026634949445724487,
+              0.026714950799942017
+            ],
+            "torch_mxfp8_emulation": [
+              0.02774054408073425,
+              0.027972161769866943,
+              0.027033066749572753,
+              0.025420737266540528,
+              0.024158400297164918,
+              0.024219393730163574,
+              0.02424364984035492
+            ],
+            "lesson_15_bf16": [
+              0.01281099021434784,
+              0.011708775162696838,
+              0.011763396859169006,
+              0.010584305971860886,
+              0.010600556433200837,
+              0.010595684498548507,
+              0.010619430989027023
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp8",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation",
+              "fused_mxfp8"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp8"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ],
+            [
+              "torch_mxfp8_emulation",
+              "fused_mxfp8",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp8",
+              "lesson_15_bf16",
+              "torch_mxfp8_emulation"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

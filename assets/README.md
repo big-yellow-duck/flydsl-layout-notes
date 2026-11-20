@@ -50,7 +50,8 @@ assets/
     │   ├── 14-targeted-guards/
     │   └── 15-edge-load-widths/
     └── 14-quantized-matmul/
-        └── 01-mxfp4-w4a16/
+        ├── 01-mxfp4-w4a16/
+        └── 02-mxfp8-blockscale/
 ```
 
 Stage 05 includes `tiled-mma-waves.svg` and its PNG preview, showing the four wave32 groups in a 32×32 output block.

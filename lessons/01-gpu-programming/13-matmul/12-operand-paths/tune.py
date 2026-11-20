@@ -104,11 +104,10 @@ def measure(launches, data, batches=7, repeats=20, order_seed=0, timing="graph-h
 
 def controls(shape, config):
     key = "x".join(map(str, shape))
-    tuned = PREFETCH["Config"].from_dict(PREFETCH_SELECTION["shapes"][key])
-    launches = {
-        "prefetch": partial(PREFETCH["matmul_bf16"], config=tuned),
-        "torch": COMMON["torch_launch"],
-    }
+    launches = {"torch": COMMON["torch_launch"]}
+    if key in PREFETCH_SELECTION["shapes"]:
+        tuned = PREFETCH["Config"].from_dict(PREFETCH_SELECTION["shapes"][key])
+        launches["prefetch"] = partial(PREFETCH["matmul_bf16"], config=tuned)
     compatible = {
         name: value
         for name, value in asdict(config).items()
@@ -129,19 +128,20 @@ def environment(shape):
     factory_hash = hashlib.sha256(
         inspect.getsource(MODULE["_matmul_bf16"]._original_func).encode()
     ).hexdigest()
+    prefetch = PREFETCH_SELECTION["shapes"].get("x".join(map(str, shape)))
     return {
         **COMMON["environment"](),
         "kernel_build_sha256": factory_hash,
         "native_factory_sha256": factory_hash,
-        "comparison": "operand_paths_vs_prefetch",
+        "comparison": "operand_paths_vs_prefetch"
+        if prefetch
+        else "operand_paths_vs_torch",
         "candidate": "operand_paths",
         "source_sha256": {
             name: hashlib.sha256((HERE / name).read_bytes()).hexdigest()
             for name in ("solution.py", "tune.py")
         },
-        "controls": {
-            "prefetch": PREFETCH_SELECTION["shapes"]["x".join(map(str, shape))],
-        },
+        "controls": {"prefetch": prefetch} if prefetch else {},
         "prefetch_selection_sha256": hashlib.sha256(
             (HERE / "results/prefetch-control.json").read_bytes()
         ).hexdigest(),
@@ -179,11 +179,12 @@ def compare(config, shape, timing="graph-host", *, matmul=None):
 
 def verify(config, shape, seeds, timing):
     configure(shape)
+    context = environment(shape)
     result = {
         "kind": "held_out_verification",
-        "comparison": "operand_paths_vs_prefetch",
+        "comparison": context["comparison"],
         "config": asdict(config),
-        "environment": environment(shape),
+        "environment": context,
         "seeds": seeds,
         "timing": timing,
         "rounds": [],

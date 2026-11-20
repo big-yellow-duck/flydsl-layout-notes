@@ -8,6 +8,8 @@ Complete [predicates and tails](../../10-predicates-and-tails/README.md) and [op
 
 Use **M=17, N=65, K=33**, with a **16×64×32** group tile. A has layout `(17,33):(33,1)`, B has `(33,65):(65,1)`, and C has `(17,65):(65,1)`. All storage is row-major BF16; accumulation is FP32.
 
+Use `Config(block_k=32, waves_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
+
 The output needs two tile rows and two tile columns. The corner window starts at output `(16,64)`. Its final K stage starts at 32. Only one row, column, and reduction position remain valid.
 
 ![The final corner of a 17 by 65 by 33 multiplication: only A coordinate (16,32), B coordinate (32,64), and C coordinate (16,64) are valid in the displayed windows. Invalid A/B values remain zero and invalid C stores are skipped.](../../../../assets/01-gpu-programming/13-matmul/13-edge-safety/edge-predicates.svg)
@@ -135,6 +137,10 @@ pixi run gpu-check
 ```
 
 The starter reports `Practice not finished:`. The [worked solution](solution.py) and a completed practice report `Exercise passed:` for each example. Calls without an explicit config get a valid shape-based default; the listed timing examples use measured configurations. Workspaces remain isolated per configuration, shape, device, stream, and capture, and reuse is serialized on a stream.
+
+## Tuned shape defaults
+
+The cross-stage retune registers 13 workloads, including the descriptor experiment and the scalar, 32-bit, and 64-bit edge cases. The selected `31×1036×8204` config runs at 0.036889 ms versus 0.170685 ms for its starting config and 0.055186 ms for Torch. All times are matched graph-replay medians. [Per-shape results and selected configs](results/retuned-workloads.json)
 
 ## Revision question
 

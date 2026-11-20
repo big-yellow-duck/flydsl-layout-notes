@@ -48,7 +48,9 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
     fused = runpy.run_path(
         str(Path(__file__).resolve().with_name("fused_matmul.py"))
     )
-    operand_paths = module["_OPERAND_PATHS"]
+    operand_paths = runpy.run_path(
+        str(LESSON.parents[1] / "13-matmul/12-operand-paths/solution.py")
+    )
     m, n, k = shape
     seed = 13
     generator = torch.Generator().manual_seed(seed)
@@ -74,7 +76,7 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
         record = next(row for row in records if tuple(row["shape_MNK"]) == shape)
         config_values = record["final_comparison"]["config"]
         config_source = "lesson register-unpack tuning"
-    config = module["Config"](**config_values)
+    config = operand_paths["Config"].from_dict(config_values)
 
     def baseline_unpack():
         module["_launch_matmul_mxfp4_w4a16"](

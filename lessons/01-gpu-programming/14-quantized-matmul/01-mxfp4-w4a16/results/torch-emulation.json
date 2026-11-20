@@ -1,0 +1,2403 @@
+{
+  "device": "AMD Radeon 8060S Graphics",
+  "arch": "gfx1151",
+  "flydsl": "0.4.1",
+  "torch": "2.13.0+rocm10.1.0",
+  "hip": "7.16.26385",
+  "timing": "GPU event time per GEMM across shuffled graph replay batches",
+  "torch_emulation": "TorchInductor MXFP4 decode to BF16, followed by torch.matmul",
+  "native_kernel_sha256": "fbe9f19a04fbd90778cc14ed68849663aa6a161e95a83b229cfee06318b38871",
+  "legacy_source_sha256": "40e05abd6b3e96163176eeb1f06cc544ab66b68816db0d4a83b34b7b73d551fd",
+  "shapes": [
+    {
+      "shape_MNK": [
+        16,
+        1024,
+        8192
+      ],
+      "selected_config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 0,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "selected_config_name": "m16n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u2_ac0_bc0_ar1",
+      "selected_lane": "fused_mxfp4_w4a16",
+      "verification": [
+        {
+          "seed": 5101,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.04701046049594879,
+            "torch_mxfp4_emulation": 0.09015353918075561,
+            "lesson_15_bf16": 0.022066330909729003,
+            "legacy_fused": 0.05921871662139892,
+            "register_unpack_plus_matmul": 0.058437240123748777,
+            "scalar_unpack_plus_matmul": 0.09634897112846375
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 5.710121814763608,
+            "torch_mxfp4_emulation": 2.9775365275654186,
+            "lesson_15_bf16": 12.164933857746478,
+            "legacy_fused": 4.532949569241421,
+            "register_unpack_plus_matmul": 4.593568338127391,
+            "scalar_unpack_plus_matmul": 2.786074961216663
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.04704095125198364,
+              0.04707132279872894,
+              0.047009581327438356,
+              0.04706420600414276,
+              0.04701046049594879,
+              0.04688883721828461,
+              0.04696196019649505
+            ],
+            "torch_mxfp4_emulation": [
+              0.09045004844665527,
+              0.08964579105377198,
+              0.08983003497123718,
+              0.09009877443313599,
+              0.09015353918075561,
+              0.09120150208473206,
+              0.09025027751922607
+            ],
+            "lesson_15_bf16": [
+              0.021856808662414552,
+              0.022138580679893494,
+              0.02171034663915634,
+              0.02220420688390732,
+              0.021852965652942657,
+              0.022066330909729003,
+              0.022362199425697327
+            ],
+            "legacy_fused": [
+              0.05908583998680115,
+              0.059318578243255614,
+              0.05916133522987366,
+              0.05919883847236633,
+              0.059290838241577146,
+              0.05921871662139892,
+              0.059336960315704346
+            ],
+            "register_unpack_plus_matmul": [
+              0.05808599591255188,
+              0.058131247758865356,
+              0.058503609895706174,
+              0.058437240123748777,
+              0.05826424360275269,
+              0.058770596981048584,
+              0.058576107025146484
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.09628858566284179,
+              0.09623908996582031,
+              0.09632458686828613,
+              0.09634897112846375,
+              0.09705732464790344,
+              0.09826553463935853,
+              0.09683257937431336
+            ]
+          },
+          "batch_orders": [
+            [
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "legacy_fused",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "legacy_fused"
+            ],
+            [
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5202,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.04702121615409851,
+            "torch_mxfp4_emulation": 0.08940106034278869,
+            "lesson_15_bf16": 0.022111080586910248,
+            "legacy_fused": 0.05928708910942078,
+            "register_unpack_plus_matmul": 0.05797276496887207,
+            "scalar_unpack_plus_matmul": 0.09668172001838685
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 5.708815678443535,
+            "torch_mxfp4_emulation": 3.002598123229672,
+            "lesson_15_bf16": 12.14031376462504,
+            "legacy_fused": 4.527721971719225,
+            "register_unpack_plus_matmul": 4.630371798621885,
+            "scalar_unpack_plus_matmul": 2.7764861439054784
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.050532227754592894,
+              0.046953055262565616,
+              0.04696720540523529,
+              0.04696577489376068,
+              0.04703546166419983,
+              0.047032585740089415,
+              0.04702121615409851
+            ],
+            "torch_mxfp4_emulation": [
+              0.08976779580116272,
+              0.08988772630691529,
+              0.08940106034278869,
+              0.0893881857395172,
+              0.08954980373382568,
+              0.08933505415916443,
+              0.0893279492855072
+            ],
+            "lesson_15_bf16": [
+              0.024949494004249572,
+              0.021944275498390196,
+              0.023836655914783476,
+              0.021888218820095062,
+              0.022111080586910248,
+              0.022003212571144105,
+              0.023825909197330474
+            ],
+            "legacy_fused": [
+              0.05917746424674988,
+              0.05928708910942078,
+              0.05928596258163452,
+              0.0592484712600708,
+              0.059332460165023804,
+              0.05930646061897278,
+              0.05949033498764038
+            ],
+            "register_unpack_plus_matmul": [
+              0.05868598818778992,
+              0.05781063437461853,
+              0.05760576128959656,
+              0.05798187851905823,
+              0.05786837935447693,
+              0.0580097496509552,
+              0.05797276496887207
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.09754149913787842,
+              0.0967103362083435,
+              0.09613122940063476,
+              0.09674620628356934,
+              0.09630910158157349,
+              0.09668172001838685,
+              0.09625623822212219
+            ]
+          },
+          "batch_orders": [
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "scalar_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "legacy_fused"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5303,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.04704071283340454,
+            "torch_mxfp4_emulation": 0.09010316729545594,
+            "lesson_15_bf16": 0.021999584138393403,
+            "legacy_fused": 0.059335970878601076,
+            "register_unpack_plus_matmul": 0.058172750473022464,
+            "scalar_unpack_plus_matmul": 0.0961966097354889
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 5.706449580189582,
+            "torch_mxfp4_emulation": 2.9792011097654023,
+            "lesson_15_bf16": 12.201842285351647,
+            "legacy_fused": 4.523991973590653,
+            "register_unpack_plus_matmul": 4.61445356833328,
+            "scalar_unpack_plus_matmul": 2.7904876974158963
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.04703246355056763,
+              0.04694908857345581,
+              0.047328454256057736,
+              0.04734133183956146,
+              0.047288703918457034,
+              0.04695883989334106,
+              0.04704071283340454
+            ],
+            "torch_mxfp4_emulation": [
+              0.10161268711090088,
+              0.08959355354309081,
+              0.08934368491172791,
+              0.09165511727333069,
+              0.09010941982269287,
+              0.09010316729545594,
+              0.08940882086753846
+            ],
+            "lesson_15_bf16": [
+              0.023182427883148192,
+              0.021787096560001374,
+              0.021999584138393403,
+              0.022240084409713746,
+              0.02221658080816269,
+              0.021903716027736664,
+              0.021804343163967132
+            ],
+            "legacy_fused": [
+              0.059254467487335205,
+              0.05938558578491211,
+              0.059335970878601076,
+              0.05923397541046142,
+              0.059412586688995364,
+              0.059378838539123534,
+              0.05928484201431274
+            ],
+            "register_unpack_plus_matmul": [
+              0.058172750473022464,
+              0.05788563489913941,
+              0.05841425061225891,
+              0.060326188802719116,
+              0.05854411125183105,
+              0.057836014032363894,
+              0.05777913928031921
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.09606473445892334,
+              0.09612586498260497,
+              0.09697571396827698,
+              0.09622598886489868,
+              0.09646247625350952,
+              0.09618573784828185,
+              0.0961966097354889
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "lesson_15_bf16"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused"
+            ],
+            [
+              "register_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "legacy_fused"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        32,
+        1024,
+        8192
+      ],
+      "selected_config": {
+        "block_m": 32,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 0,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "selected_config_name": "m32n64k32_w1x2_prefetch_lds1_gm1_sk4_wg1x1_u2_ac0_bc0_ar1",
+      "selected_lane": "fused_mxfp4_w4a16",
+      "verification": [
+        {
+          "seed": 5101,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.05371001362800598,
+            "torch_mxfp4_emulation": 0.12376228570938111,
+            "lesson_15_bf16": 0.035640674829483035,
+            "legacy_fused": 0.07367128729820252,
+            "register_unpack_plus_matmul": 0.07262781262397766,
+            "scalar_unpack_plus_matmul": 0.11112778186798096
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 9.99573218726684,
+            "torch_mxfp4_emulation": 4.337920142010641,
+            "lesson_15_bf16": 15.063432849365812,
+            "legacy_fused": 7.287383344163432,
+            "register_unpack_plus_matmul": 7.392084280158468,
+            "scalar_unpack_plus_matmul": 4.83111336315341
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.05381003618240356,
+              0.05367463827133179,
+              0.05371001362800598,
+              0.053675389289855956,
+              0.05370676517486572,
+              0.053993630409240725,
+              0.053777259588241574
+            ],
+            "torch_mxfp4_emulation": [
+              0.1245532512664795,
+              0.1236600399017334,
+              0.12292243242263794,
+              0.12287255525588989,
+              0.12434852123260498,
+              0.12376228570938111,
+              0.12465600967407227
+            ],
+            "lesson_15_bf16": [
+              0.03564430475234985,
+              0.035772427916526794,
+              0.035005325078964235,
+              0.035168567299842836,
+              0.035640674829483035,
+              0.03898195326328278,
+              0.03528943955898285
+            ],
+            "legacy_fused": [
+              0.07370078563690186,
+              0.07367803454399109,
+              0.07367128729820252,
+              0.0736785352230072,
+              0.07361428737640381,
+              0.07366428971290588,
+              0.07365566492080688
+            ],
+            "register_unpack_plus_matmul": [
+              0.07278906106948853,
+              0.07259506583213807,
+              0.07279006242752076,
+              0.07224583029747009,
+              0.07235394716262818,
+              0.07262781262397766,
+              0.0727570652961731
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.11117302179336548,
+              0.11112778186798096,
+              0.11118690967559815,
+              0.11090779304504395,
+              0.11242913007736206,
+              0.11035881042480469,
+              0.11061517000198365
+            ]
+          },
+          "batch_orders": [
+            [
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "legacy_fused",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "legacy_fused"
+            ],
+            [
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5202,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.05379638671875,
+            "torch_mxfp4_emulation": 0.1232195496559143,
+            "lesson_15_bf16": 0.03530106544494629,
+            "legacy_fused": 0.07367616295814514,
+            "register_unpack_plus_matmul": 0.07285043597221375,
+            "scalar_unpack_plus_matmul": 0.11224137544631958
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 9.979683483331064,
+            "torch_mxfp4_emulation": 4.357027058605478,
+            "lesson_15_bf16": 15.20834867823681,
+            "legacy_fused": 7.28690108773705,
+            "register_unpack_plus_matmul": 7.369494840151274,
+            "scalar_unpack_plus_matmul": 4.7831818691206545
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.05405600070953369,
+              0.05374001264572144,
+              0.05374351143836975,
+              0.05376288890838623,
+              0.053839761018753055,
+              0.05385788679122925,
+              0.05379638671875
+            ],
+            "torch_mxfp4_emulation": [
+              0.12320729494094848,
+              0.12329092025756835,
+              0.12415902614593506,
+              0.12276206016540528,
+              0.12256519794464112,
+              0.12363903522491455,
+              0.1232195496559143
+            ],
+            "lesson_15_bf16": [
+              0.04219922721385956,
+              0.03512207269668579,
+              0.03885620832443237,
+              0.03530106544494629,
+              0.03529481589794159,
+              0.03501532375812531,
+              0.03927569389343262
+            ],
+            "legacy_fused": [
+              0.07368053793907166,
+              0.0736574113368988,
+              0.07367616295814514,
+              0.07365303635597228,
+              0.07370066046714782,
+              0.073649662733078,
+              0.07369703650474549
+            ],
+            "register_unpack_plus_matmul": [
+              0.07295581102371215,
+              0.07177084684371948,
+              0.0721921980381012,
+              0.07289468646049499,
+              0.07305243015289306,
+              0.07285043597221375,
+              0.07240170240402222
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.11319297552108765,
+              0.11066192388534546,
+              0.11033344268798828,
+              0.1125638723373413,
+              0.11116229295730591,
+              0.11254475116729737,
+              0.11224137544631958
+            ]
+          },
+          "batch_orders": [
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "scalar_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "legacy_fused"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5303,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.0537772536277771,
+            "torch_mxfp4_emulation": 0.12380528450012207,
+            "lesson_15_bf16": 0.03554580807685852,
+            "legacy_fused": 0.07366803884506226,
+            "register_unpack_plus_matmul": 0.07268143892288208,
+            "scalar_unpack_plus_matmul": 0.11094517707824707
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 9.983234095887237,
+            "torch_mxfp4_emulation": 4.336413539758642,
+            "lesson_15_bf16": 15.10363502889446,
+            "legacy_fused": 7.287704687363004,
+            "register_unpack_plus_matmul": 7.386630203753142,
+            "scalar_unpack_plus_matmul": 4.83906489798432
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.05374951362609863,
+              0.05367913842201233,
+              0.05416887402534485,
+              0.054111248254776,
+              0.05418199896812439,
+              0.05371989011764526,
+              0.0537772536277771
+            ],
+            "torch_mxfp4_emulation": [
+              0.12448025941848755,
+              0.12380353212356568,
+              0.1236427903175354,
+              0.12439838647842408,
+              0.12329792976379395,
+              0.12380528450012207,
+              0.12423964738845825
+            ],
+            "lesson_15_bf16": [
+              0.03836159706115723,
+              0.03518319129943848,
+              0.03554580807685852,
+              0.0356065571308136,
+              0.035568931698799135,
+              0.03458346128463745,
+              0.03519094288349152
+            ],
+            "legacy_fused": [
+              0.07367365956306457,
+              0.07366928458213806,
+              0.07365066409111024,
+              0.07363903522491455,
+              0.07367528676986694,
+              0.07365941405296325,
+              0.07366803884506226
+            ],
+            "register_unpack_plus_matmul": [
+              0.07177259922027587,
+              0.072029709815979,
+              0.07432677149772644,
+              0.07263994216918945,
+              0.07432076930999756,
+              0.07283881306648254,
+              0.07268143892288208
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.11026808023452758,
+              0.11058831214904785,
+              0.11286249160766601,
+              0.11087180376052856,
+              0.11188101768493652,
+              0.11122316122055054,
+              0.11094517707824707
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "lesson_15_bf16"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused"
+            ],
+            [
+              "register_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "legacy_fused"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        16,
+        4096,
+        8192
+      ],
+      "selected_config": {
+        "block_m": 16,
+        "block_n": 64,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 2,
+        "group_m": 2,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "selected_config_name": "m16n64k64_w1x2_prefetch_lds1_gm2_sk4_wg1x1_u2_ac0_bc2_ar1",
+      "selected_lane": "fused_mxfp4_w4a16",
+      "verification": [
+        {
+          "seed": 5101,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.12706581354141236,
+            "torch_mxfp4_emulation": 0.7730236530303956,
+            "lesson_15_bf16": 0.36383509635925293,
+            "legacy_fused": 0.3660794019699097,
+            "register_unpack_plus_matmul": 0.7900002479553223,
+            "scalar_unpack_plus_matmul": 0.8684235572814941
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 8.450280953421464,
+            "torch_mxfp4_emulation": 1.3890154845724756,
+            "lesson_15_bf16": 2.951177153453555,
+            "legacy_fused": 2.9330845117810194,
+            "register_unpack_plus_matmul": 1.3591664392246172,
+            "scalar_unpack_plus_matmul": 1.2364264131217633
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.1276028037071228,
+              0.12660545110702515,
+              0.12672882080078124,
+              0.1272482991218567,
+              0.1268267035484314,
+              0.12760891914367675,
+              0.12706581354141236
+            ],
+            "torch_mxfp4_emulation": [
+              0.773360300064087,
+              0.7840842247009278,
+              0.7709132671356201,
+              0.7704830169677734,
+              0.7730236530303956,
+              0.773474931716919,
+              0.7721243381500245
+            ],
+            "lesson_15_bf16": [
+              0.364458703994751,
+              0.3638759136199951,
+              0.36383509635925293,
+              0.36215665340423586,
+              0.3614808082580566,
+              0.36367771625518797,
+              0.36434507369995117
+            ],
+            "legacy_fused": [
+              0.36713075637817383,
+              0.3666407585144043,
+              0.36595988273620605,
+              0.3660794019699097,
+              0.3658336400985718,
+              0.3657611608505249,
+              0.3661110162734985
+            ],
+            "register_unpack_plus_matmul": [
+              0.7893362998962402,
+              0.7902211666107177,
+              0.7888768672943115,
+              0.7903463840484619,
+              0.7900002479553223,
+              0.7903602123260498,
+              0.7889568328857421
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.8661705017089844,
+              0.8661970138549805,
+              0.8687327384948731,
+              0.8685782432556153,
+              0.8684235572814941,
+              0.8674846649169922,
+              0.8692510604858399
+            ]
+          },
+          "batch_orders": [
+            [
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "legacy_fused",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "legacy_fused"
+            ],
+            [
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5202,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.12680716514587403,
+            "torch_mxfp4_emulation": 0.7720093250274658,
+            "lesson_15_bf16": 0.3622960090637207,
+            "legacy_fused": 0.36558291912078855,
+            "register_unpack_plus_matmul": 0.7890885353088379,
+            "scalar_unpack_plus_matmul": 0.8679156303405762
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 8.467516979539832,
+            "torch_mxfp4_emulation": 1.3908404849407738,
+            "lesson_15_bf16": 2.9637141926428177,
+            "legacy_fused": 2.9370678109970334,
+            "register_unpack_plus_matmul": 1.3607368197026877,
+            "scalar_unpack_plus_matmul": 1.2371500022169852
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.12751729488372804,
+              0.126665198802948,
+              0.12664157152175903,
+              0.12664808034896852,
+              0.12680716514587403,
+              0.12687532901763915,
+              0.12687982320785524
+            ],
+            "torch_mxfp4_emulation": [
+              0.7706661701202393,
+              0.772679328918457,
+              0.7708135128021241,
+              0.7712506294250489,
+              0.7744506359100342,
+              0.7722650527954101,
+              0.7720093250274658
+            ],
+            "lesson_15_bf16": [
+              0.36125342845916747,
+              0.36186065673828127,
+              0.36432595252990724,
+              0.3648505449295044,
+              0.3643264532089233,
+              0.3622405529022217,
+              0.3622960090637207
+            ],
+            "legacy_fused": [
+              0.3654352903366089,
+              0.36558291912078855,
+              0.363510799407959,
+              0.36616427898406984,
+              0.3661317825317383,
+              0.3666858673095703,
+              0.36491644382476807
+            ],
+            "register_unpack_plus_matmul": [
+              0.7898642063140869,
+              0.7903573036193847,
+              0.7878536701202392,
+              0.7895876884460449,
+              0.7890885353088379,
+              0.7881550312042236,
+              0.788355827331543
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.8679405212402344,
+              0.8687839508056641,
+              0.8687624931335449,
+              0.8670289039611816,
+              0.8660679817199707,
+              0.8679156303405762,
+              0.8677206993103027
+            ]
+          },
+          "batch_orders": [
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "scalar_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "scalar_unpack_plus_matmul",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "legacy_fused"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "legacy_fused",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5303,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.12716493606567383,
+            "torch_mxfp4_emulation": 0.7739503383636475,
+            "lesson_15_bf16": 0.364438796043396,
+            "legacy_fused": 0.36680624485015867,
+            "register_unpack_plus_matmul": 0.7878765106201172,
+            "scalar_unpack_plus_matmul": 0.8675662040710449
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 8.443694128430735,
+            "torch_mxfp4_emulation": 1.3873523542482036,
+            "lesson_15_bf16": 2.9462884732835715,
+            "legacy_fused": 2.9272724744329977,
+            "register_unpack_plus_matmul": 1.3628301003096102,
+            "scalar_unpack_plus_matmul": 1.237648284317068
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.13107507228851317,
+              0.12716493606567383,
+              0.12726106643676757,
+              0.1269631266593933,
+              0.12697757482528688,
+              0.12686970233917236,
+              0.12756067514419556
+            ],
+            "torch_mxfp4_emulation": [
+              0.7742541313171387,
+              0.7716122627258301,
+              0.7733431816101074,
+              0.7728119373321534,
+              0.7750759124755859,
+              0.7739503383636475,
+              0.7745608806610107
+            ],
+            "lesson_15_bf16": [
+              0.3652849912643433,
+              0.364438796043396,
+              0.36497929096221926,
+              0.36515493392944337,
+              0.3613713026046753,
+              0.36123366355895997,
+              0.36150715351104734
+            ],
+            "legacy_fused": [
+              0.36680624485015867,
+              0.3650251626968384,
+              0.3648850440979004,
+              0.3672473430633545,
+              0.36690824031829833,
+              0.36607768535614016,
+              0.36717350482940675
+            ],
+            "register_unpack_plus_matmul": [
+              0.7926267623901367,
+              0.7883205413818359,
+              0.7878765106201172,
+              0.7872509002685547,
+              0.7862832069396972,
+              0.7883080005645752,
+              0.7857105255126953
+            ],
+            "scalar_unpack_plus_matmul": [
+              0.8671476364135742,
+              0.8692471504211425,
+              0.8660857200622558,
+              0.8675662040710449,
+              0.869512939453125,
+              0.8647335052490235,
+              0.8689922332763672
+            ]
+          },
+          "batch_orders": [
+            [
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "lesson_15_bf16"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "legacy_fused"
+            ],
+            [
+              "register_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul"
+            ],
+            [
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16",
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "legacy_fused",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "scalar_unpack_plus_matmul",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "scalar_unpack_plus_matmul",
+              "legacy_fused",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "register_unpack_plus_matmul"
+            ],
+            [
+              "lesson_15_bf16",
+              "scalar_unpack_plus_matmul",
+              "fused_mxfp4_w4a16",
+              "register_unpack_plus_matmul",
+              "torch_mxfp4_emulation",
+              "legacy_fused"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        17,
+        77,
+        46
+      ],
+      "selected_config": {
+        "block_m": 16,
+        "block_n": 32,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 1,
+        "group_m": 1,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 0,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "selected_config_name": "m16n32k64_w1x1_prefetch_lds1_gm1_sk1_wg1x1_u2_ac0_bc0_ar1",
+      "selected_lane": "fused_mxfp4_w4a16",
+      "verification": [
+        {
+          "seed": 5101,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.0028135405853390695,
+            "torch_mxfp4_emulation": 0.0056807029992342,
+            "lesson_15_bf16": 0.0036115188151597975
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 0.042803007935102104,
+            "torch_mxfp4_emulation": 0.02119948886893657,
+            "lesson_15_bf16": 0.03334552750894957
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.0028611624613404272,
+              0.0028022905811667443,
+              0.0027995405718684195,
+              0.0028082937002182006,
+              0.0028135405853390695,
+              0.002847040630877018,
+              0.002843415550887585
+            ],
+            "torch_mxfp4_emulation": [
+              0.005702077969908714,
+              0.00565808117389679,
+              0.005664953216910362,
+              0.0056508280336856846,
+              0.0056807029992342,
+              0.0057137031108140945,
+              0.005718953162431717
+            ],
+            "lesson_15_bf16": [
+              0.0036115188151597975,
+              0.0036078937351703643,
+              0.003614393621683121,
+              0.003607015684247017,
+              0.0036062657833099364,
+              0.003658640757203102,
+              0.0036488905549049377
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5202,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.002842162549495697,
+            "torch_mxfp4_emulation": 0.005724206194281578,
+            "lesson_15_bf16": 0.0036507654935121537
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 0.04237196075269105,
+            "torch_mxfp4_emulation": 0.02103837561272798,
+            "lesson_15_bf16": 0.032987054417495436
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.0028866624459624292,
+              0.002842537499964237,
+              0.0028430406004190446,
+              0.00283641554415226,
+              0.002838912419974804,
+              0.002842162549495697,
+              0.00283991564065218
+            ],
+            "torch_mxfp4_emulation": [
+              0.0057437032461166385,
+              0.005724206194281578,
+              0.005721953138709069,
+              0.005728200078010559,
+              0.005721203237771988,
+              0.00572957806289196,
+              0.005722203105688095
+            ],
+            "lesson_15_bf16": [
+              0.0036561407148838045,
+              0.003644515573978424,
+              0.0036507654935121537,
+              0.0036407656967639922,
+              0.0036510154604911804,
+              0.003648640587925911,
+              0.0036513905972242354
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5303,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.0028424156829714776,
+            "torch_mxfp4_emulation": 0.0057287029922008514,
+            "lesson_15_bf16": 0.0036463938653469087
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 0.042368187285718846,
+            "torch_mxfp4_emulation": 0.021021861346966778,
+            "lesson_15_bf16": 0.03302660229452278
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.0028907906264066694,
+              0.002847790531814098,
+              0.0028416655957698824,
+              0.0028424156829714776,
+              0.0028350405395030976,
+              0.0028439156711101534,
+              0.0028352906927466394
+            ],
+            "torch_mxfp4_emulation": [
+              0.005742952972650528,
+              0.00572957806289196,
+              0.005719077959656716,
+              0.005724453181028366,
+              0.0057287029922008514,
+              0.005724577978253364,
+              0.005731702968478203
+            ],
+            "lesson_15_bf16": [
+              0.003645765781402588,
+              0.003645765781402588,
+              0.003650515526533127,
+              0.0036568906158208846,
+              0.00364251546561718,
+              0.0036491405218839644,
+              0.0036463938653469087
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        17,
+        1046,
+        8214
+      ],
+      "selected_config": {
+        "block_m": 32,
+        "block_n": 128,
+        "block_k": 32,
+        "waves_m": 1,
+        "waves_n": 4,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "selected_config_name": "m32n128k32_w1x4_prefetch_lds1_gm1_sk4_wg1x1_u2_ac0_bc2_ar1",
+      "selected_lane": "fused_mxfp4_w4a16",
+      "verification": [
+        {
+          "seed": 5101,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.07364541292190552,
+            "torch_mxfp4_emulation": 0.11552616357803344,
+            "lesson_15_bf16": 0.030719828605651856
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 3.966610877852914,
+            "torch_mxfp4_emulation": 2.528628035005096,
+            "lesson_15_bf16": 9.5092553981976
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.07363041639328002,
+              0.07363341450691223,
+              0.07362553477287292,
+              0.07365941405296325,
+              0.07364991307258606,
+              0.07364541292190552,
+              0.07364991903305054
+            ],
+            "torch_mxfp4_emulation": [
+              0.11560887098312378,
+              0.11535617113113403,
+              0.11535142660140991,
+              0.11571990251541138,
+              0.1154892921447754,
+              0.11552616357803344,
+              0.11587164402008057
+            ],
+            "lesson_15_bf16": [
+              0.030892199277877806,
+              0.030636832118034363,
+              0.03449884057044983,
+              0.030719828605651856,
+              0.03071432709693909,
+              0.03059020936489105,
+              0.03458133637905121
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5202,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.07364429235458374,
+            "torch_mxfp4_emulation": 0.11587940454483033,
+            "lesson_15_bf16": 0.031195315718650817
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 3.966671233576159,
+            "torch_mxfp4_emulation": 2.520919892084761,
+            "lesson_15_bf16": 9.36431285500175
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.07850415110588074,
+              0.07362141013145447,
+              0.07366454601287842,
+              0.07364429235458374,
+              0.07363691926002502,
+              0.07361941933631896,
+              0.07365953922271729
+            ],
+            "torch_mxfp4_emulation": [
+              0.13265177011489868,
+              0.1157881498336792,
+              0.11587940454483033,
+              0.11602565050125122,
+              0.11560053825378418,
+              0.11593514680862427,
+              0.11582640409469605
+            ],
+            "lesson_15_bf16": [
+              0.031669050455093384,
+              0.031195315718650817,
+              0.03081057667732239,
+              0.033342623710632326,
+              0.03460721075534821,
+              0.030799826979637145,
+              0.030798327922821046
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5303,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.07366017103195191,
+            "torch_mxfp4_emulation": 0.11600652933120728,
+            "lesson_15_bf16": 0.033773988485336304
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 3.9658161514895833,
+            "torch_mxfp4_emulation": 2.518157363073659,
+            "lesson_15_bf16": 8.649339598337084
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.07982023954391479,
+              0.07360853552818299,
+              0.07366017103195191,
+              0.07366804480552673,
+              0.07361791133880616,
+              0.07366366982460022,
+              0.07362767457962036
+            ],
+            "torch_mxfp4_emulation": [
+              0.12439340353012085,
+              0.1158132791519165,
+              0.11621763706207275,
+              0.11600652933120728,
+              0.11575027704238891,
+              0.11594477891921998,
+              0.11606965065002442
+            ],
+            "lesson_15_bf16": [
+              0.03662027716636658,
+              0.031036567687988282,
+              0.031487807631492615,
+              0.03176779747009277,
+              0.03454496264457703,
+              0.034697458148002625,
+              0.033773988485336304
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        31,
+        1025,
+        8193
+      ],
+      "selected_config": {
+        "block_m": 32,
+        "block_n": 128,
+        "block_k": 64,
+        "waves_m": 1,
+        "waves_n": 4,
+        "group_m": 1,
+        "split_k": 4,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 2,
+        "left_cache_modifier": 2,
+        "left_in_registers": false
+      },
+      "selected_config_name": "m32n128k64_w1x4_prefetch_lds1_gm1_sk4_wg1x1_u2_ac2_bc2_ar0",
+      "selected_lane": "fused_mxfp4_w4a16",
+      "verification": [
+        {
+          "seed": 5101,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.0773516833782196,
+            "torch_mxfp4_emulation": 0.13013871908187866,
+            "lesson_15_bf16": 0.033610618114471434
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 6.731141809211187,
+            "torch_mxfp4_emulation": 4.000847354832315,
+            "lesson_15_bf16": 15.49109118513419
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.07728043794631959,
+              0.07732843160629273,
+              0.0773656725883484,
+              0.07719468474388122,
+              0.0773516833782196,
+              0.07736655473709106,
+              0.07744004726409912
+            ],
+            "torch_mxfp4_emulation": [
+              0.129974102973938,
+              0.12992147207260132,
+              0.13013871908187866,
+              0.1301285982131958,
+              0.1303382158279419,
+              0.1303852081298828,
+              0.13026747703552247
+            ],
+            "lesson_15_bf16": [
+              0.0334393709897995,
+              0.03301900923252106,
+              0.03745212852954864,
+              0.033610618114471434,
+              0.033675366640090944,
+              0.03315075635910034,
+              0.03766137063503265
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5202,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.07741068005561828,
+            "torch_mxfp4_emulation": 0.13089269399642944,
+            "lesson_15_bf16": 0.03362449407577515
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 6.726011832293822,
+            "torch_mxfp4_emulation": 3.977801465482886,
+            "lesson_15_bf16": 15.48469841142129
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.08608505129814148,
+              0.07722530961036682,
+              0.07732492685317993,
+              0.07741068005561828,
+              0.07741455435752868,
+              0.07723968625068664,
+              0.07745967507362365
+            ],
+            "torch_mxfp4_emulation": [
+              0.14285308122634888,
+              0.13063783645629884,
+              0.13089269399642944,
+              0.13075469732284545,
+              0.13110257387161256,
+              0.13103132247924804,
+              0.13066470623016357
+            ],
+            "lesson_15_bf16": [
+              0.03362449407577515,
+              0.03322112858295441,
+              0.034003105759620664,
+              0.03607854247093201,
+              0.037878990173339844,
+              0.033279627561569214,
+              0.03355861604213715
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5303,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.07741318345069885,
+            "torch_mxfp4_emulation": 0.13079932928085328,
+            "lesson_15_bf16": 0.03662790358066559
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 6.725794325866851,
+            "torch_mxfp4_emulation": 3.980640824862519,
+            "lesson_15_bf16": 14.214986365608935
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.08587042689323425,
+              0.07719443440437317,
+              0.07730492949485779,
+              0.07741318345069885,
+              0.07748642563819885,
+              0.07741742730140685,
+              0.07717156410217285
+            ],
+            "torch_mxfp4_emulation": [
+              0.13606979846954345,
+              0.13075656890869142,
+              0.13093420267105102,
+              0.13079932928085328,
+              0.13517894744873046,
+              0.1307942032814026,
+              0.12993210554122925
+            ],
+            "lesson_15_bf16": [
+              0.039714306592941284,
+              0.03363624513149262,
+              0.033921229839324954,
+              0.03376823365688324,
+              0.0366813987493515,
+              0.03742212951183319,
+              0.03662790358066559
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        }
+      ]
+    },
+    {
+      "shape_MNK": [
+        1030,
+        1046,
+        1022
+      ],
+      "selected_config": {
+        "block_m": 128,
+        "block_n": 64,
+        "block_k": 32,
+        "waves_m": 2,
+        "waves_n": 2,
+        "group_m": 4,
+        "split_k": 1,
+        "wave_groups_m": 1,
+        "wave_groups_n": 1,
+        "k_unroll": 2,
+        "right_cache_modifier": 0,
+        "left_cache_modifier": 0,
+        "left_in_registers": true
+      },
+      "selected_config_name": "m128n64k32_w2x2_prefetch_lds1_gm4_sk1_wg1x1_u2_ac0_bc0_ar1",
+      "selected_lane": "fused_mxfp4_w4a16",
+      "verification": [
+        {
+          "seed": 5101,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.10000325441360473,
+            "torch_mxfp4_emulation": 0.10151771306991578,
+            "lesson_15_bf16": 0.07472139000892639
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 22.02093054784036,
+            "torch_mxfp4_emulation": 21.69241852880746,
+            "lesson_15_bf16": 29.471677651298034
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.09813193082809449,
+              0.1009257197380066,
+              0.10000325441360473,
+              0.10182456970214844,
+              0.09978876113891602,
+              0.09975212812423706,
+              0.10145083665847779
+            ],
+            "torch_mxfp4_emulation": [
+              0.10129395723342896,
+              0.10151771306991578,
+              0.10209769010543823,
+              0.10146907567977906,
+              0.10142320394515991,
+              0.10210918188095093,
+              0.10175857543945313
+            ],
+            "lesson_15_bf16": [
+              0.07390640377998352,
+              0.07472139000892639,
+              0.07475288510322571,
+              0.07411752939224243,
+              0.0745448887348175,
+              0.07509549856185913,
+              0.07482426166534424
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5202,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.10124708414077759,
+            "torch_mxfp4_emulation": 0.10187945365905762,
+            "lesson_15_bf16": 0.07474463582038879
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 21.75040139366415,
+            "torch_mxfp4_emulation": 21.615395851744598,
+            "lesson_15_bf16": 29.462511868969397
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.12500075101852418,
+              0.10153945684432983,
+              0.10135408639907836,
+              0.10124708414077759,
+              0.10123871564865113,
+              0.10100897550582885,
+              0.09996924996376037
+            ],
+            "torch_mxfp4_emulation": [
+              0.11297036409378051,
+              0.10394363403320313,
+              0.10309003591537476,
+              0.10182994604110718,
+              0.10150221586227418,
+              0.10187945365905762,
+              0.10151058435440063
+            ],
+            "lesson_15_bf16": [
+              0.07474463582038879,
+              0.07514987587928772,
+              0.07470938563346863,
+              0.074652761220932,
+              0.07494075894355774,
+              0.0751691222190857,
+              0.07456501126289368
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        },
+        {
+          "seed": 5303,
+          "median_ms": {
+            "fused_mxfp4_w4a16": 0.1006854772567749,
+            "torch_mxfp4_emulation": 0.10191531181335449,
+            "lesson_15_bf16": 0.07438714504241943
+          },
+          "effective_tflops": {
+            "fused_mxfp4_w4a16": 21.87172152329269,
+            "torch_mxfp4_emulation": 21.607790633393705,
+            "lesson_15_bf16": 29.60410321896627
+          },
+          "samples_ms": {
+            "fused_mxfp4_w4a16": [
+              0.10741902589797973,
+              0.1006872296333313,
+              0.0995638906955719,
+              0.1006854772567749,
+              0.10034099817276002,
+              0.09974476099014282,
+              0.10082972049713135
+            ],
+            "torch_mxfp4_emulation": [
+              0.10419262647628784,
+              0.10140533447265625,
+              0.1019638180732727,
+              0.10152369737625122,
+              0.10195006132125854,
+              0.10134984254837036,
+              0.10191531181335449
+            ],
+            "lesson_15_bf16": [
+              0.07843564748764038,
+              0.07438714504241943,
+              0.0740850329399109,
+              0.07389428615570068,
+              0.07456663846969605,
+              0.0744707703590393,
+              0.07436314821243287
+            ]
+          },
+          "batch_orders": [
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "lesson_15_bf16",
+              "fused_mxfp4_w4a16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ],
+            [
+              "torch_mxfp4_emulation",
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16"
+            ],
+            [
+              "fused_mxfp4_w4a16",
+              "lesson_15_bf16",
+              "torch_mxfp4_emulation"
+            ]
+          ],
+          "batches": 7,
+          "graph_replays_per_batch": 10,
+          "gemms_per_graph": 32
+        }
+      ]
+    }
+  ]
+}

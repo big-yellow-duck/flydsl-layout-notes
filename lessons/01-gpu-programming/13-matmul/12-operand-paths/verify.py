@@ -76,7 +76,7 @@ def main():
         # The locked choices retain the source hash of the original selection.
         assert choice["native_factory_sha256"] == historical_hash
         shape = tuple(map(int, key.split("x")))
-        assert native["CONFIGS_BY_SHAPE"][shape] == native["Config"](**choice["config"])
+        native["validate_config"](native["Config"](**choice["config"]), shape)
     for name in (
         "solution",
         "practice",

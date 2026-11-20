@@ -9,7 +9,7 @@ The course begins with small mappings that can be traced by hand, then builds to
 | Section | Lessons | What you learn |
 | --- | --- | --- |
 | [00 · Layout algebra](lessons/00-layout-algebra/README.md) | 00–07 | Shapes, coordinates, composition, coalescing, tiling, block windows, thread/value ownership |
-| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–14 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, BF16 matmul optimization, and a quantized MXFP4 W4A16 path |
+| [01 · GPU programming](lessons/01-gpu-programming/README.md) | 08–14 | Tiled copies, register fragments, predicates, vector addition, ISA inspection, BF16 matmul optimization, MXFP4 W4A16, and block-scaled FP8 |
 
 Start with layout algebra; lessons 06 and 07 still develop the coordinate and ownership fundamentals. Actual copy plans begin in lesson 08.
 
@@ -78,7 +78,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all 39 native programs, including thirteen foundational lessons, four focused divide tutorials, twenty-one BF16 matmul stages, and the first quantized matmul lesson:
+Run all 40 native programs, including thirteen foundational lessons, four focused divide tutorials, twenty-one BF16 matmul stages, and two quantized matmul lessons.
 
 ```bash
 pixi run lessons-check
@@ -90,11 +90,11 @@ Run the lessons plus the additional examples from the notes:
 pixi run gpu-check
 ```
 
-Lesson 14 adds an MXFP4 W4A16 pipeline to `gpu-check`. On gfx1152, the fused FlyDSL kernel decodes each packed B tile into BF16 LDS as the lesson-12 WMMA path consumes it; the full dense BF16 matrix is not materialized. It is a software compatibility path, not native MXFP4 matrix execution. Its shape tuner compares fused execution with separate register and scalar unpack pipelines and a GPU Torch dense-BF16 baseline.
+Lesson 14 adds fused MXFP4 W4A16 and MXFP8 block-scale matmul to `gpu-check`. The kernels decode each quantized tile into BF16 LDS as WMMA consumes it. Both comparisons time Torch's compiled decode and BF16 matmul from the same quantized inputs.
 
 The GPU check covers padding, aliasing, scalar and nested coordinates, full and subset composition, coalescing (including size-1 and unmergeable cases), every position across all four 2-D divide groupings, and actual loads through sliced 1-D and 2-D tensor views. The selected matrix tile returns values from offsets `20,21,22,23,28,29,30,31`.
 
-Originally validated on AMD Radeon 860M Graphics (`gfx1152`). On 2026-10-31, the shared environment passed all 22 solutions and the additional GPU checks on AMD Radeon 8060S Graphics (`gfx1151`) with Pixi 0.67.2. On 2026-11-17, `pixi run gpu-check` passed all 36 native solutions and the additional GPU checks on gfx1152 with FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. The quantized matmul results remain specific to the three tested shapes.
+Originally validated on AMD Radeon 860M Graphics (`gfx1152`). On 2026-10-31, the shared environment passed all 22 solutions and the additional GPU checks on AMD Radeon 8060S Graphics (`gfx1151`) with Pixi 0.67.2. On 2026-11-17, `pixi run gpu-check` passed all 36 native solutions and the additional GPU checks on gfx1152 with FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. The quantized results record the workload and GPU for each comparison.
 
 On the gfx1151 setup, GPU event durations reported zero, including for a standalone PyTorch operation. Lesson 12 still checks copy correctness and reports timing and bandwidth as unavailable instead of dividing by zero. Lesson 12 explains how to dump generated ISA and interpret timing results.
 
@@ -104,7 +104,7 @@ On the gfx1151 setup, GPU event durations reported zero, including for a standal
 
 After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions → LDS bank-conflict measurement → interleaved loads and compute → buffer access → separate A/B staging plans → grouped block traversal → parameter tuning → skinny split-K → independent wave tiles → synchronization scope → B cache policy → K-loop unrolling → operand-specific memory paths → edge safety → targeted M/N/K guards → mixed-width edge loads. Stages 00–08 use **M=N=K=1024**; stages 09–12 target three skinny K=8192 workloads. [Stage 13](lessons/01-gpu-programming/13-matmul/13-edge-safety/README.md) adds predicates for arbitrary positive M,N,K, with a tiny trace and measured edge examples. [Stage 14](lessons/01-gpu-programming/13-matmul/14-targeted-guards/README.md) targets the guards that still need coordinate or stage checks and measures their cost against stage 13 and Torch. [Stage 15](lessons/01-gpu-programming/13-matmul/15-edge-load-widths/README.md) keeps wide loads for complete chunks and uses smaller atoms for the suffix. All retain BF16 inputs/output and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. The stages include diagrams, practice programs, commented solutions, and full-output checkers.
 
-Then continue to [14 · Quantized matmul](lessons/01-gpu-programming/14-quantized-matmul/README.md). Its first lesson fuses OCP MXFP4 unpacking into BF16 B-tile staging on gfx1152 and reuses lesson 12's WMMA operand route. The measured path includes unpacking and is compared with Torch's dense BF16 matmul baseline.
+Then continue to [14 · Quantized matmul](lessons/01-gpu-programming/14-quantized-matmul/README.md). Trace packed MXFP4 weights first, then block-scaled FP8 values on both operands. Both lessons use the mixed-width staging and split-K schedule from the end of the BF16 sequence.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py

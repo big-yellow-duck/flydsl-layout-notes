@@ -6,6 +6,8 @@ A BF16 copy atom moves a fixed number of values. A 128-bit atom moves eight BF16
 
 Use a contiguous `M=17, N=78, K=46` product and a `16×64×32` tile. A’s final K stage begins at 32 and B’s final N group begins at 64. Both have 14 valid values along the copied axis in the displayed window. The first eight values form a wide prefix. The six-value suffix uses two smaller atoms, and the unused slots stay zero in the guarded path.
 
+Use `Config(block_k=32, waves_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
+
 ![Mixed-width layout for the last A K stage and last B N group. A uses a 128-bit load for K 32 through 39, a 64-bit load for K 40 through 43, and a 32-bit load for K 44 and 45. B follows the same pattern from N 64.](../../../../assets/01-gpu-programming/13-matmul/15-edge-load-widths/mixed-width-tail.svg)
 
 Follow the 32-bit piece. `A[16,44]` and `A[16,45]` have element offsets 780 and 781 and hold −2 and −1 in the trace. `B[45,76]` and `B[45,77]` have offsets 3586 and 3587 and hold −1 and 0. These are logical row coordinates, global element offsets, and BF16 values, respectively. The full K reduction for `C[16,77]` is −7.
@@ -85,6 +87,10 @@ The table shows medians across the five verification rounds on `gfx1151`. The tu
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/15-edge-load-widths/tune_long_odd.py --output /tmp/long-odd-tuning.json
 ```
+
+## Tuned shape defaults
+
+The solution and practice use independently tuned defaults for all 15 benchmark shapes. For the near-square edge case `1030×1046×1022`, tuning reduced graph replay time from 0.09207 to 0.07586 ms, compared with 0.09161 ms for Torch. The mixed-width comparison above uses fixed geometry to measure the effect of the copy widths. [Configurations and raw samples](results/retuned-workloads.json)
 
 ## Revision question
 

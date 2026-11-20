@@ -114,6 +114,8 @@ The [2D wave-group sweep](10-wave-local-tiles/results/20261116-2d-wave-groups/RE
 
 [Stage 15](15-edge-load-widths/README.md) keeps the wide atom for full chunks and traces a six-value suffix as 64- plus 32-bit loads. B uses the guarded suffix near the physical end of the buffer. The largest measured gains are on odd row pitches.
 
+The [stages 12–15 tuning report](retuning-12-15.md) lists every published benchmark shape, its selected configuration's timing, and the matched Torch result.
+
 ## Scope and next experiments
 
 These twenty-one stages execute on Radeon 8060S (`gfx1151`) with FlyDSL 0.4.1 and the shared Pixi environment. WMMA uses the gfx11 wave32 convention intended for gfx1151/gfx1152; hardware validation on gfx1152 remains pending. Main-path skinny kernels keep one LDS stage per operand per independent group, with A bypassing LDS where selected in 12. Agent-scope split-K arrival counters still finalize partials in the same kernel.

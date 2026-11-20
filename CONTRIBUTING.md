@@ -44,6 +44,7 @@ python3 tools/draw_edge_safety.py
 python3 tools/draw_targeted_guards.py
 python3 tools/draw_edge_load_widths.py
 python3 tools/draw_mxfp4_lesson.py
+python3 tools/draw_mxfp8_lesson.py
 python3 tools/animate_matmul_tuning.py
 ```
 

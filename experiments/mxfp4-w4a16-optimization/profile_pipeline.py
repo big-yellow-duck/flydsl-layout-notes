@@ -93,6 +93,10 @@ def _callbacks(module, shape, config, data):
     a, packed, scales, dense, expected = data
     output = torch.empty((m, n), dtype=torch.bfloat16, device=a.device)
     stream = torch.cuda.current_stream(a.device)
+    operand_paths = runpy.run_path(
+        str(LESSON.parents[2] / "13-matmul/12-operand-paths/solution.py")
+    )
+    dense_config = operand_paths["Config"].from_dict(config.__dict__)
 
     def unpack():
         module["_launch_matmul_mxfp4_w4a16"](
@@ -106,8 +110,8 @@ def _callbacks(module, shape, config, data):
         )
 
     def gemm():
-        module["_OPERAND_PATHS"]["matmul_bf16"](
-            a, dense.view(k, n), out=output, config=config, stream=stream
+        operand_paths["matmul_bf16"](
+            a, dense.view(k, n), out=output, config=dense_config, stream=stream
         )
 
     return {"unpack": unpack, "gemm": gemm, "pipeline": lambda: (unpack(), gemm())}, output, expected
