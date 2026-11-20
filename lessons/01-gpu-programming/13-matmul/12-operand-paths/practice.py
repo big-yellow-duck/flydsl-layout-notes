@@ -272,7 +272,7 @@ def _matmul_bf16(
 
     out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
     blocks_m = fx.size(out_block_tiles.shape[2]).to_py_value()
-    blocks_n = N // BLOCK_N
+    blocks_n = fx.size(out_block_tiles.shape[3]).to_py_value()
     group_m_width = min(GROUP_M, blocks_m)
     split_block_layout = fx.make_ordered_layout(
         (group_m_width, SPLIT_K, blocks_n, blocks_m // group_m_width),

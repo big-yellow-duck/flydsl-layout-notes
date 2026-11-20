@@ -17,6 +17,11 @@ def _shape_stride_offsets(out: fx.Tensor):
     # Each GPU thread visits one explicit coordinate, first mode fastest.
     thread_layout = fx.make_ordered_layout((3, 4), (0, 1))
     coordinate = fx.idx2crd(thread_id, thread_layout)
+
+    order_layout = fx.make_ordered_layout((2, 4, 8), (2, 0, 1))
+    print(order_layout)
+    another_order_layout = fx.make_ordered_layout((1, 4, 64, 1), (0, 1, 2, 3))
+    print(another_order_layout)
     # Compute: Map the coordinate, count logical positions, and measure the span.
     element_offset = fx.crd2idx(coordinate, data_layout)
     logical_size = fx.size(data_layout)
