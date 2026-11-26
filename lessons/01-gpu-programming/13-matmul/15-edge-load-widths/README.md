@@ -31,7 +31,7 @@ An incomplete N group does not need narrow B loads at every K stage. For `N >= 8
 ```python
 wide_b = (output_group_col + 1) * GROUP_TILE_N <= n
 if fx.const_expr(n >= 8):
-    wide_b = wide_b | (tile_k < REAL_K_STAGES - 1)
+    wide_b = wide_b or (tile_k < REAL_K_STAGES - 1)
 ```
 
 A still guards its last partial K stage, and empty split-K stages still zero both fragments before any tile selection. A and B staging come before the MMA copies. LDS publication and WMMA register consumption use their existing layouts. On the teaching shape, the compiler emits 128-, 64-, and 32-bit load sites and one 96-bit load site. The listing counts static instruction sites. [Native width inspection](results/isa-six-value-tail.json)

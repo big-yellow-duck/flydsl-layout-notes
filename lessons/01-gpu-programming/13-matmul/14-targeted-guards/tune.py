@@ -120,6 +120,34 @@ def compare(
     }
 
 
+def compare_split_k(config, shape, timing, *, seed, batches, repeats):
+    """Compare split counts with the same tile geometry and exact-shaped inputs."""
+    real_stages = (shape[2] + config.block_k - 1) // config.block_k
+    splits = (1, 2, 4)
+    configured_split = max(
+        split for split in splits if split <= config.split_k and real_stages % split == 0
+    )
+    COMMON["inputs"].__globals__["SHAPE"] = shape
+    data = COMMON["inputs"](seed)
+    launches = {}
+    empty_stages = {}
+    for split in splits:
+        candidate = replace(config, split_k=split)
+        TARGETED["validate_config"](candidate, shape)
+        name = f"split_k_{split}"
+        empty_stages[name] = (-real_stages) % split
+        launch = partial(TARGETED["matmul_bf16"], config=candidate)
+        COMMON["validate"](launch, data)
+        launches[name] = launch
+    return {
+        "config": asdict(config),
+        "real_k_stages": real_stages,
+        "empty_k_stages": empty_stages,
+        "no_empty_split_k": configured_split,
+        **measure(launches, data, shape, timing, seed, batches, repeats),
+    }
+
+
 def square_candidates():
     Config = TARGETED["Config"]
     # Two winners from the earlier square study serve as seed configurations.
@@ -243,7 +271,7 @@ def print_comparison(report):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shape", type=int, nargs=3, metavar=("M", "N", "K"))
-    parser.add_argument("--suite", choices=("edges", "square"), default="edges")
+    parser.add_argument("--suite", choices=("edges", "square", "split-k"), default="edges")
     parser.add_argument(
         "--sweep",
         action="store_true",
@@ -261,6 +289,8 @@ def main():
         parser.error("--batches and --repeats must be positive")
     if args.shape and any(size < 1 for size in args.shape):
         parser.error("--shape requires positive M N K")
+    if args.sweep and args.suite == "split-k":
+        parser.error("The split-k suite compares fixed tile geometry")
     if args.sweep and TRAINING_SEED in args.seeds:
         parser.error("Use verification seeds other than the training seed 13")
     if args.output.exists():
@@ -269,16 +299,21 @@ def main():
     torch.set_num_threads(1)
     training, rows = [], []
     shapes = SQUARE_SHAPES if args.suite == "square" else SHAPES
+    if args.suite == "split-k":
+        shapes = tuple((16, 1024, k) for k in (24, 48, 8184, 8200, 8232))
     timings = ("graph-host", "direct-host") if args.timing == "both" else (args.timing,)
     for shape in (tuple(args.shape),) if args.shape else shapes:
-        if args.sweep:
+        if args.suite == "split-k":
+            config = TARGETED["Config"](block_k=32, waves_n=1, split_k=4, k_unroll=2)
+        elif args.sweep:
             config, search = tune_square(shape)
             training.append(search)
         else:
             config = TARGETED["default_config"](shape)
         for seed in args.seeds:
             for timing in timings:
-                row = compare(
+                comparison = compare_split_k if args.suite == "split-k" else compare
+                row = comparison(
                     config,
                     shape,
                     timing,
@@ -287,7 +322,10 @@ def main():
                     repeats=args.repeats,
                 )
                 rows.append(row)
-                print_comparison(row)
+                if args.suite == "split-k":
+                    print(shape, timing, row["empty_k_stages"], row["median_ms"], flush=True)
+                else:
+                    print_comparison(row)
     report = {
         "environment": {
             "gpu": torch.cuda.get_device_name(),

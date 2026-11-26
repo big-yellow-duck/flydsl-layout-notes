@@ -286,16 +286,34 @@ def _matmul_bf16(
     blocks_m = fx.size(out_block_tiles.shape[2]).to_py_value()
     blocks_n = fx.size(out_block_tiles.shape[3]).to_py_value()
     group_m_width = min(GROUP_M, blocks_m)
-    # The final M group can be shorter, without launching duplicate blocks.
-    output_block_id = fx.block_idx.x // SPLIT_K
-    split_id = fx.block_idx.x % SPLIT_K
-    full_group_size = group_m_width * blocks_n
-    m_group_id = output_block_id // full_group_size
-    first_group_row = m_group_id * group_m_width
-    rows_in_group = fx.min(group_m_width, blocks_m - first_group_row)
-    block_in_group = output_block_id % full_group_size
-    block_row = first_group_row + block_in_group % rows_in_group
-    block_col = block_in_group // rows_in_group
+    full_m_groups, tail_m_group_rows = divmod(blocks_m, group_m_width)
+    # Each block owns one K split and iterates over its assigned stages.
+    split_block_layout = fx.make_ordered_layout(
+        (group_m_width, SPLIT_K, blocks_n, full_m_groups),
+        (0, 1, 2, 3),
+    )
+    full_block_count = full_m_groups * group_m_width * SPLIT_K * blocks_n
+
+    # FlyDSL uses these initial values to type the runtime if/else results.
+    block_row = fx.Int32(0)
+    split_id = fx.Int32(0)
+    block_col = fx.Int32(0)
+    if tail_m_group_rows > 0 and fx.block_idx.x >= full_block_count:
+        # Decode the short final group with the same axis order and its real row count.
+        tail_block_layout = fx.make_ordered_layout(
+            (tail_m_group_rows, SPLIT_K, blocks_n), (0, 1, 2)
+        )
+        tail_coords = fx.idx2crd(fx.block_idx.x - full_block_count, tail_block_layout)
+        block_row = full_m_groups * group_m_width + fx.get_scalar(tail_coords[0])
+        split_id = fx.Int32(fx.get_scalar(tail_coords[1]))
+        block_col = fx.Int32(fx.get_scalar(tail_coords[2]))
+    else:
+        block_coords = fx.idx2crd(fx.block_idx.x, split_block_layout)
+        block_row = fx.get_scalar(block_coords[3]) * group_m_width + fx.get_scalar(
+            block_coords[0]
+        )
+        split_id = fx.Int32(fx.get_scalar(block_coords[1]))
+        block_col = fx.Int32(fx.get_scalar(block_coords[2]))
 
     # Select the complete block output, then this group's output tile.
     out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))
@@ -460,6 +478,29 @@ def _matmul_bf16(
 
     right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
 
+    def load_k_tail(tile_k, left_source):
+        coordinate_block = fx.slice(
+            left_coordinate_tiles, (None, None, block_row, tile_k)
+        )
+        coordinate_groups = fx.flat_divide(
+            coordinate_block, (GROUP_TILE_M, STAGE_K)
+        )
+        group_coordinates = fx.slice(
+            coordinate_groups, (None, None, group_row, 0)
+        )
+        left_thread_coordinates = left_global_thread_copy.partition_S(
+            group_coordinates
+        )
+        left_global_destination.fill(0)
+        _copy_valid_columns(
+            gmem_left_load,
+            left_source,
+            left_global_destination,
+            left_thread_coordinates,
+            k,
+            LEFT_WIDTH,
+        )
+
     def load_nonempty_stage(tile_k):
         left_block_view = fx.slice(left_block_tiles, (None, None, block_row, tile_k))
         right_block_view = fx.slice(right_block_tiles, (None, None, tile_k, block_col))
@@ -475,33 +516,10 @@ def _matmul_bf16(
         if fx.const_expr(HAS_K_TAIL):
             # A's extra K columns can alias the next row, including nonfinite values.
             is_k_tail = tile_k == REAL_K_STAGES - 1
-            tail = scf.IfOp(is_k_tail.ir_value(), [], has_else=True)
-            with ir.InsertionPoint(tail.then_block):
-                coordinate_block = fx.slice(
-                    left_coordinate_tiles, (None, None, block_row, tile_k)
-                )
-                coordinate_groups = fx.flat_divide(
-                    coordinate_block, (GROUP_TILE_M, STAGE_K)
-                )
-                group_coordinates = fx.slice(
-                    coordinate_groups, (None, None, group_row, 0)
-                )
-                left_thread_coordinates = left_global_thread_copy.partition_S(
-                    group_coordinates
-                )
-                left_global_destination.fill(0)
-                _copy_valid_columns(
-                    gmem_left_load,
-                    left_source,
-                    left_global_destination,
-                    left_thread_coordinates,
-                    k,
-                    LEFT_WIDTH,
-                )
-                scf.yield_([])
-            with ir.InsertionPoint(tail.else_block):
+            if is_k_tail:
+                load_k_tail(tile_k, left_source)
+            else:
                 fx.copy(gmem_left_load, left_source, left_global_destination)
-                scf.yield_([])
         else:
             fx.copy(gmem_left_load, left_source, left_global_destination)
 
@@ -509,14 +527,10 @@ def _matmul_bf16(
         if fx.const_expr(HAS_EMPTY_K_STAGES):
             # Check the stage before slicing. A singleton K-stage stride can be zero.
             stage_exists = tile_k < REAL_K_STAGES
-            stage = scf.IfOp(stage_exists.ir_value(), [], has_else=True)
-            with ir.InsertionPoint(stage.then_block):
+            left_global_destination.fill(0)
+            right_global_destination.fill(0)
+            if stage_exists:
                 load_nonempty_stage(tile_k)
-                scf.yield_([])
-            with ir.InsertionPoint(stage.else_block):
-                left_global_destination.fill(0)
-                right_global_destination.fill(0)
-                scf.yield_([])
         else:
             load_nonempty_stage(tile_k)
 
@@ -578,6 +592,28 @@ def _matmul_bf16(
     compute_stage()
     lds_barrier()
 
+    def store_n_tail(
+        gmem_store_16b, reg2gmem_thread_copy, reg2gmem_source, reg2gmem_dest
+    ):
+        coordinate_block = fx.slice(
+            out_coordinate_tiles, (None, None, block_row, block_col)
+        )
+        coordinate_groups = fx.flat_divide(
+            coordinate_block, (GROUP_TILE_M, GROUP_TILE_N)
+        )
+        group_coordinates = fx.slice(coordinate_groups, (None, None, group_row, group_col))
+        output_thread_coordinates = reg2gmem_thread_copy.partition_D(
+            group_coordinates
+        )
+        _copy_valid_columns(
+            gmem_store_16b,
+            reg2gmem_source,
+            reg2gmem_dest,
+            output_thread_coordinates,
+            n,
+            1,
+        )
+
     def store_output():
         out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
         for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
@@ -591,32 +627,12 @@ def _matmul_bf16(
         # Complete groups store through C's descriptor, which also handles M tails.
         if fx.const_expr(HAS_N_TAIL):
             complete_n = (output_group_col + 1) * GROUP_TILE_N <= n
-            n_tile = scf.IfOp(complete_n.ir_value(), [], has_else=True)
-            with ir.InsertionPoint(n_tile.then_block):
+            if complete_n:
                 fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
-                scf.yield_([])
-            with ir.InsertionPoint(n_tile.else_block):
-                coordinate_block = fx.slice(
-                    out_coordinate_tiles, (None, None, block_row, block_col)
+            else:
+                store_n_tail(
+                    gmem_store_16b, reg2gmem_thread_copy, reg2gmem_source, reg2gmem_dest
                 )
-                coordinate_groups = fx.flat_divide(
-                    coordinate_block, (GROUP_TILE_M, GROUP_TILE_N)
-                )
-                group_coordinates = fx.slice(
-                    coordinate_groups, (None, None, group_row, group_col)
-                )
-                output_thread_coordinates = reg2gmem_thread_copy.partition_D(
-                    group_coordinates
-                )
-                _copy_valid_columns(
-                    gmem_store_16b,
-                    reg2gmem_source,
-                    reg2gmem_dest,
-                    output_thread_coordinates,
-                    n,
-                    1,
-                )
-                scf.yield_([])
         else:
             fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
 

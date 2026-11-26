@@ -520,33 +520,31 @@ def _matmul_bf16(
         left_thread_coordinates = left_global_thread_copy.partition_S(
             left_group_coordinates
         )
-        # A skipped load preserves its destination. Clear every new stage.
-        left_global_destination.fill(0)
-        stage_valid = tile_k * STAGE_K < K
-        _predicated_copy(
-            gmem_left_load,
-            left_global_source,
-            left_global_destination,
-            left_thread_coordinates,
-            M,
-            K,
-            LEFT_WIDTH,
-            stage_valid,
-        )
         right_thread_coordinates = right_global_thread_copy.partition_S(
             right_group_coordinates
         )
+        # A skipped load preserves its destination. Clear every new stage.
+        left_global_destination.fill(0)
         right_global_destination.fill(0)
-        _predicated_copy(
-            gmem_right_load,
-            right_global_source,
-            right_global_destination,
-            right_thread_coordinates,
-            K,
-            N,
-            RIGHT_WIDTH,
-            stage_valid,
-        )
+        if tile_k * STAGE_K < K:
+            _predicated_copy(
+                gmem_left_load,
+                left_global_source,
+                left_global_destination,
+                left_thread_coordinates,
+                M,
+                K,
+                LEFT_WIDTH,
+            )
+            _predicated_copy(
+                gmem_right_load,
+                right_global_source,
+                right_global_destination,
+                right_thread_coordinates,
+                K,
+                N,
+                RIGHT_WIDTH,
+            )
 
     def publish_stage():
         if fx.const_expr(LEFT_IN_REGISTERS):
@@ -634,7 +632,6 @@ def _matmul_bf16(
             M,
             N,
             1,
-            True,
         )
 
     if SPLIT_K == 1:

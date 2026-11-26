@@ -226,16 +226,31 @@ def _matmul_mxfp8(
     blocks_m = fx.size(out_block_tiles.shape[2]).to_py_value()
     blocks_n = fx.size(out_block_tiles.shape[3]).to_py_value()
     group_m_width = min(GROUP_M, blocks_m)
-    # The final M group can be shorter, without launching duplicate blocks.
+    # Consecutive splits share an output tile. Decode the output tile ID next.
     output_block_id = fx.block_idx.x // SPLIT_K
     split_id = fx.block_idx.x % SPLIT_K
-    full_group_size = group_m_width * blocks_n
-    m_group_id = output_block_id // full_group_size
-    first_group_row = m_group_id * group_m_width
-    rows_in_group = fx.min(group_m_width, blocks_m - first_group_row)
-    block_in_group = output_block_id % full_group_size
-    block_row = first_group_row + block_in_group % rows_in_group
-    block_col = block_in_group // rows_in_group
+    full_m_groups, tail_rows = divmod(blocks_m, group_m_width)
+    full_rows = full_m_groups * group_m_width
+    full_tile_count = full_rows * blocks_n
+
+    # Five tile rows, two columns and group width three give full tile IDs
+    # 0–5 and tail tile IDs 6–9. Tail-local IDs 0–3 cover rows 3–4.
+    block_row = fx.Int32(0)
+    block_col = fx.Int32(0)
+    if tail_rows > 0 and output_block_id >= full_tile_count:
+        tail_layout = fx.make_ordered_layout((tail_rows, blocks_n), (0, 1))
+        tail_coords = fx.idx2crd(output_block_id - full_tile_count, tail_layout)
+        block_row = full_rows + fx.get_scalar(tail_coords[0])
+        block_col = fx.Int32(fx.get_scalar(tail_coords[1]))
+    else:
+        full_layout = fx.make_ordered_layout(
+            (group_m_width, blocks_n, full_m_groups), (0, 1, 2)
+        )
+        full_coords = fx.idx2crd(output_block_id, full_layout)
+        block_row = fx.get_scalar(full_coords[2]) * group_m_width + fx.get_scalar(
+            full_coords[0]
+        )
+        block_col = fx.Int32(fx.get_scalar(full_coords[1]))
 
     # Select the complete block output, then this group's output tile.
     out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))
@@ -427,17 +442,13 @@ def _matmul_mxfp8(
 
     def load_stage(tile_k):
         if fx.const_expr(HAS_EMPTY_K_STAGES):
-            present = tile_k < REAL_K_STAGES
-            edge = scf.IfOp(present.ir_value(), [], has_else=True)
-            with ir.InsertionPoint(edge.then_block):
+            stage_exists = tile_k < REAL_K_STAGES
+            left_codes.fill(0)
+            left_scale_bytes.fill(0)
+            right_codes.fill(0)
+            right_scale_words.fill(0)
+            if stage_exists:
                 load_nonempty_stage(tile_k)
-                scf.yield_([])
-            with ir.InsertionPoint(edge.else_block):
-                left_codes.fill(0)
-                left_scale_bytes.fill(0)
-                right_codes.fill(0)
-                right_scale_words.fill(0)
-                scf.yield_([])
         else:
             load_nonempty_stage(tile_k)
 
