@@ -44,9 +44,7 @@ def instrument(source, independent_waves):
     if independent_waves:
         logical_id = "(fx.block_idx.x * WAVE_GROUPS + wave_group)"
         local_thread = "thread_id_in_wave_group"
-        workspace_size = (
-            "fx.size(output_group_layout).to_py_value() * SPLIT_K * GROUP_TILE_M * GROUP_TILE_N"
-        )
+        workspace_size = "fx.size(output_group_layout).to_py_value() * SPLIT_K * GROUP_TILE_M * GROUP_TILE_N"
         output_row, output_col = "output_group_row", "output_group_col"
     else:
         logical_id = "fx.block_idx.x"
@@ -68,22 +66,22 @@ def instrument(source, independent_waves):
 
 
 def check(module, config):
-    m, n, k = 4 * config.block_m, 2 * config.block_n, 384
+    m, n, k = 4 * config.group_tile_m, 2 * config.group_tile_n, 384
     shape = (m, n, k)
     module["validate_config"](config, shape)
     # Test-only recording storage is passed to the private JIT bridge so even
     # unsplit probes can record IDs without adding production workspace.
     run = module["_launch_matmul_bf16"]
     fields_by_parameter = {
-        "BLOCK_M": "block_m",
-        "BLOCK_N": "block_n",
-        "BLOCK_K": "block_k",
-        "GROUP_TILE_M": "block_m",
-        "GROUP_TILE_N": "block_n",
-        "STAGE_K": "block_k",
-        "WAVES_M": "waves_m",
-        "WAVES_N": "waves_n",
-        "GROUP_M": "group_m",
+        "BLOCK_M": "group_tile_m",
+        "BLOCK_N": "group_tile_n",
+        "BLOCK_K": "stage_k",
+        "GROUP_TILE_M": "group_tile_m",
+        "GROUP_TILE_N": "group_tile_n",
+        "STAGE_K": "stage_k",
+        "WAVES_M": "waves_per_group_m",
+        "WAVES_N": "waves_per_group_n",
+        "GROUP_M": "traversal_group_m",
         "SPLIT_K": "split_k",
         "WAVE_GROUPS": "wave_groups",
         "WAVE_GROUPS_M": "wave_groups_m",
@@ -99,9 +97,9 @@ def check(module, config):
         for name, field in fields_by_parameter.items()
         if name in run.func.__annotations__
     }
-    tiles_m, tiles_n = m // config.block_m, n // config.block_n
+    tiles_m, tiles_n = m // config.group_tile_m, n // config.group_tile_n
     logical_blocks = tiles_m * tiles_n * config.split_k
-    partial_count = logical_blocks * config.block_m * config.block_n
+    partial_count = logical_blocks * config.group_tile_m * config.group_tile_n
     counter_count = (
         tiles_m * tiles_n * getattr(config, "compute_threads", config.threads)
     )
@@ -123,7 +121,7 @@ def check(module, config):
     reference = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     gm, gn = getattr(config, "wave_groups_m", 1), getattr(config, "wave_groups_n", 1)
     physical_m, physical_n = tiles_m // gm, tiles_n // gn
-    width = min(config.group_m, physical_m)
+    width = min(config.traversal_group_m, physical_m)
     # Independent specification: grouped physical blocks, then wave rows/columns.
     expected = torch.tensor(
         [
@@ -171,7 +169,7 @@ def main():
             temp.flush()
             module = runpy.run_path(temp.name)
             supported = {field.name for field in fields(module["Config"])}
-            for group_m, split_k, wave_groups_m, wave_groups_n in (
+            for traversal_group_m, split_k, wave_groups_m, wave_groups_n in (
                 (1, 2, 1, 1),
                 (2, 1, 1, 1),
                 (2, 2, 1, 2),
@@ -179,12 +177,12 @@ def main():
                 (8, 2, 2, 2),
             ):
                 kwargs = {
-                    "block_m": 16,
-                    "block_n": 64,
-                    "block_k": 32,
-                    "waves_m": 1,
-                    "waves_n": 1,
-                    "group_m": group_m,
+                    "group_tile_m": 16,
+                    "group_tile_n": 64,
+                    "stage_k": 32,
+                    "waves_per_group_m": 1,
+                    "waves_per_group_n": 1,
+                    "traversal_group_m": traversal_group_m,
                     "split_k": split_k,
                 }
                 if "wave_groups_m" in supported:

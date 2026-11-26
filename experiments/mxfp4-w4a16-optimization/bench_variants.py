@@ -17,6 +17,11 @@ RESULTS = LESSON / "results/gfx1152-20261117-register-unpack/tuning.json"
 FUSED_TUNING = Path(__file__).resolve().parent / "results/20261117-fused-tuning.json"
 
 
+config_from_archive = runpy.run_path(
+    str(ROOT / "tools/matmul_config_archive.py")
+)["config_from_archive"]
+
+
 def _measure(callback, *, batches, replays, graph_gemms, seed):
     for _ in range(3):
         callback()
@@ -76,7 +81,7 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
         record = next(row for row in records if tuple(row["shape_MNK"]) == shape)
         config_values = record["final_comparison"]["config"]
         config_source = "lesson register-unpack tuning"
-    config = operand_paths["Config"].from_dict(config_values)
+    config = config_from_archive(operand_paths["Config"], config_values)
 
     def baseline_unpack():
         module["_launch_matmul_mxfp4_w4a16"](
@@ -121,7 +126,7 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
 
     def fused_pipeline():
         fused["matmul_mxfp4_fused"](
-            a, packed, scales, out=output, config=fused["Config"](**config.__dict__)
+            a, packed, scales, out=output, config=fused["Config"].from_dict(config.__dict__)
         )
 
     baseline_unpack()

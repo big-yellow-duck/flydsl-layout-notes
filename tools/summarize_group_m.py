@@ -99,7 +99,7 @@ def main():
             "",
             "Positive reduction means grouped traversal is faster. All times are µs.",
             "",
-            "| M,N,K | Wave packing | Selected group_m | Tuned gm1 | Tuned grouped | Retuned reduction | Matched reduction | Matched seed range |",
+            "| M,N,K | Wave packing | Selected traversal_group_m | Tuned gm1 | Tuned grouped | Retuned reduction | Matched reduction | Matched seed range |",
             "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
         ]
         for row in rows:
@@ -114,8 +114,10 @@ def main():
                 continue
             matched = row.get("matched_grouped_geometry", row["retuned"])
             lo, hi = matched["seed_time_reduction_range_percent"]
+            config = row["grouped_config"]
+            traversal = config.get("traversal_group_m", config.get("group_m"))
             lines.append(
-                f"{prefix} {row['grouped_config']['group_m']} | {row['gm1_us']:.2f} | "
+                f"{prefix} {traversal} | {row['gm1_us']:.2f} | "
                 f"{row['grouped_us']:.2f} | {row['retuned']['time_reduction_percent']:+.1f}% | "
                 f"{matched['time_reduction_percent']:+.1f}% | {lo:+.1f} to {hi:+.1f}% |"
             )

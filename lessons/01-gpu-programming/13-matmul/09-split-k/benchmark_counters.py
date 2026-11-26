@@ -40,10 +40,10 @@ def check_all():
     # Exercise cross-wave publication and election on 32/64/128/256 threads,
     # with several M/N tiles and nontrivial grouped traversal.
     for base in (
-        Config(16, 32, 64, 1, 1, group_m=2),
-        Config(16, 64, 64, 1, 2, group_m=2),
-        Config(16, 128, 64, 1, 4, group_m=2),
-        Config(32, 128, 64, 2, 4, group_m=2),
+        Config(16, 32, 64, 1, 1, traversal_group_m=2),
+        Config(16, 64, 64, 1, 2, traversal_group_m=2),
+        Config(16, 128, 64, 1, 4, traversal_group_m=2),
+        Config(32, 128, 64, 2, 4, traversal_group_m=2),
     ):
         for scope in ("thread", "cta"):
             config = replace(base, counter_scope=scope)
@@ -156,7 +156,7 @@ def measure(base, shape, seeds, batches, repeats, timings):
             "cta": base.split_k,
         },
         "partial_read_write_bytes_per_output_tile": (
-            2 * base.block_m * base.block_n * base.split_k * 4
+            2 * base.group_tile_m * base.group_tile_n * base.split_k * 4
         ),
         "rounds": rows,
         "summary": {
@@ -231,7 +231,7 @@ def main():
     # Keep the illustrated 16x64/64-thread tile fixed across all three workloads,
     # including the wide workload whose normal selected config uses split_k=1.
     for shape in PRACTICE["SHAPES"]:
-        base = Config(block_m=shape[0])
+        base = Config(group_tile_m=shape[0])
         for scope in ("thread", "cta"):
             config = replace(base, counter_scope=scope)
             report["reuse_stress"].append(

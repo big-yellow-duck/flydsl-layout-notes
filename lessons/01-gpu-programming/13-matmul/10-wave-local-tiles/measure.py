@@ -150,8 +150,8 @@ def compare(
         "batches": batches,
         "repeats": repeats,
         "seed": seed,
-        "right_staging_BF16_values_per_thread": config.block_k
-        * config.block_n
+        "right_staging_BF16_values_per_thread": config.stage_k
+        * config.group_tile_n
         // config.compute_threads,
         "lds_bytes": config.lds_bytes,
         "scope": "Warm matched buffers, synchronized host clock, allocations excluded; performance is an observation.",

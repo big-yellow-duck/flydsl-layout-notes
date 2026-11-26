@@ -76,7 +76,7 @@ The [HipKittens four-wave investigation](experiments/hipkittens-four-wave/README
 
 Asynchronous copies, reductions, dynamic shapes, general strided tilers, and broader occupancy/register-pressure tuning remain beyond the completed sequence. Extend the correctness checks before tuning a new access pattern.
 
-Stage 08 now also has a separately locked `(M,N,K)=(1024,4096,2048)` configuration with `group_m=2`. It passed all 18 direct-launch held-out win rounds against GPU Torch; graph replay met parity. This extends aligned per-shape tuning without adding general tails or changing the standard 1024³ benchmark. See the [rectangular workload measurements](lessons/01-gpu-programming/13-matmul/08-parameter-tuning/README.md#select-a-configuration-for-a-rectangular-workload).
+Stage 08 now also has a separately locked `(M,N,K)=(1024,4096,2048)` configuration with `traversal_group_m=2`. It passed all 18 direct-launch held-out win rounds against GPU Torch; graph replay met parity. This extends aligned per-shape tuning without adding general tails or changing the standard 1024³ benchmark. See the [rectangular workload measurements](lessons/01-gpu-programming/13-matmul/08-parameter-tuning/README.md#select-a-configuration-for-a-rectangular-workload).
 
 ## 14 · Quantized matmul
 

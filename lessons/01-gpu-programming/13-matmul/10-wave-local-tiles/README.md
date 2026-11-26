@@ -4,15 +4,15 @@ A physical block can contain two waves without making them cooperate on one matr
 
 This lesson changes wave ownership only. It keeps the ordinary B cache policy, a rolled K loop, and full-workgroup handoff barriers. [10a](../10a-synchronization-scope/README.md) will narrow those barriers after the independent storage is established.
 
-Wave groups have two dimensions: `wave_groups_m` and `wave_groups_n`. They
-place independent tiles along M and N, while `waves_m` and `waves_n` describe
+The fields `wave_groups_m` and `wave_groups_n` place independent tiles along M
+and N. The fields `waves_per_group_m` and `waves_per_group_n` arrange
 cooperating waves **inside one compute tile**. The physical block covers
 `(BLOCK_M, BLOCK_N)` output values, where
 `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` and
 `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N`. Each group computes
 `GROUP_TILE_M × GROUP_TILE_N` outputs using `STAGE_K`-wide K stages.
-The host configuration fields `block_m`, `block_n`, and `block_k` retain their
-serialized names and supply `GROUP_TILE_M`, `GROUP_TILE_N`, and `STAGE_K`. The four tuning
+The host fields `group_tile_m`, `group_tile_n`, and `stage_k` supply
+`GROUP_TILE_M`, `GROUP_TILE_N`, and `STAGE_K`. The four tuning
 arrangements are `(1,1)`, `(1,2)`, `(2,1)`, and `(2,2)`.
 
 ## Follow physical block 2
@@ -30,7 +30,7 @@ The walkthrough selects `(1,2)`. The tuned wide CLI default uses `(1,1)` because
 The [native solution](solution.py) uses two layouts: one for groups within a
 physical block, and one for physical-block traversal. For the walkthrough,
 `GROUP_TILE_M=16`, `GROUP_TILE_N=64`, `STAGE_K=16`,
-`WAVE_GROUPS_M=1`, `WAVE_GROUPS_N=2`, `group_m=1`, and `split_k=1`.
+`WAVE_GROUPS_M=1`, `WAVE_GROUPS_N=2`, `traversal_group_m=1`, and `split_k=1`.
 Thus `BLOCK_M=16`, `BLOCK_N=128`, and each group has 32 threads.
 
 ```python
@@ -129,12 +129,12 @@ shape, each 128-thread physical block owns a **32×128** output region.
 ![A physical 32×128 output region contains a 2×2 arrangement of independent 16×64 wave tiles, each with its own A/B LDS region. Grouped traversal visits physical block rows before advancing the K split and physical block column.](../../../../assets/01-gpu-programming/13-matmul/10-wave-local-tiles/wave-grid-2d.svg)
 
 Read wave columns first, then wave rows. Wave IDs 0,1,2,3 select coordinates
-`(0,0),(0,1),(1,0),(1,1)`. With `group_m=2` and split-K enabled, blocks visit the
+`(0,0),(0,1),(1,0),(1,1)`. With `traversal_group_m=2` and split-K enabled, blocks visit the
 two physical M rows at the same split and physical N column before advancing
 the split. **All four waves within one block process the same split.** This
 keeps the physical block's C region explicit for every split count.
 
-`group_m` changes traversal, not storage. It counts physical block rows, each
+`traversal_group_m` counts physical block rows, each
 32 elements tall in this example. A/B LDS and prefetch registers grow with the
 number of independent wave tiles per block; logical staging per thread stays
 fixed. Full physical tiles are required here. An M=16 workload cannot fit two
@@ -143,24 +143,23 @@ the second wave row for another K split. Lesson 12 later bounds partial M rows.
 
 ## When does M traversal still matter?
 
-`wave_groups_m` and `group_m` act at successive levels. The first packs M-neighbor
+`wave_groups_m` and `traversal_group_m` act at successive levels. The first packs M-neighbor
 wave tiles into one physical block. The second visits M-neighbor physical blocks
 before advancing to the next K split or physical N column. Both can bring
 requests for the same B values closer together, while every wave retains its
 own staging copies and LDS region.
 
 For per-wave height `GROUP_TILE_M`, the number of physical M rows is
-`M // (GROUP_TILE_M * wave_groups_m)` in this full-tile lesson. If it is one,
-`min(group_m, blocks_m)` is always one: changing `group_m` cannot change
-the traversal. For example, M=32 with 16-row waves and `wave_groups_m=2`
+`M // (GROUP_TILE_M * wave_groups_m)` in this full-tile lesson. With one physical row,
+`min(traversal_group_m, blocks_m)` always gives one. For example, M=32 with 16-row waves and `wave_groups_m=2`
 already fits all M work in one physical row. With M=256, the same packing
-leaves eight physical rows. `group_m=4` then places four blocks with the same
+leaves eight physical rows. `traversal_group_m=4` then places four blocks with the same
 B columns and K split at neighboring launch positions, covering 128 output
 rows across eight independent M wave tiles.
 
 That locality opportunity does not guarantee an L2 hit. Scheduling, cache policy,
 capacity and competing traffic determine where repeated reads are served.
-Changing `group_m` leaves per-block threads, fragment shapes and LDS allocation fixed;
+Changing `traversal_group_m` leaves per-block threads, fragment shapes and LDS allocation fixed;
 changing wave packing also changes block resources and grid size. The
 [lesson-12 benchmark study](../12-operand-paths/results/20261117-group-m/README.md)
 tests both levels on skinny, square and rectangular GEMMs, with matched

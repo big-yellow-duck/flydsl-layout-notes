@@ -17,37 +17,43 @@ from flydsl._mlir.dialects import scf
 
 @dataclass(frozen=True)
 class Config:
-    block_m: int = 16
-    block_n: int = 64
-    block_k: int = 64
-    waves_m: int = 1
-    waves_n: int = 2
-    group_m: int = 1
+    group_tile_m: int = 16
+    group_tile_n: int = 64
+    stage_k: int = 64
+    waves_per_group_m: int = 1
+    waves_per_group_n: int = 2
+    traversal_group_m: int = 1
     split_k: int = 4
 
     @property
     def name(self):
-        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_prefetch_lds1_gm{self.group_m}_sk{self.split_k}"
+        return (
+            f"09_tile{self.group_tile_m}x{self.group_tile_n}_stagek{self.stage_k}"
+            f"_waves{self.waves_per_group_m}x{self.waves_per_group_n}_groups1x1"
+            f"_traversalm{self.traversal_group_m}_splitk{self.split_k}"
+        )
 
     @property
     def threads(self):
-        return 32 * self.waves_m * self.waves_n
+        return 32 * self.waves_per_group_m * self.waves_per_group_n
 
     @property
     def accumulator_values(self):
         return (
             8
-            * (self.block_m // (16 * self.waves_m))
-            * (self.block_n // (16 * self.waves_n))
+            * (self.group_tile_m // (16 * self.waves_per_group_m))
+            * (self.group_tile_n // (16 * self.waves_per_group_n))
         )
 
     @property
     def lds_bytes(self):
-        return 2 * (self.block_m * (self.block_k + 8) + self.block_k * self.block_n)
+        return 2 * (
+            self.group_tile_m * (self.stage_k + 8) + self.stage_k * self.group_tile_n
+        )
 
 
 def validate_config(config, shape=(16, 1024, 8192)):
-    bm, bn, bk = config.block_m, config.block_n, config.block_k
+    bm, bn, bk = config.group_tile_m, config.group_tile_n, config.stage_k
     if any(value <= 0 for value in (bm, bn, bk)):
         raise ValueError("Block dimensions must be positive")
     if len(shape) != 3 or any(value <= 0 for value in shape):
@@ -59,12 +65,16 @@ def validate_config(config, shape=(16, 1024, 8192)):
     if shape[2] % (bk * config.split_k):
         raise ValueError("K must contain complete, equal split-K partitions")
     if (
-        config.waves_m < 1
-        or config.waves_n < 1
+        config.waves_per_group_m < 1
+        or config.waves_per_group_n < 1
         or config.threads not in (32, 64, 128, 256)
     ):
         raise ValueError("Use one, two, four, or eight wave32 groups")
-    if bm % (16 * config.waves_m) or bn % (16 * config.waves_n) or bk % 16:
+    if (
+        bm % (16 * config.waves_per_group_m)
+        or bn % (16 * config.waves_per_group_n)
+        or bk % 16
+    ):
         raise ValueError("Block tile must contain whole WMMA groups and K fragments")
     for rows, columns in ((bm, bk), (bk, bn)):
         chunks = columns // 8
@@ -74,11 +84,11 @@ def validate_config(config, shape=(16, 1024, 8192)):
             raise ValueError(
                 "Every cooperative staging thread must own complete chunks"
             )
-    if config.group_m < 1:
-        raise ValueError("group_m must be positive")
+    if config.traversal_group_m < 1:
+        raise ValueError("traversal_group_m must be positive")
     tile_rows = shape[0] // bm
-    if tile_rows % min(config.group_m, tile_rows):
-        raise ValueError("group_m must form complete output tile row groups")
+    if tile_rows % min(config.traversal_group_m, tile_rows):
+        raise ValueError("traversal_group_m must form complete output tile row groups")
     if config.lds_bytes > 65536:
         raise ValueError("LDS allocation exceeds this lesson's 64 KiB limit")
     return config
@@ -413,8 +423,8 @@ def _workspace_for(config, shape, device, stream, capture_id):
     if config.split_k == 1:
         return None
     m, n, _ = shape
-    tiles = (m // config.block_m) * (n // config.block_n)
-    partial_count = tiles * config.split_k * config.block_m * config.block_n
+    tiles = (m // config.group_tile_m) * (n // config.group_tile_n)
+    partial_count = tiles * config.split_k * config.group_tile_m * config.group_tile_n
     counter_count = tiles * config.threads
     with torch.cuda.device(device), torch.cuda.stream(stream):
         partials = torch.empty(partial_count + 16, dtype=torch.float32, device=device)
@@ -561,12 +571,12 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
             counters,
             *shape,
             fx.Stream(current_stream),
-            BLOCK_M=config.block_m,
-            BLOCK_N=config.block_n,
-            BLOCK_K=config.block_k,
-            WAVES_M=config.waves_m,
-            WAVES_N=config.waves_n,
-            GROUP_M=config.group_m,
+            BLOCK_M=config.group_tile_m,
+            BLOCK_N=config.group_tile_n,
+            BLOCK_K=config.stage_k,
+            WAVES_M=config.waves_per_group_m,
+            WAVES_N=config.waves_per_group_n,
+            GROUP_M=config.traversal_group_m,
             SPLIT_K=config.split_k,
         )
         if supplied_out:
@@ -578,9 +588,9 @@ def check_boundaries(config):
     """Trace every split's partials through one, two, and three local K tiles."""
     checked = []
     for tiles_per_split in (1, 2, 3):
-        m, n = config.block_m, config.block_n
-        k = config.block_k * config.split_k * tiles_per_split
-        tile_ids = torch.arange(k) // config.block_k
+        m, n = config.group_tile_m, config.group_tile_n
+        k = config.stage_k * config.split_k * tiles_per_split
+        tile_ids = torch.arange(k) // config.stage_k
         split_ids = tile_ids // tiles_per_split
         tags = (split_ids + 1) * 2 ** (tile_ids % tiles_per_split)
         a = tags.to(torch.bfloat16).expand(m, k).contiguous().cuda()
@@ -592,7 +602,7 @@ def check_boundaries(config):
         matmul_bf16(a, b, out=out, config=config)
         torch.cuda.synchronize()
         partials = [
-            config.block_k * (part + 1) * (2**tiles_per_split - 1)
+            config.stage_k * (part + 1) * (2**tiles_per_split - 1)
             for part in range(config.split_k)
         ]
         expected = torch.full((m, n), sum(partials), dtype=torch.bfloat16)

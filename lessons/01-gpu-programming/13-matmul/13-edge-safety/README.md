@@ -8,7 +8,7 @@ Complete [predicates and tails](../../10-predicates-and-tails/README.md) and [op
 
 Use **M=17, N=65, K=33**, with a **16×64×32** group tile. A has layout `(17,33):(33,1)`, B has `(33,65):(65,1)`, and C has `(17,65):(65,1)`. All storage is row-major BF16; accumulation is FP32.
 
-Use `Config(block_k=32, waves_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
+Use `Config(stage_k=32, waves_per_group_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
 
 The output needs two tile rows and two tile columns. The corner window starts at output `(16,64)`. Its final K stage starts at 32. Only one row, column, and reduction position remain valid.
 
@@ -109,7 +109,7 @@ The K coordinate check in each copy predicate handles the partial stage. The sta
 
 The block decoder keeps Lesson 12’s `fx.idx2crd` order `(row_in_group, split_id, block_col, m_group_id)`, with the row within the M group changing fastest. The physical block selects its tile first, then each wave group slices its own region. [Operand paths](../12-operand-paths/README.md)
 
-`divmod(blocks_m, group_m_width)` gives the number of complete groups and the number of physical **tile rows** left over. A tile row counts even when its matrix window is partial. For a traversal example, take five tile rows, two tile columns, two K splits, and `group_m=3`. The first group has rows 0–2 and uses block IDs 0–11. The final group has rows 3–4 and uses block IDs 12–19.
+`divmod(blocks_m, group_m_width)` gives the number of complete groups and the number of physical **tile rows** left over. A tile row counts even when its matrix window is partial. For a traversal example, take five tile rows, two tile columns, two K splits, and `traversal_group_m=3`. The first group has rows 0–2 and uses block IDs 0–11. The final group has rows 3–4 and uses block IDs 12–19.
 
 The full-group layout ends at the exclusive block count `full_m_groups * group_m_width * SPLIT_K * blocks_n`. If a tail exists, its first block has exactly that ID. Subtracting the count gives a zero-based index into the tail layout `(tail_m_group_rows, SPLIT_K, blocks_n)`. Both branches produce the physical tile row, split, and column. [Block decoder](solution.py#L302-L327)
 

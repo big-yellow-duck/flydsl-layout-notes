@@ -17,45 +17,59 @@ MMA_M, MMA_N, MMA_K = 16, 16, 16
 
 @dataclass(frozen=True)
 class Config:
-    block_m: int = 64
-    block_n: int = 64
-    block_k: int = 32
-    waves_m: int = 2
-    waves_n: int = 2
-    group_m: int = 8
+    group_tile_m: int = 64
+    group_tile_n: int = 64
+    stage_k: int = 32
+    waves_per_group_m: int = 2
+    waves_per_group_n: int = 2
+    traversal_group_m: int = 8
 
     @property
     def name(self):
-        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_prefetch_lds1_gm{self.group_m}"
+        return (
+            f"08_tile{self.group_tile_m}x{self.group_tile_n}_stagek{self.stage_k}"
+            f"_waves{self.waves_per_group_m}x{self.waves_per_group_n}_groups1x1"
+            f"_traversalm{self.traversal_group_m}"
+        )
 
     @property
     def threads(self):
-        return 32 * self.waves_m * self.waves_n
+        return 32 * self.waves_per_group_m * self.waves_per_group_n
 
     @property
     def accumulator_values(self):
         return (
             8
-            * (self.block_m // (16 * self.waves_m))
-            * (self.block_n // (16 * self.waves_n))
+            * (self.group_tile_m // (16 * self.waves_per_group_m))
+            * (self.group_tile_n // (16 * self.waves_per_group_n))
         )
 
     @property
     def lds_bytes(self):
-        return 2 * (self.block_m * (self.block_k + 8) + self.block_k * self.block_n)
+        return 2 * (
+            self.group_tile_m * (self.stage_k + 8) + self.stage_k * self.group_tile_n
+        )
 
 
 def validate_config(config, shape=(1024, 1024, 1024)):
-    bm, bn, bk = config.block_m, config.block_n, config.block_k
+    bm, bn, bk = config.group_tile_m, config.group_tile_n, config.stage_k
     if any(value <= 0 for value in (bm, bn, bk)):
         raise ValueError("Block dimensions must be positive")
     if len(shape) != 3 or any(value <= 0 for value in shape):
         raise ValueError("Shape must contain positive M,N,K")
     if any(size % tile for size, tile in zip(shape, (bm, bn, bk), strict=True)):
         raise ValueError("Shape must contain complete block tiles")
-    if config.waves_m < 1 or config.waves_n < 1 or config.threads not in (64, 128, 256):
+    if (
+        config.waves_per_group_m < 1
+        or config.waves_per_group_n < 1
+        or config.threads not in (64, 128, 256)
+    ):
         raise ValueError("Use two, four, or eight wave32 groups")
-    if bm % (16 * config.waves_m) or bn % (16 * config.waves_n) or bk % 16:
+    if (
+        bm % (16 * config.waves_per_group_m)
+        or bn % (16 * config.waves_per_group_n)
+        or bk % 16
+    ):
         raise ValueError("Block tile must contain whole WMMA groups and K fragments")
     for rows, columns in ((bm, bk), (bk, bn)):
         chunks = columns // 8
@@ -65,11 +79,11 @@ def validate_config(config, shape=(1024, 1024, 1024)):
             raise ValueError(
                 "Every cooperative staging thread must own complete chunks"
             )
-    if config.group_m < 1:
-        raise ValueError("group_m must be positive")
+    if config.traversal_group_m < 1:
+        raise ValueError("traversal_group_m must be positive")
     tile_rows = shape[0] // bm
-    if tile_rows % min(config.group_m, tile_rows):
-        raise ValueError("group_m must form complete output tile row groups")
+    if tile_rows % min(config.traversal_group_m, tile_rows):
+        raise ValueError("traversal_group_m must form complete output tile row groups")
     if config.lds_bytes > 65536:
         raise ValueError("LDS allocation exceeds this lesson's 64 KiB limit")
     return config
@@ -133,7 +147,7 @@ def _matmul_bf16(
         (tiles_n, 1, group_width * tiles_n),
     )
 
-    # map each block to the group_m output tile layout
+    # map each block to the traversal_group_m output tile layout
     output_tile_offset = fx.crd2idx(flat_block_id, block_tile_order)
     output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
     output_tile_coords = fx.idx2crd(output_tile_offset, output_tile_layout)
@@ -324,10 +338,10 @@ def _launch_matmul_bf16(
     )
 
 
-SELECTED_CONFIG = Config(128, 128, 32, 1, 4, group_m=8)
+SELECTED_CONFIG = Config(128, 128, 32, 1, 4, traversal_group_m=8)
 CONFIGS_BY_SHAPE = {
     (1024, 1024, 1024): SELECTED_CONFIG,
-    (1024, 4096, 2048): Config(128, 128, 32, 1, 4, group_m=2),
+    (1024, 4096, 2048): Config(128, 128, 32, 1, 4, traversal_group_m=2),
 }
 
 
@@ -424,12 +438,12 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
             out,
             *shape,
             fx.Stream(current_stream),
-            BLOCK_M=config.block_m,
-            BLOCK_N=config.block_n,
-            BLOCK_K=config.block_k,
-            WAVES_M=config.waves_m,
-            WAVES_N=config.waves_n,
-            GROUP_M=config.group_m,
+            BLOCK_M=config.group_tile_m,
+            BLOCK_N=config.group_tile_n,
+            BLOCK_K=config.stage_k,
+            WAVES_M=config.waves_per_group_m,
+            WAVES_N=config.waves_per_group_n,
+            GROUP_M=config.traversal_group_m,
         )
         if supplied_out:
             torch.autograd.graph.increment_version(out)
@@ -440,8 +454,8 @@ def check_boundaries(config):
 
     checked = []
     for tiles in (1, 2, 3):
-        m, n, k = config.block_m, config.block_n, config.block_k * tiles
-        tags = (2 ** (torch.arange(k, dtype=torch.int32) // config.block_k)).to(
+        m, n, k = config.group_tile_m, config.group_tile_n, config.stage_k * tiles
+        tags = (2 ** (torch.arange(k, dtype=torch.int32) // config.stage_k)).to(
             torch.bfloat16
         )
         left = tags.expand(m, k).contiguous().cuda()
@@ -451,7 +465,7 @@ def check_boundaries(config):
         out.fill_(float("nan"))
         matmul_bf16(left, right, out=out, config=config)
         torch.cuda.synchronize()
-        expected = config.block_k * (2**tiles - 1)
+        expected = config.stage_k * (2**tiles - 1)
         torch.testing.assert_close(
             out.cpu(),
             torch.full((m, n), expected, dtype=torch.bfloat16),

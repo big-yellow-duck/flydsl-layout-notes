@@ -51,35 +51,8 @@ def load_workloads():
                 )
             )
         )
-        suites[stage] = {shape: [] for shape in slots}, solution, tune
+        suites[stage] = slots, solution, tune
 
-    workloads, _, _ = suites[12]
-    old = ROOT / STAGES[12] / "results"
-    for folder in ("20261113-square-tuning", "20261113-small-m-tuning"):
-        for label, config in read(old / folder / "configurations.json").items():
-            workloads.setdefault(tuple(map(int, label.split("x"))), []).append(config)
-    for label, groups in read(
-        old / "20261117-group-m/summary/locked-configurations.json"
-    ).items():
-        proposals = workloads.setdefault(tuple(map(int, label.split("x"))), [])
-        for group in groups.values():
-            proposals.extend(group.values())
-
-    workloads, _, _ = suites[13]
-    old = ROOT / STAGES[13] / "results"
-    for filename in (
-        "descriptor-only.json",
-        "predicate-ablation.json",
-        "predicate-width2.json",
-        "predicate-width4.json",
-    ):
-        report = read(old / filename)
-        for row in report.get("rows", report.get("rounds", ())):
-            workloads.setdefault(tuple(row["shape_MNK"]), [])
-    odd = read(old / "odd-shape-counterexample.json")
-    workloads.setdefault(tuple(odd["verification"][0]["shape_MNK"]), []).append(
-        odd["locked_config"]
-    )
     return suites
 
 
@@ -123,14 +96,14 @@ def geometries(shape, config):
             # Include both operand routes and seed nearby geometry with known K depth.
             yield replace(
                 config,
-                block_m=bm,
-                block_n=bn,
-                waves_m=wm,
-                waves_n=wn,
+                group_tile_m=bm,
+                group_tile_n=bn,
+                waves_per_group_m=wm,
+                waves_per_group_n=wn,
                 wave_groups_m=gm,
                 wave_groups_n=gn,
                 left_in_registers=registers,
-                block_k=min(64, max(16, config.block_k)),
+                stage_k=min(64, max(16, config.stage_k)),
                 k_unroll=2,
             )
 
@@ -186,13 +159,13 @@ def search(module, common, measure, shape, base, seeds):
     for cfg in rank()[:2]:
         for bk in (16, 32, 64):
             for split in (1, 2, 4):
-                evaluate(replace(cfg, block_k=bk, split_k=split), "K and split")
+                evaluate(replace(cfg, stage_k=bk, split_k=split), "K and split")
     strongest = rank()[0]
     for field, values in (
         ("k_unroll", (1, 2, 4, 8)),
         ("right_cache_modifier", (0, 1, 2)),
         ("left_cache_modifier", (0, 1, 2)),
-        ("group_m", (1, 2, 4, 8)),
+        ("traversal_group_m", (1, 2, 4, 8)),
         ("left_in_registers", (True, False)),
     ):
         for value in values:
@@ -278,7 +251,7 @@ def main():
     common, measure = harness["COMMON"], harness["measure"]
     args.output.mkdir(parents=True, exist_ok=True)
     for number, (stage, shape) in enumerate(jobs, 1):
-        workloads, module, _ = suites[stage]
+        _, module, _ = suites[stage]
         path = args.output / f"{stage}-{key(shape)}.json"
         if path.exists():
             record = read(path)
@@ -288,16 +261,11 @@ def main():
             continue
         print(f"Start {number}/{len(jobs)} stage {stage} {key(shape)}", flush=True)
         Config = module["Config"]
-        archived = workloads[shape]
         base = module["CONFIGS_BY_SHAPE"].get(shape)
         if base is None:
-            base = (
-                Config.from_dict(archived[0])
-                if archived
-                else module["default_config"](shape)
-            )
-        proposals = [*archived]
-        for other, (pool, owner, _) in suites.items():
+            base = module["default_config"](shape)
+        proposals = []
+        for other, (_, owner, _) in suites.items():
             if other != stage:
                 control = owner["CONFIGS_BY_SHAPE"].get(shape)
                 if control:
@@ -312,7 +280,7 @@ def main():
             measure,
             shape,
             base,
-            [Config.from_dict(row) for row in proposals],
+            [Config(**row) for row in proposals],
         )
         result.update(
             stage=stage,

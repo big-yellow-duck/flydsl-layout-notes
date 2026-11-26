@@ -43,6 +43,16 @@ class Config:
     def from_dict(cls, values):
         """Read current configurations and archived scalar N-group selections."""
         values = dict(values)
+        for current, old in {
+            "group_tile_m": "block_m",
+            "group_tile_n": "block_n",
+            "stage_k": "block_k",
+            "waves_per_group_m": "waves_m",
+            "waves_per_group_n": "waves_n",
+            "traversal_group_m": "group_m",
+        }.items():
+            if current in values:
+                values.setdefault(old, values.pop(current))
         if "wave_groups" in values:
             values["wave_groups_n"] = values.pop("wave_groups")
         return cls(**values)

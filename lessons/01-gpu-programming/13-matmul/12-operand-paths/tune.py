@@ -16,7 +16,6 @@ HERE = Path(__file__).resolve().parent
 MODULE = runpy.run_path(str(HERE / "solution.py"))
 COMMON = runpy.run_path(str(HERE.parent / "09-split-k/tune.py"))
 PREFETCH = runpy.run_path(str(HERE.parent / "10c-k-unrolling/solution.py"))
-PREFETCH_SELECTION = json.loads((HERE / "results/prefetch-control.json").read_text())
 CONTEXT = COMMON["inputs"].__globals__
 CONTEXT.update(MODULE=MODULE, BUILD=MODULE["_matmul_bf16"]._original_func)
 
@@ -103,10 +102,9 @@ def measure(launches, data, batches=7, repeats=20, order_seed=0, timing="graph-h
 
 
 def controls(shape, config):
-    key = "x".join(map(str, shape))
     launches = {"torch": COMMON["torch_launch"]}
-    if key in PREFETCH_SELECTION["shapes"]:
-        tuned = PREFETCH["Config"].from_dict(PREFETCH_SELECTION["shapes"][key])
+    tuned = PREFETCH["CONFIGS_BY_SHAPE"].get(shape)
+    if tuned is not None:
         launches["prefetch"] = partial(PREFETCH["matmul_bf16"], config=tuned)
     compatible = {
         name: value
@@ -128,7 +126,7 @@ def environment(shape):
     factory_hash = hashlib.sha256(
         inspect.getsource(MODULE["_matmul_bf16"]._original_func).encode()
     ).hexdigest()
-    prefetch = PREFETCH_SELECTION["shapes"].get("x".join(map(str, shape)))
+    prefetch = PREFETCH["CONFIGS_BY_SHAPE"].get(shape)
     return {
         **COMMON["environment"](),
         "kernel_build_sha256": factory_hash,
@@ -141,10 +139,7 @@ def environment(shape):
             name: hashlib.sha256((HERE / name).read_bytes()).hexdigest()
             for name in ("solution.py", "tune.py")
         },
-        "controls": {"prefetch": prefetch} if prefetch else {},
-        "prefetch_selection_sha256": hashlib.sha256(
-            (HERE / "results/prefetch-control.json").read_bytes()
-        ).hexdigest(),
+        "controls": {"prefetch": asdict(prefetch)} if prefetch else {},
         "helper_sha256": {
             str(path.relative_to(HERE.parents[3])): hashlib.sha256(
                 path.read_bytes()
@@ -246,7 +241,7 @@ def main():
         parser.error("Use a fresh output path")
     shape = tuple(args.shape)
     config = (
-        MODULE["Config"].from_dict(json.loads(args.config))
+        MODULE["Config"](**json.loads(args.config))
         if args.config
         else MODULE["CONFIGS_BY_SHAPE"][shape]
     )

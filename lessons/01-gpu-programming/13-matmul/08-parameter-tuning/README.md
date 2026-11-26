@@ -5,10 +5,17 @@ A larger output tile lets each block reuse its inputs across more results. It al
 Build on [stage 07c](../07c-grouped-traversal/README.md), retaining its grouped block traversal, buffer global access, separate A/B staging plans, global prefetch, padded A LDS, packed B LDS, and native WMMA copies. The standard walkthrough keeps **M=N=K=1024**, row-major BF16 inputs/output, and FP32 accumulation. A separately tuned rectangular workload is described below. The [solution](solution.py) selects:
 
 ```python
-SELECTED_CONFIG = Config(128, 128, 32, 1, 4, group_m=8)
+SELECTED_CONFIG = Config(
+    group_tile_m=128,
+    group_tile_n=128,
+    stage_k=32,
+    waves_per_group_m=1,
+    waves_per_group_n=4,
+    traversal_group_m=8,
+)
 ```
 
-`group_m` is part of `Config`, so each specialization and its report record the traversal choice. This means a **128×128 output tile**, a **32-wide K stage**, **1×4 wave groups**, and **one LDS buffer per operand**. The strategy combines more output reuse with 16-wide operand fragments, vectorized global staging, and grouped block traversal.
+`traversal_group_m` is part of `Config`, so each specialization and its report record the traversal choice. This means a **128×128 output tile**, a **32-wide K stage**, **one group of 1×4 cooperating waves**, and **one LDS buffer per operand**. The strategy combines more output reuse with 16-wide operand fragments, vectorized global staging, and grouped block traversal.
 
 ## How this relates to stage 07c
 
@@ -154,7 +161,7 @@ Each thread stages 32 values of each operand in four chunks. These positions dif
 
 Global views use `fx.rocdl.make_buffer_tensor` with `BufferCopy128b` for loads and `BufferCopy16b` for BF16 output. LDS copies use `UniversalCopy` atoms. The row-major input layouts stay unchanged. A retains the padded LDS row stride `BLOCK_K+8`; B retains stride `BLOCK_N`.
 
-Launch a one-dimensional grid `(tiles_m * tiles_n, 1, 1)` and use `block_idx.x` directly as the physical ID. Block selection follows 07c's native layout pattern with `GROUP_M = config.group_m` (eight in the selected configuration):
+Launch a one-dimensional grid `(tiles_m * tiles_n, 1, 1)` and use `block_idx.x` directly as the physical ID. Block selection follows 07c's native layout pattern with `GROUP_M = config.traversal_group_m` (eight in the selected configuration):
 
 ```python
 tiles_m = m // BLOCK_M
@@ -185,9 +192,9 @@ The grouped block traversal introduced with two rows in [stage 07c](../07c-group
 
 Each block keeps one LDS tile per operand, occupying `2*(BLOCK_M*(BLOCK_K+8) + BLOCK_K*BLOCK_N)` bytes in total. The next global tile waits in staging registers while WMMA reads the current LDS tile. A reader barrier protects that tile before publication overwrites it, and a ready barrier makes the new tile visible.
 
-Use `Config(..., group_m=2)` to select two-row groups, or pass `--group-m 2` to the tuner. Group size must be positive and form complete row groups after clamping to the chosen shape's tile row count. Shape dimensions must contain complete block tiles; general matrix tails are not implemented. `group_m=1` visits columns first; a group larger than the row count uses all tile rows. Configuration names include `_gm2`, `_gm8`, and so on.
+Use `Config(..., traversal_group_m=2)` to select two-row groups, or pass `--traversal-group-m 2` to the tuner. Group size must be positive and form complete row groups after clamping to the chosen shape's tile row count. Shape dimensions must contain complete block tiles; general matrix tails are not implemented. `traversal_group_m=1` visits columns first; a group larger than the row count uses all tile rows. Configuration names include `_gm2`, `_gm8`, and so on.
 
-The [tuner](tune.py) searches 76 valid single-stage tile/wave configurations. For the standard shape, the default sweep holds `group_m=8`; `--group-m` selects one fixed group size for all candidates rather than adding a search dimension. It rejects incomplete copy or WMMA groups and allocations above 64 KiB, then checks every candidate before timing. Select on training inputs, lock the tuple, and verify it on new inputs. This distinguishes a useful configuration from a favorable training measurement.
+The [tuner](tune.py) searches 76 valid single-stage tile/wave configurations. For the standard shape, the default sweep holds `traversal_group_m=8`; `--traversal-group-m` selects one fixed group size for all candidates rather than adding a search dimension. It rejects incomplete copy or WMMA groups and allocations above 64 KiB, then checks every candidate before timing. Select on training inputs, lock the tuple, and verify it on new inputs. This distinguishes a useful configuration from a favorable training measurement.
 
 ## The measured winner
 
@@ -221,7 +228,7 @@ Reproduce the paired host verification with a fresh output path:
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-  --verify --timing direct-host --config 128,128,32,1,4 --group-m 8 \
+  --verify --timing direct-host --config 128,128,32,1,4 --traversal-group-m 8 \
   --seeds 2026110601 2026110602 2026110603 --output /tmp/native-layout-heldout.json
 ```
 
@@ -231,8 +238,8 @@ The standard 1024³ example remains the default. A second locked configuration t
 
 ```python
 CONFIGS_BY_SHAPE = {
-    (1024, 1024, 1024): Config(128, 128, 32, 1, 4, group_m=8),
-    (1024, 4096, 2048): Config(128, 128, 32, 1, 4, group_m=2),
+    (1024, 1024, 1024): Config(128, 128, 32, 1, 4, traversal_group_m=8),
+    (1024, 4096, 2048): Config(128, 128, 32, 1, 4, traversal_group_m=2),
 }
 ```
 
@@ -265,7 +272,7 @@ To search again, use fresh output paths and reserve new seeds for verification:
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-  --shape 1024 4096 2048 --sweep --group-m 2 --output /tmp/rectangular-search.json
+  --shape 1024 4096 2048 --sweep --traversal-group-m 2 --output /tmp/rectangular-search.json
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
   --shape 1024 4096 2048 --sweep --extended \
   --output /tmp/rectangular-wide-search.json
@@ -293,7 +300,7 @@ To explore another configuration, run a fresh search and verify its winner. Repl
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
   --sweep --timing direct-host --output /tmp/tile-search.json
 pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py \
-  --verify --timing direct-host --config 128,128,32,1,4 --group-m 8 \
+  --verify --timing direct-host --config 128,128,32,1,4 --traversal-group-m 8 \
   --seeds 2026110410 2026110411 2026110412 --output /tmp/tile-heldout.json
 ```
 

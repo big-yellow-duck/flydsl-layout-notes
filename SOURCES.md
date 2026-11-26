@@ -20,6 +20,8 @@ Pinned FlyDSL links preserve the reference snapshot. NVIDIA's `latest` pages may
 
 ## Native execution validation
 
+The BF16 and quantized matmul configuration naming was verified with FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385 on AMD Radeon 8060S Graphics (`gfx1151`). All 40 native solutions and the additional mapping and view checks passed under `pixi run gpu-check`. The grouped split-K checker passed all 35 cases. The course structure, public GPU API, and practice checks passed. The tutorials define their shape defaults in Python and use the current field names for explicit configurations.
+
 On 2026-11-13, matmul lessons 10, 10a–10c, and 12 were updated to represent all wave groups in one LDS view and select each group's tile with `fx.slice`. `pixi run gpu-check` passed all 35 native solutions and the additional mapping/view checks on AMD Radeon 8060S Graphics (`gfx1151`), using FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. The skinny solutions covered all three documented shapes and split counts 1, 2, and 4, including both operand paths in lesson 12. The full lesson structure/public API/starter/completed-practice suite, targeted Ruff checks, and changed README local-link checks also passed.
 
 Migrated and validated on 2026-10-29 using the installed **FlyDSL 0.4.1** source and `pixi.lock`, with ROCm 10, PyTorch 2.13.0+rocm10.0.0, and AMD Radeon 860M Graphics (`gfx1152`). The earlier upstream reference snapshot above is background; executable API signatures were checked against the pinned installed package.
@@ -552,7 +554,7 @@ The selected `32×128×64` tile uses two cooperating N waves, LDS A, split-K 4, 
 
 ## BF16 workload retuning across stages 12–15 (2026-11-19)
 
-The sweep covers 59 published stage-and-shape pairs on Radeon 8060S `gfx1151`, with FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. Of the 2,857 configurations considered, 2,838 passed copy-geometry validation, the CPU reference, and changed-input graph replay before timing. Seed 17 screens configurations, seed 37 reranks the finalists, and seeds 5101, 5202, and 5303 compare the leading configuration to its incumbent and GPU Torch. The solution and practice install 42 faster defaults. The selected configuration beats Torch in all three rounds for 57 of the 59 pairs. [Per-shape results and reproduction command](lessons/01-gpu-programming/13-matmul/retuning-12-15.md)
+The sweep covers 59 published stage-and-shape pairs on Radeon 8060S `gfx1151`, with FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. Of the 2,857 configurations considered, 2,838 passed copy-geometry validation, the CPU reference, and changed-input graph replay before timing. Seed 17 screens configurations, seed 37 reranks the finalists, and seeds 5101, 5202, and 5303 compare the leading configuration to its incumbent and GPU Torch. The solution and practice install 42 faster defaults. The selected configuration beats Torch in all three rounds for 57 of the 59 pairs. The individual lesson result directories contain the per-shape measurements.
 
 The selected configurations match the raw results in each solution and practice. `pixi run gpu-check` passed all 39 native solutions and the additional layout and sliced-load checks. The lesson style checker passed 80 structures, 39 public APIs, and 81 practice runs. Stage 12’s supplemental `1024³` CLI check passed, and the retuner successfully wrote and reused a checkpoint for stage 13’s `16×64×24` trace shape. Ruff, local report links, and whitespace checks passed.
 

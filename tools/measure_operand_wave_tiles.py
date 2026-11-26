@@ -8,6 +8,8 @@ from dataclasses import asdict, replace
 from functools import partial
 from pathlib import Path
 
+from matmul_config_archive import config_from_archive
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -45,7 +47,9 @@ def main():
     selections = module["CONFIGS_BY_SHAPE"]
     if args.configurations:
         selections = {
-            tuple(map(int, shape.split("x"))): module["Config"].from_dict(config)
+            tuple(map(int, shape.split("x"))): config_from_archive(
+                module["Config"], config
+            )
             for shape, config in json.loads(args.configurations.read_text()).items()
         }
     for shape, selected in selections.items():
@@ -53,19 +57,39 @@ def main():
         configs = {
             "operand_paths": selected,
             "single_wave": replace(
-                selected, waves_m=1, waves_n=1, wave_groups_m=1, wave_groups_n=1
+                selected,
+                waves_per_group_m=1,
+                waves_per_group_n=1,
+                wave_groups_m=1,
+                wave_groups_n=1,
             ),
             "packed_waves": replace(
-                selected, waves_m=1, waves_n=1, wave_groups_m=1, wave_groups_n=2
+                selected,
+                waves_per_group_m=1,
+                waves_per_group_n=1,
+                wave_groups_m=1,
+                wave_groups_n=2,
             ),
             "packed_rows": replace(
-                selected, waves_m=1, waves_n=1, wave_groups_m=2, wave_groups_n=1
+                selected,
+                waves_per_group_m=1,
+                waves_per_group_n=1,
+                wave_groups_m=2,
+                wave_groups_n=1,
             ),
             "packed_grid": replace(
-                selected, waves_m=1, waves_n=1, wave_groups_m=2, wave_groups_n=2
+                selected,
+                waves_per_group_m=1,
+                waves_per_group_n=1,
+                wave_groups_m=2,
+                wave_groups_n=2,
             ),
             "cooperating_waves": replace(
-                selected, waves_m=1, waves_n=2, wave_groups_m=1, wave_groups_n=1
+                selected,
+                waves_per_group_m=1,
+                waves_per_group_n=2,
+                wave_groups_m=1,
+                wave_groups_n=1,
             ),
         }
         if args.selected_only:

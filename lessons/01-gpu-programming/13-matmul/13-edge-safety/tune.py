@@ -67,10 +67,10 @@ def candidates():
         for registers in (True, False):
             for split in (1, 4):
                 yield Config(
-                    block_m=bm,
-                    block_n=bn,
-                    block_k=bk,
-                    waves_n=wn,
+                    group_tile_m=bm,
+                    group_tile_n=bn,
+                    stage_k=bk,
+                    waves_per_group_n=wn,
                     wave_groups_n=groups_n,
                     split_k=split,
                     k_unroll=2,
@@ -95,7 +95,7 @@ def main():
         parser.error("Use a fresh output path")
     shape = tuple(args.shape)
     config = (
-        MODULE["Config"].from_dict(json.loads(args.config))
+        MODULE["Config"](**json.loads(args.config))
         if args.config
         else MODULE["default_config"](shape)
     )
@@ -112,8 +112,8 @@ def main():
                 json.dumps({"training": candidate.name, "ratio": row["paired_ratio"]}),
                 flush=True,
             )
-        config = MODULE["Config"].from_dict(
-            min(training, key=lambda row: row["kernel_ms"])["config"]
+        config = MODULE["Config"](
+            **min(training, key=lambda row: row["kernel_ms"])["config"]
         )
     rows = [
         compare(

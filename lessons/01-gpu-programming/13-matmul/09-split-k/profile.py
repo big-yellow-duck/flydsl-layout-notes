@@ -92,12 +92,10 @@ def worker(args):
     tune["inputs"].__globals__.update(SHAPE=shape, MODULE=module, BUILD=kernel_source)
     config = module["CONFIGS_BY_SHAPE"].get(shape)
     if args.config_json:
-        config = getattr(
-            module["Config"], "from_dict", lambda values: module["Config"](**values)
-        )(json.loads(args.config_json))
+        config = module["Config"](**json.loads(args.config_json))
     elif args.config:
         values = list(map(int, args.config.split(",")))
-        config = module["Config"](*values[:5], group_m=1, split_k=values[5])
+        config = module["Config"](*values[:5], 1, split_k=values[5])
     if config is None:
         raise ValueError("An explicit configuration is required for this shape")
     data = tune["inputs"](2026111201)
@@ -330,7 +328,9 @@ def main():
     action.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--module", type=Path, default=HERE / "solution.py")
     parser.add_argument("--shape", type=int, nargs=3, default=(16, 4096, 8192))
-    parser.add_argument("--config", help="BM,BN,BK,WM,WN,SPLIT_K")
+    parser.add_argument(
+        "--config", help="tile M, tile N, stage K, waves M, waves N, split K"
+    )
     parser.add_argument(
         "--config-json", help="JSON object for the selected module's Config"
     )

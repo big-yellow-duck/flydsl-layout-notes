@@ -79,7 +79,7 @@ def tune_shape(shape, *, batches, replays, graph_gemms):
     output = torch.empty((m, n), dtype=torch.bfloat16, device="cuda")
     old = json.loads(RESULTS.read_text())
     row = next(item for item in old["shapes"] if tuple(item["shape_MNK"]) == shape)
-    base = fused["Config"](**row["final_comparison"]["config"])
+    base = fused["Config"].from_dict(row["final_comparison"]["config"])
 
     measurements = []
     for index, config in enumerate(_configs(fused, shape, base)):

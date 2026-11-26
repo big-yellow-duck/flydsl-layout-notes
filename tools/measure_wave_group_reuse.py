@@ -32,11 +32,13 @@ def main():
     configs = {
         "single_n64_k16": replace(packed, wave_groups_n=1),
         "packed_n64_k16": packed,
-        "cooperative_n64_k32": replace(packed, wave_groups_n=1, waves_n=2, block_k=32),
-        "cooperative_n128_k32": replace(
-            packed, wave_groups_n=1, waves_n=2, block_n=128, block_k=32
+        "cooperative_n64_k32": replace(
+            packed, wave_groups_n=1, waves_per_group_n=2, stage_k=32
         ),
-        "packed_n64_k32": replace(packed, block_k=32),
+        "cooperative_n128_k32": replace(
+            packed, wave_groups_n=1, waves_per_group_n=2, group_tile_n=128, stage_k=32
+        ),
+        "packed_n64_k32": replace(packed, stage_k=32),
         "packed_n64_k16_workgroup": replace(packed, sync_mode="workgroup"),
     }
     if args.sync_only:
@@ -65,7 +67,7 @@ def main():
             "split_k=1; change only synchronization mode."
         )
     for n in (64, 128):
-        config = replace(packed, wave_groups_n=1, waves_n=2, block_n=n)
+        config = replace(packed, wave_groups_n=1, waves_per_group_n=2, group_tile_n=n)
         try:
             module["validate_config"](config, shape)
         except ValueError as error:
@@ -75,8 +77,8 @@ def main():
         module["validate_config"](config, shape)
         blocks = (
             shape[0]
-            // config.block_m
-            * (shape[1] // config.block_n)
+            // config.group_tile_m
+            * (shape[1] // config.group_tile_n)
             // config.wave_groups
         )
         report["resources"][name] = {
@@ -84,11 +86,11 @@ def main():
             "threads_per_block": config.threads,
             "physical_blocks": blocks,
             "lds_bytes_per_block": config.lds_bytes,
-            "logical_A_staging_BF16_per_thread": config.block_m
-            * config.block_k
+            "logical_A_staging_BF16_per_thread": config.group_tile_m
+            * config.stage_k
             // config.compute_threads,
-            "logical_B_staging_BF16_per_thread": config.block_k
-            * config.block_n
+            "logical_B_staging_BF16_per_thread": config.stage_k
+            * config.group_tile_n
             // config.compute_threads,
             "accumulator_FP32_per_thread": config.accumulator_values,
         }

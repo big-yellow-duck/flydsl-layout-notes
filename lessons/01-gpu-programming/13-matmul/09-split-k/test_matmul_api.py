@@ -68,7 +68,9 @@ def test_unsplit_allocates_no_scratch():
     assert workspace(config, shape, left.device) is None
 
 
-@pytest.mark.parametrize("changes", ({"split_k": 3}, {"block_m": 0}, {"group_m": 0}))
+@pytest.mark.parametrize(
+    "changes", ({"split_k": 3}, {"group_tile_m": 0}, {"traversal_group_m": 0})
+)
 def test_config_is_validated_before_allocation(changes):
     left, right, _ = inputs(MODULE.SHAPES[0])
     config = replace(MODULE.Config(), **changes)

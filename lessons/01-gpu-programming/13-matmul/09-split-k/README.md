@@ -35,11 +35,11 @@ output_tile_layout = fx.make_layout((tiles_m, tiles_n), (tiles_n, 1))
 flat_block_id = fx.get_scalar(fx.crd2idx((block_row, block_col), output_tile_layout))
 ```
 
-The grid is `(tiles_m * tiles_n * SPLIT_K, 1, 1)`. Neighboring M tiles in a group read the same B tile and the same K partition before the launch order advances to another split. `group_width` clamps `group_m` to the number of tile rows; complete groups are required. With `SPLIT_K=1`, this is the grouped M traversal from 07c/08. With `group_m=1`, split K advances fastest, matching the single-row skinny example below. The split coordinate selects K work, not another output row or column.
+The grid is `(tiles_m * tiles_n * SPLIT_K, 1, 1)`. Neighboring M tiles in a group read the same B tile and the same K partition before the launch order advances to another split. `group_width` clamps `traversal_group_m` to the number of tile rows; complete groups are required. With `SPLIT_K=1`, this is the grouped M traversal from 07c/08. With `traversal_group_m=1`, split K advances fastest, matching the single-row skinny example below. The split coordinate selects K work, not another output row or column.
 
 ![Logical IDs 0 and 1 visit neighboring M rows at column 0 and split 0; IDs 2 and 3 visit those rows at split 1. Columns advance next, followed by the next M group.](../../../../assets/01-gpu-programming/13-matmul/09-split-k/grouped-split-order.svg)
 
-Trace this separate **4×2 output-tile grid**, `group_m=2`, `split_k=2`. IDs 0/1 target rows 0/1 at column 0, split 0; IDs 2/3 keep those rows and advance to split 1. IDs 4–7 repeat the pattern for column 1. ID 8 begins the next M group at row 2. This preserves same-split B reuse across neighboring rows. These are logical launch positions; GPU execution and completion order remain unspecified.
+Trace this separate **4×2 output-tile grid**, `traversal_group_m=2`, `split_k=2`. IDs 0/1 target rows 0/1 at column 0, split 0; IDs 2/3 keep those rows and advance to split 1. IDs 4–7 repeat the pattern for column 1. ID 8 begins the next M group at row 2. This preserves same-split B reuse across neighboring rows. These are logical launch positions; GPU execution and completion order remain unspecified.
 
 Workspace indexing uses a row-major output tile ID, `block_row * tiles_n + block_col`, independently of launch order. Every split peer for the same output tile therefore shares the same counter region, and distinct output tiles have disjoint partial/counter regions. Later lessons feed their independent-wave `logical_block_id` into this same layout.
 
@@ -185,7 +185,7 @@ Use `--timing direct-host` for a separate direct-launch verification. Select usi
 
 ### Expanded search for the wider case
 
-After the cooling repair, `tune.py --sweep --exhaustive --shape 16 4096 8192` enumerated **1080** tile/wave/split combinations. **132** satisfy the full-tile, copy, and LDS limits and passed trace/random correctness, including 30 choices missing from the earlier sweep. K tiles of 256/512 and eight-wave blocks were included. The search fixes the existing 128-bit staging copies, A padding, single LDS stage, and K-partition mapping; `group_m=1` is fixed for the single output tile row.
+After the cooling repair, `tune.py --sweep --exhaustive --shape 16 4096 8192` enumerated **1080** tile/wave/split combinations. **132** satisfy the full-tile, copy, and LDS limits and passed trace/random correctness, including 30 choices missing from the earlier sweep. K tiles of 256/512 and eight-wave blocks were included. The search fixes the existing 128-bit staging copies, A padding, single LDS stage, and K-partition mapping; `traversal_group_m=1` is fixed for the single output tile row.
 
 A longer seed-13 confirmation selected `Config(16,64,16,1,1,split_k=1)`. On three new seeds and nine verification rounds it measured **300.98 µs versus Torch's 290.43 µs**, with worst paired ratio **1.0420**. The existing `16×32×16` default measured **301.95/290.15 µs**, with worst ratio **1.0429**, on those same fresh seeds. Neither configuration beats Torch; both remain within the declared 5% parity band. The sub-percent candidate difference leaves the default unchanged.
 

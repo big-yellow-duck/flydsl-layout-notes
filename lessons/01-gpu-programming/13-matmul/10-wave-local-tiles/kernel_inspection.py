@@ -23,7 +23,7 @@ def main(here):
     native = runpy.run_path(str(here / "solution.py"))
     shape = tuple(args.shape)
     config = (
-        native["Config"].from_dict(json.loads(args.config))
+        native["Config"](**json.loads(args.config))
         if args.config
         else native["CONFIGS_BY_SHAPE"][shape]
     )
@@ -106,8 +106,8 @@ def main(here):
         "wavefront_scope_present": 'syncscope("wavefront")' in llvm,
         "LDS_only_metadata_present": '"amdgpu-synchronize-as", !"local"' in llvm,
         "B_SLC_load_sites": slc_loads,
-        "right_staging_BF16_values_per_thread": config.block_k
-        * config.block_n
+        "right_staging_BF16_values_per_thread": config.stage_k
+        * config.group_tile_n
         // config.compute_threads,
         "native_factory_sha256": hashlib.sha256(
             inspect.getsource(native["_matmul_bf16"]._original_func).encode()

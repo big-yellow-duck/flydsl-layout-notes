@@ -4,6 +4,7 @@ import argparse
 import ast
 import hashlib
 import json
+import re
 import runpy
 from pathlib import Path
 
@@ -37,6 +38,34 @@ def factory_hash(path):
     ).hexdigest()
 
 
+def complete_archived_practice(source, solution):
+    expressions = {
+        "left_direct_plan": "fx.make_tiled_copy_A(left_direct_atom, mma).get_slice(compute_thread_id)",
+        "left_current": "fx.slice(left_full_tiled, (None, None, None, 0, 0, inner_k))",
+    }
+    # Retained benchmark snapshots still contain the original practice TODOs.
+    if "raise NotImplementedError" in source:
+        for name, expression in expressions.items():
+            pattern = rf'(?m)^([ ]*){name} = None\n\1if {name} is None:\n\1    raise NotImplementedError\("Fill in {name}\."\)'
+            source, count = re.subn(
+                pattern,
+                lambda match, name=name, expression=expression: (
+                    match[1] + name + " = " + expression
+                ),
+                source,
+            )
+            assert count == 1, name
+    assert "raise NotImplementedError" not in source
+
+    def normalized(text):
+        tree = ast.parse(text)
+        tree.body = tree.body[1:]
+        return ast.dump(tree, include_attributes=False)
+
+    assert normalized(source) == normalized(solution)
+    return source
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -50,12 +79,11 @@ def main():
     # Historical timings and profiler reports belong to their retained sources.
     factory = factory_hash(verification / "solution-source.txt")
     assert read(verification / "validation.json")["all_commands_passed"]
-    complete_practice = runpy.run_path(str(HERE / "verify.py"))["complete_practice"]
-    completed = complete_practice(
+    completed = complete_archived_practice(
         (verification / "practice-source.txt").read_text(),
         (verification / "solution-source.txt").read_text(),
     )
-    complete_practice()  # Independently verify the current public-API exercises.
+    runpy.run_path(str(HERE / "verify.py"))["complete_practice"]()
     assert completed == (verification / "completed-practice-source.txt").read_text()
     manifest = read(RESEARCH / "results/native-sources/manifest.json")
     for entry in manifest.values():

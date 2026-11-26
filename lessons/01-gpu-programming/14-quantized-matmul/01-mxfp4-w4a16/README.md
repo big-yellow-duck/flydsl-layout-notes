@@ -4,7 +4,7 @@ Keep A in BF16 and load B as packed MXFP4. Each lane prefetches B's codes and sc
 
 ## Trace the last five B values
 
-Use `(M,N,K) = (17,77,46)` and `Config(block_k=32, waves_n=1, split_k=4, k_unroll=2)` to follow the illustrated `16×64×32` group tile. The shape selector uses the measured benchmark default. A is contiguous BF16 with shape `(M,K)`. B's `(K,N)` values are packed in flat row-major order, with the even index in the low nibble. The scale matrix has shape `(ceil(K/32),N)`, with one E8M0 byte per output column for each group of 32 K values. The last K block keeps its scale row and stores only the actual weights. [OCP MX Formats](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf)
+Use `(M,N,K) = (17,77,46)` and `Config(stage_k=32, waves_per_group_n=1, split_k=4, k_unroll=2)` to follow the illustrated `16×64×32` group tile. The shape selector uses the measured benchmark default. A is contiguous BF16 with shape `(M,K)`. B's `(K,N)` values are packed in flat row-major order, with the even index in the low nibble. The scale matrix has shape `(ceil(K/32),N)`, with one E8M0 byte per output column for each group of 32 K values. The last K block keeps its scale row and stores only the actual weights. [OCP MX Formats](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf)
 
 ![The last five B values start on the high nibble of packed byte 1768 and use five E8M0 scale bytes from the second K block.](../../../../assets/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/mxfp4-w4a16.svg)
 

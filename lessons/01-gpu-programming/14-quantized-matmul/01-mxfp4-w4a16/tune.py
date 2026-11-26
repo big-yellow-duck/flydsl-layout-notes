@@ -214,11 +214,11 @@ def _geometries(shape, base):
         for a_in_registers in (True, False):
             yield replace(
                 base,
-                block_m=bm,
-                block_n=bn,
-                block_k=32,
-                waves_m=wm,
-                waves_n=wn,
+                group_tile_m=bm,
+                group_tile_n=bn,
+                stage_k=32,
+                waves_per_group_m=wm,
+                waves_per_group_n=wn,
                 wave_groups_m=1,
                 wave_groups_n=1,
                 left_in_registers=a_in_registers,
@@ -264,18 +264,16 @@ def tune_shape(shape, *, tuning_batches=3, tuning_replays=5, legacy=None):
 
     evaluate(base)
     evaluate(lesson._EDGE_LOADS["default_config"](shape))
-    if legacy is not None and shape in lesson.ALIGNED_SHAPES:
-        evaluate(lesson.Config.from_dict(asdict(legacy["CONFIGS_BY_SHAPE"][shape])))
     for cfg in _geometries(shape, base):
         evaluate(cfg)
     for cfg in ranked()[:2]:
         for depth in (16, 32, 64):
             for splits in (1, 2, 4):
-                evaluate(replace(cfg, block_k=depth, split_k=splits))
+                evaluate(replace(cfg, stage_k=depth, split_k=splits))
     strongest = ranked()[0]
     for field, values in (
         ("k_unroll", (1, 2, 4, 8)),
-        ("group_m", (1, 2, 4)),
+        ("traversal_group_m", (1, 2, 4)),
         ("left_cache_modifier", (0, 1, 2)),
         ("right_cache_modifier", (0, 1, 2)),
     ):

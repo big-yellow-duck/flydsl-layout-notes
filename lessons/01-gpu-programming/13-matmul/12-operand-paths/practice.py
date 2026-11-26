@@ -17,12 +17,12 @@ from flydsl._mlir.dialects import gpu, scf
 
 @dataclass(frozen=True)
 class Config:
-    block_m: int = 16
-    block_n: int = 64
-    block_k: int = 64
-    waves_m: int = 1
-    waves_n: int = 2
-    group_m: int = 1
+    group_tile_m: int = 16
+    group_tile_n: int = 64
+    stage_k: int = 64
+    waves_per_group_m: int = 1
+    waves_per_group_n: int = 2
+    traversal_group_m: int = 1
     split_k: int = 4
     wave_groups_m: int = 1
     wave_groups_n: int = 1
@@ -33,23 +33,20 @@ class Config:
 
     @property
     def name(self):
-        return f"m{self.block_m}n{self.block_n}k{self.block_k}_w{self.waves_m}x{self.waves_n}_prefetch_lds1_gm{self.group_m}_sk{self.split_k}_wg{self.wave_groups_m}x{self.wave_groups_n}_u{self.k_unroll}_ac{self.left_cache_modifier}_bc{self.right_cache_modifier}_ar{int(self.left_in_registers)}"
+        return (
+            f"12_tile{self.group_tile_m}x{self.group_tile_n}_stagek{self.stage_k}"
+            f"_waves{self.waves_per_group_m}x{self.waves_per_group_n}_groups{self.wave_groups_m}x{self.wave_groups_n}"
+            f"_traversalm{self.traversal_group_m}_splitk{self.split_k}"
+            f"_u{self.k_unroll}_ac{self.left_cache_modifier}_bc{self.right_cache_modifier}_ar{int(self.left_in_registers)}"
+        )
 
     @property
     def wave_groups(self):
         return self.wave_groups_m * self.wave_groups_n
 
-    @classmethod
-    def from_dict(cls, values):
-        """Read current configurations and archived scalar N-group selections."""
-        values = dict(values)
-        if "wave_groups" in values:
-            values["wave_groups_n"] = values.pop("wave_groups")
-        return cls(**values)
-
     @property
     def compute_threads(self):
-        return 32 * self.waves_m * self.waves_n
+        return 32 * self.waves_per_group_m * self.waves_per_group_n
 
     @property
     def threads(self):
@@ -59,36 +56,44 @@ class Config:
     def accumulator_values(self):
         return (
             8
-            * (self.block_m // (16 * self.waves_m))
-            * (self.block_n // (16 * self.waves_n))
+            * (self.group_tile_m // (16 * self.waves_per_group_m))
+            * (self.group_tile_n // (16 * self.waves_per_group_n))
         )
 
     @property
     def lds_bytes(self):
-        left_values = 0 if self.left_in_registers else self.block_m * (self.block_k + 8)
-        return 2 * self.wave_groups * (left_values + self.block_k * self.block_n)
+        left_values = (
+            0 if self.left_in_registers else self.group_tile_m * (self.stage_k + 8)
+        )
+        return 2 * self.wave_groups * (left_values + self.stage_k * self.group_tile_n)
 
 
 def validate_config(config, shape=(16, 1024, 8192)):
-    bm, bn, bk = config.block_m, config.block_n, config.block_k
+    bm, bn, bk = config.group_tile_m, config.group_tile_n, config.stage_k
     if any(value <= 0 for value in (bm, bn, bk)):
-        raise ValueError("Block dimensions must be positive")
+        raise ValueError("Group tile dimensions and stage_k must be positive")
     if len(shape) != 3 or any(value <= 0 for value in shape):
         raise ValueError("Shape must contain positive M,N,K")
     if any(size % tile for size, tile in zip(shape[1:], (bn, bk), strict=True)):
-        raise ValueError("N and K must contain complete block tiles")
+        raise ValueError("N and K must contain complete group columns and K stages")
     if config.split_k not in (1, 2, 4):
         raise ValueError("split_k must be 1, 2, or 4")
     if shape[2] % (bk * config.split_k):
         raise ValueError("K must contain complete, equal split-K partitions")
     if (
-        config.waves_m < 1
-        or config.waves_n < 1
+        config.waves_per_group_m < 1
+        or config.waves_per_group_n < 1
         or config.threads not in (32, 64, 128, 256)
     ):
-        raise ValueError("Use one, two, four, or eight wave32 groups")
-    if bm % (16 * config.waves_m) or bn % (16 * config.waves_n) or bk % 16:
-        raise ValueError("Block tile must contain whole WMMA groups and K fragments")
+        raise ValueError("Use one, two, four, or eight wave32 waves per block")
+    if (
+        bm % (16 * config.waves_per_group_m)
+        or bn % (16 * config.waves_per_group_n)
+        or bk % 16
+    ):
+        raise ValueError(
+            "Group tile and stage_k must contain whole WMMA tiles and K fragments"
+        )
     if any(
         value not in (1, 2) for value in (config.wave_groups_m, config.wave_groups_n)
     ):
@@ -118,11 +123,13 @@ def validate_config(config, shape=(16, 1024, 8192)):
             raise ValueError(
                 "Every cooperative staging thread must own complete chunks"
             )
-    if config.group_m < 1:
-        raise ValueError("group_m must be positive")
+    if config.traversal_group_m < 1:
+        raise ValueError("traversal_group_m must be positive")
     tile_rows = (shape[0] + physical_m - 1) // physical_m
-    if tile_rows % min(config.group_m, tile_rows):
-        raise ValueError("group_m must form complete physical block row groups")
+    if tile_rows % min(config.traversal_group_m, tile_rows):
+        raise ValueError(
+            "traversal_group_m must form complete physical block row groups"
+        )
     if config.lds_bytes > 65536:
         raise ValueError("LDS allocation exceeds this lesson's 64 KiB limit")
     return config
@@ -223,9 +230,9 @@ def _matmul_bf16(
     wave_group = fx.thread_idx.x // THREADS_PER_GROUP
     thread_id_in_wave_group = fx.thread_idx.x % THREADS_PER_GROUP
 
-    lds_address_spaces = ir.ArrayAttr.get([
-        ir.Attribute.parse("#gpu.address_space<workgroup>")
-    ])
+    lds_address_spaces = ir.ArrayAttr.get(
+        [ir.Attribute.parse("#gpu.address_space<workgroup>")]
+    )
     barrier_scope = (
         gpu.BarrierScope.Subgroup if WAVE_GROUPS > 1 else gpu.BarrierScope.Workgroup
     )
@@ -272,7 +279,7 @@ def _matmul_bf16(
 
     out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
     blocks_m = fx.size(out_block_tiles.shape[2]).to_py_value()
-    blocks_n = fx.size(out_block_tiles.shape[3]).to_py_value()
+    blocks_n = N // BLOCK_N
     group_m_width = min(GROUP_M, blocks_m)
     split_block_layout = fx.make_ordered_layout(
         (group_m_width, SPLIT_K, blocks_n, blocks_m // group_m_width),
@@ -341,9 +348,10 @@ def _matmul_bf16(
         left_compute_fragment = fx.make_fragment_like(left_staging_fragment)
         # The copy plan assigns global values to WMMA lanes. Retile gives the
         # staging registers the view that this copy plan expects.
-        left_staging_thread_copy = fx.make_tiled_copy_A(
-            gmem_left_load_128b, mma
-        ).get_slice(thread_id_in_wave_group)
+        # TODO 1: Fill in left_staging_thread_copy; see README.md.
+        left_staging_thread_copy = None
+        if left_staging_thread_copy is None:
+            raise NotImplementedError("Fill in left_staging_thread_copy.")
         left_staging_destination = left_staging_thread_copy.retile(
             left_staging_fragment
         )
@@ -396,7 +404,7 @@ def _matmul_bf16(
     if fx.const_expr(LEFT_IN_REGISTERS):
         # Divide the three fragment axes into three inner and three outer axes.
         # For example, (16, 2, 2) becomes (16, 2, 1, 1, 1, 2) for two K steps.
-        left_compute_tiled = fx.flat_divide(
+        left_compute_tiled = fx.flat_divide(  # noqa: F841 -- used in TODO 2
             left_compute_fragment, (MMA_K, GROUP_TILE_M // (MMA_M * WAVES_M), 1)
         )
         left_r_destination = left_r_tile
@@ -465,9 +473,10 @@ def _matmul_bf16(
                 # Keep the three inner axes that match left_r_tile. The outer
                 # register-slot and M axes have one tile each, so only K varies.
                 # The copy below moves this chunk into left_r_tile within the lane.
-                left_source = fx.slice(
-                    left_compute_tiled, (None, None, None, 0, 0, inner_k)
-                )
+                # TODO 2: Fill in left_source; see README.md.
+                left_source = None
+                if left_source is None:
+                    raise NotImplementedError("Fill in left_source.")
             else:
                 left_mma_view = fx.slice(
                     left_group_staging_tiled, (None, None, 0, inner_k)
@@ -640,182 +649,182 @@ def _launch_matmul_bf16(
 SHAPES = ((16, 1024, 8192), (32, 1024, 8192), (16, 4096, 8192))
 CONFIGS_BY_SHAPE = {
     (16, 1024, 8192): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=8,
         left_in_registers=True,
     ),
     (32, 1024, 8192): Config(
-        block_m=32,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=32,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=8,
         left_in_registers=True,
     ),
     (16, 4096, 8192): Config(
-        block_m=16,
-        block_n=64,
-        block_k=16,
-        waves_m=1,
-        waves_n=1,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=16,
+        waves_per_group_m=1,
+        waves_per_group_n=1,
         split_k=1,
         wave_groups_n=2,
         k_unroll=4,
         left_in_registers=False,
     ),
     (1024, 1024, 1024): Config(
-        block_m=128,
-        block_n=128,
-        block_k=32,
-        waves_m=1,
-        waves_n=4,
-        group_m=2,
+        group_tile_m=128,
+        group_tile_n=128,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=4,
+        traversal_group_m=2,
         split_k=1,
         k_unroll=2,
         right_cache_modifier=0,
         left_in_registers=False,
     ),
     (2048, 2048, 2048): Config(
-        block_m=64,
-        block_n=64,
-        block_k=64,
-        waves_m=1,
-        waves_n=2,
-        group_m=4,
+        group_tile_m=64,
+        group_tile_n=64,
+        stage_k=64,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
+        traversal_group_m=4,
         split_k=1,
         k_unroll=2,
         right_cache_modifier=1,
         left_in_registers=True,
     ),
     (1, 1024, 1024): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=2,
         left_in_registers=True,
     ),
     (2, 1024, 1024): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=1,
         left_in_registers=True,
     ),
     (4, 1024, 1024): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=2,
         left_in_registers=True,
     ),
     (8, 1024, 1024): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=2,
         left_in_registers=True,
     ),
     (1, 2048, 2048): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=4,
         left_cache_modifier=2,
         left_in_registers=True,
     ),
     (2, 2048, 2048): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
-        group_m=8,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
+        traversal_group_m=8,
         split_k=4,
         k_unroll=4,
         left_in_registers=True,
     ),
     (4, 2048, 2048): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
-        group_m=4,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
+        traversal_group_m=4,
         split_k=4,
         k_unroll=2,
         left_in_registers=True,
     ),
     (8, 2048, 2048): Config(
-        block_m=16,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=2,
+        group_tile_m=16,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=2,
         split_k=4,
         k_unroll=4,
         left_in_registers=True,
     ),
     (2048, 512, 1024): Config(
-        block_m=64,
-        block_n=128,
-        block_k=64,
-        waves_m=2,
-        waves_n=2,
+        group_tile_m=64,
+        group_tile_n=128,
+        stage_k=64,
+        waves_per_group_m=2,
+        waves_per_group_n=2,
         split_k=1,
         k_unroll=4,
         right_cache_modifier=0,
         left_in_registers=False,
     ),
     (256, 4096, 8192): Config(
-        block_m=128,
-        block_n=128,
-        block_k=32,
-        waves_m=1,
-        waves_n=4,
+        group_tile_m=128,
+        group_tile_n=128,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=4,
         split_k=1,
         k_unroll=4,
         right_cache_modifier=0,
         left_in_registers=False,
     ),
     (4096, 4096, 4096): Config(
-        block_m=128,
-        block_n=128,
-        block_k=32,
-        waves_m=1,
-        waves_n=4,
+        group_tile_m=128,
+        group_tile_n=128,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=4,
         split_k=1,
         k_unroll=1,
         left_in_registers=False,
     ),
     (512, 2048, 1024): Config(
-        block_m=32,
-        block_n=64,
-        block_k=32,
-        waves_m=1,
-        waves_n=1,
-        group_m=4,
+        group_tile_m=32,
+        group_tile_n=64,
+        stage_k=32,
+        waves_per_group_m=1,
+        waves_per_group_n=1,
+        traversal_group_m=4,
         split_k=1,
         wave_groups_m=2,
         wave_groups_n=2,
@@ -832,13 +841,13 @@ def _workspace_for(config, shape, device, stream, capture_id):
     if config.split_k == 1:
         return None
     m, n, _ = shape
-    physical_m = config.block_m * config.wave_groups_m
+    physical_m = config.group_tile_m * config.wave_groups_m
     tiles = (
         ((m + physical_m - 1) // physical_m)
         * config.wave_groups_m
-        * (n // config.block_n)
+        * (n // config.group_tile_n)
     )
-    partial_count = tiles * config.split_k * config.block_m * config.block_n
+    partial_count = tiles * config.split_k * config.group_tile_m * config.group_tile_n
     counter_count = tiles * config.compute_threads
     with torch.cuda.device(device), torch.cuda.stream(stream):
         partials = torch.empty(partial_count + 16, dtype=torch.float32, device=device)
@@ -985,18 +994,18 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
             counters,
             *shape,
             fx.Stream(current_stream),
-            GROUP_TILE_M=config.block_m,
-            GROUP_TILE_N=config.block_n,
-            STAGE_K=config.block_k,
-            WAVES_M=config.waves_m,
-            WAVES_N=config.waves_n,
+            GROUP_TILE_M=config.group_tile_m,
+            GROUP_TILE_N=config.group_tile_n,
+            STAGE_K=config.stage_k,
+            WAVES_M=config.waves_per_group_m,
+            WAVES_N=config.waves_per_group_n,
             WAVE_GROUPS_M=config.wave_groups_m,
             WAVE_GROUPS_N=config.wave_groups_n,
             K_UNROLL=config.k_unroll,
             RIGHT_CACHE_MODIFIER=config.right_cache_modifier,
             LEFT_CACHE_MODIFIER=config.left_cache_modifier,
             LEFT_IN_REGISTERS=config.left_in_registers,
-            GROUP_M=config.group_m,
+            GROUP_M=config.traversal_group_m,
             SPLIT_K=config.split_k,
         )
         if supplied_out:
@@ -1007,20 +1016,22 @@ def matmul_bf16(input, other, *, out=None, config=None, stream=None):
 def check_boundaries(config):
     """Trace every split's partials through one, two, and three local K tiles."""
     checked = []
-    for tiles_per_split in sorted({
-        1,
-        2,
-        3,
-        config.k_unroll,
-        config.k_unroll + 1,
-        config.k_unroll + 2,
-    }):
+    for tiles_per_split in sorted(
+        {
+            1,
+            2,
+            3,
+            config.k_unroll,
+            config.k_unroll + 1,
+            config.k_unroll + 2,
+        }
+    ):
         m, n = (
-            config.block_m * config.wave_groups_m,
-            config.block_n * config.wave_groups_n,
+            config.group_tile_m * config.wave_groups_m,
+            config.group_tile_n * config.wave_groups_n,
         )
-        k = config.block_k * config.split_k * tiles_per_split
-        tile_ids = torch.arange(k) // config.block_k
+        k = config.stage_k * config.split_k * tiles_per_split
+        tile_ids = torch.arange(k) // config.stage_k
         split_ids = tile_ids // tiles_per_split
         tags = (split_ids + 1) * 2 ** (tile_ids % tiles_per_split)
         a = tags.to(torch.bfloat16).expand(m, k).contiguous().cuda()
@@ -1032,7 +1043,7 @@ def check_boundaries(config):
         matmul_bf16(a, b, out=out, config=config)
         torch.cuda.synchronize()
         partials = [
-            config.block_k * (part + 1) * (2**tiles_per_split - 1)
+            config.stage_k * (part + 1) * (2**tiles_per_split - 1)
             for part in range(config.split_k)
         ]
         expected = torch.full((m, n), sum(partials), dtype=torch.bfloat16)
@@ -1060,11 +1071,13 @@ def check_boundaries(config):
         assert torch.all(storage[-16:] == -99).item(), (
             "Boundary output sentinel changed"
         )
-        checked.append({
-            "tiles_per_split": tiles_per_split,
-            "partial_values": partials,
-            "sum_before_bf16": sum(partials),
-        })
+        checked.append(
+            {
+                "tiles_per_split": tiles_per_split,
+                "partial_values": partials,
+                "sum_before_bf16": sum(partials),
+            }
+        )
     return checked
 
 
@@ -1159,12 +1172,14 @@ def main():
                 config, shape, args.timing, matmul=matmul_bf16
             )
             print(
-                json.dumps({
-                    "timing": args.timing,
-                    "shape_MNK": shape,
-                    "graph_metadata": report["graph_metadata"],
-                    "scope": "warm inputs, preallocated output, cached workspace; graph workspace initialization included",
-                })
+                json.dumps(
+                    {
+                        "timing": args.timing,
+                        "shape_MNK": shape,
+                        "graph_metadata": report["graph_metadata"],
+                        "scope": "warm inputs, preallocated output, cached workspace; graph workspace initialization included",
+                    }
+                )
             )
             labels = {
                 "operand_paths": config.name,
@@ -1174,15 +1189,17 @@ def main():
             }
             for name, elapsed in report["median_ms"].items():
                 print(
-                    json.dumps({
-                        "name": labels[name],
-                        "ms": elapsed,
-                        "effective_TFLOP_s": 2
-                        * shape[0]
-                        * shape[1]
-                        * shape[2]
-                        / (elapsed * 1e9),
-                    })
+                    json.dumps(
+                        {
+                            "name": labels[name],
+                            "ms": elapsed,
+                            "effective_TFLOP_s": 2
+                            * shape[0]
+                            * shape[1]
+                            * shape[2]
+                            / (elapsed * 1e9),
+                        }
+                    )
                 )
             ratios = {
                 label: report[field]

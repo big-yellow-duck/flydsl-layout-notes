@@ -25,7 +25,7 @@ SEARCH_SEED = 13
 FINALIST_SEED = 29
 VERIFY_SEEDS = (4141, 4242, 4343, 4444, 4545)
 CONFIG = MODULE["Config"]
-CONTROL = CONFIG(block_k=32, waves_n=1, split_k=4, k_unroll=2)
+CONTROL = CONFIG(stage_k=32, waves_per_group_n=1, split_k=4, k_unroll=2)
 
 
 def candidates():
@@ -55,11 +55,11 @@ def candidates():
     ):
         yield replace(
             CONTROL,
-            block_m=bm,
-            block_n=bn,
-            block_k=bk,
-            waves_m=wm,
-            waves_n=wn,
+            group_tile_m=bm,
+            group_tile_n=bn,
+            stage_k=bk,
+            waves_per_group_m=wm,
+            waves_per_group_n=wn,
             wave_groups_m=gm,
             wave_groups_n=gn,
             split_k=split,
@@ -123,7 +123,7 @@ def search():
         evaluate(config, "geometry")
     for finalist in ranked()[:8]:
         for field, values in (
-            ("group_m", (1, 2)),
+            ("traversal_group_m", (1, 2)),
             ("k_unroll", (1, 2, 4, 8)),
             ("right_cache_modifier", (0, 1, 2)),
             ("left_cache_modifier", (0, 1, 2)),

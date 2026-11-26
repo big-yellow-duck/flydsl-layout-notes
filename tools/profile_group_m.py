@@ -1,4 +1,4 @@
-"""Collect matched group_m=1/grouped cache profiles from benchmark_group_m.py.
+"""Collect matched traversal_group_m=1/grouped cache profiles from benchmark_group_m.py.
 
 Instrumented counter timings are separate from the uninstrumented benchmark.
 """
@@ -36,7 +36,7 @@ def main():
         "collector_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "shape_MNK": benchmark["shape_MNK"],
         "scope": (
-            "Hold the tuned grouped geometry fixed; change only group_m. "
+            "Hold the tuned grouped geometry fixed; change only traversal_group_m. "
             "Separate rocprofv3 trace, L1, L2 and external-read passes, alternating "
             "native/Torch dispatches after 20 warmups. Full CPU-reference validation "
             "and sentinel/workspace checks before/after every pass. Aggregate cache "

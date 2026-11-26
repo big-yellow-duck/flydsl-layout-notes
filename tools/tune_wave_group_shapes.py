@@ -8,6 +8,8 @@ import statistics
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from matmul_config_archive import config_from_archive
+
 LESSONS = (
     "10-wave-local-tiles",
     "10a-synchronization-scope",
@@ -54,9 +56,13 @@ def main():
                 )
                 if prior["selected_configuration"] == prior["configurations"]["stage"]:
                     continue
-                original = module["Config"].from_dict(prior["configurations"]["stage"])
+                original = config_from_archive(
+                    module["Config"], prior["configurations"]["stage"]
+                )
             configs, excluded = {}, {}
-            base = replace(original, block_m=16, waves_m=1, waves_n=1)
+            base = replace(
+                original, group_tile_m=16, waves_per_group_m=1, waves_per_group_n=1
+            )
             for gm in (1, 2):
                 for gn in (1, 2):
                     key = f"groups_{gm}x{gn}"
@@ -69,8 +75,8 @@ def main():
                         configs[key] = config
             if prior:
                 configs = {
-                    "promoted": module["Config"].from_dict(
-                        prior["selected_configuration"]
+                    "promoted": config_from_archive(
+                        module["Config"], prior["selected_configuration"]
                     )
                 }
                 excluded = {}

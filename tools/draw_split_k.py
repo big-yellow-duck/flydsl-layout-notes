@@ -19,9 +19,9 @@ def grouped_split_order():
     d = Diagram(670, "09 - Group M before advancing K splits")
     describe(
         d,
-        "A four by two output tile grid with group_m two and split_k two visits adjacent M rows at the same split, then advances K split, column, and M group.",
+        "A four by two output tile grid with traversal_group_m two and split_k two visits adjacent M rows at the same split, then advances K split, column, and M group.",
     )
-    d.text(32, 67, "Output grid: 4 rows x 2 columns; group_m=2; split_k=2.", 21)
+    d.text(32, 67, "4 x 2 output grid, traversal_group_m=2, split_k=2.", 21)
     d.text(
         32,
         107,
@@ -76,7 +76,7 @@ def main():
     d.text(
         32,
         292,
-        "Here group_m=1: physical ID = tile_id * 4 + split_id.",
+        "With traversal_group_m=1, physical ID = tile_id * 4 + split_id.",
         20,
     )
     colors = (BLUE, TEAL, GOLD, PURPLE)

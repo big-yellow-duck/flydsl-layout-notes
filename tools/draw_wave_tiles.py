@@ -134,7 +134,7 @@ def wave_grid_2d():
         32,
         652,
         893,
-        "group_m=2 orders physical block rows; split_k=2",
+        "traversal_group_m=2 orders physical block rows with split_k=2",
         "First four block IDs at physical column 0: row 0/split 0, row 1/split 0,",
         BLUE,
     )

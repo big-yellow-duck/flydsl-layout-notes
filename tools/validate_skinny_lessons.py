@@ -124,12 +124,12 @@ def main():
         }
         configs["groups_2x2"] = replace(
             module["CONFIGS_BY_SHAPE"][(16, 4096, 8192)],
-            block_m=16,
-            waves_m=1,
-            waves_n=1,
+            group_tile_m=16,
+            waves_per_group_m=1,
+            waves_per_group_n=1,
             wave_groups_m=2,
             wave_groups_n=2,
-            group_m=2,
+            traversal_group_m=2,
             split_k=4,
         )
         for label, config in configs.items():

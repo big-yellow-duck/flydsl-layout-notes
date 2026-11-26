@@ -1,6 +1,6 @@
 # 14 · Quantized matrix multiplication
 
-These lessons fuse low-bit decoding into the [mixed-width WMMA pipeline](../13-matmul/15-edge-load-widths/README.md). Both kernels prefetch compact operands, decode into BF16 tile storage, accumulate in FP32, and return BF16 output. The measured kernels use BF16 WMMA on gfx1151.
+These lessons fuse low-bit decoding into the [mixed-width WMMA pipeline](../13-matmul/15-edge-load-widths/README.md). Both kernels prefetch compact operands, decode into BF16 tile storage, accumulate in FP32, and return BF16 output. The measured kernels use BF16 WMMA on gfx1151. Both lessons use the [BF16 tuning configuration fields](../13-matmul/README.md#read-a-tuning-configuration) for tile geometry, staged K, and wave ownership.
 
 | Lesson | What to trace |
 | --- | --- |

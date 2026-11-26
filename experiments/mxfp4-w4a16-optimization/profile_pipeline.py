@@ -61,6 +61,11 @@ PROFILE_GROUPS = {
 }
 
 
+config_from_archive = runpy.run_path(
+    str(ROOT / "tools/matmul_config_archive.py")
+)["config_from_archive"]
+
+
 def _profiling_control(enabled):
     library = ctypes.CDLL("librocprofiler-sdk-roctx.so")
     function = getattr(
@@ -96,7 +101,7 @@ def _callbacks(module, shape, config, data):
     operand_paths = runpy.run_path(
         str(LESSON.parents[2] / "13-matmul/12-operand-paths/solution.py")
     )
-    dense_config = operand_paths["Config"].from_dict(config.__dict__)
+    dense_config = operand_paths["Config"](**config.__dict__)
 
     def unpack():
         module["_launch_matmul_mxfp4_w4a16"](
@@ -136,13 +141,13 @@ def worker(args):
             row for row in report["shapes"] if tuple(row["shape_MNK"]) == shape
         )
         config_values = selected["final_comparison"]["config"]
-    config = module["Config"](**config_values)
+    config = config_from_archive(module["Config"], config_values)
     callbacks, output, expected = _callbacks(module, shape, config, data)
     if args.component == "fused":
         fused_module = runpy.run_path(
             str(Path(__file__).resolve().with_name("fused_matmul.py"))
         )
-        fused_config = fused_module["Config"](**config.__dict__)
+        fused_config = fused_module["Config"].from_dict(config.__dict__)
 
         def callback():
             fused_module["matmul_mxfp4_fused"](

@@ -229,7 +229,7 @@ def torch_launch(a, b, out, stream=None):
     torch.matmul(a, b, out=out)
 
 
-def candidates(group_m=8, extended=False):
+def candidates(traversal_group_m=8, extended=False):
     if extended:
         configs = []
         for (bm, bn), bk, (wm, wn) in product(
@@ -237,20 +237,20 @@ def candidates(group_m=8, extended=False):
             (32, 64),
             ((2, 4), (4, 2)),
         ):
-            config = Config(bm, bn, bk, wm, wn, group_m=group_m)
+            config = Config(bm, bn, bk, wm, wn, traversal_group_m=traversal_group_m)
             try:
                 MODULE["validate_config"](config, SHAPE)
             except ValueError:
                 continue
             configs.append(config)
         return configs
-    configs = [Config(32, 32, 32, 2, 2, group_m=group_m)]
+    configs = [Config(32, 32, 32, 2, 2, traversal_group_m=traversal_group_m)]
     for (bm, bn), bk, (wm, wn) in product(
         ((64, 64), (64, 128), (128, 64), (128, 128)),
         (16, 32, 64, 128),
         ((2, 2), (4, 1), (1, 4), (1, 2), (2, 1)),
     ):
-        config = Config(bm, bn, bk, wm, wn, group_m=group_m)
+        config = Config(bm, bn, bk, wm, wn, traversal_group_m=traversal_group_m)
         try:
             MODULE["validate_config"](config, SHAPE)
         except ValueError:
@@ -259,13 +259,13 @@ def candidates(group_m=8, extended=False):
     return configs
 
 
-def prepare(group_m=8, extended=False):
+def prepare(traversal_group_m=8, extended=False):
     trace_data, training_data = inputs(0, True), inputs(13)
     validate(torch_launch, trace_data, True)
     validate(torch_launch, training_data)
     accepted, failures = [], []
     # Compile and check every candidate before recording any search timings.
-    for config in candidates(group_m, extended):
+    for config in candidates(traversal_group_m, extended):
         try:
             launch = partial(MODULE["matmul_bf16"], config=config)
             validate(launch, trace_data, True)
@@ -284,8 +284,8 @@ def prepare(group_m=8, extended=False):
     return accepted, failures, training_data
 
 
-def sweep(timing, group_m=8, extended=False):
-    accepted, failures, training_data = prepare(group_m, extended)
+def sweep(timing, traversal_group_m=8, extended=False):
+    accepted, failures, training_data = prepare(traversal_group_m, extended)
     random.Random(41).shuffle(accepted)
     rows = []
     for index, (config, launch) in enumerate(accepted):
@@ -310,9 +310,9 @@ def sweep(timing, group_m=8, extended=False):
         "environment": environment(),
         "training_seed": 13,
         "trace_check": True,
-        "candidate_count": len(candidates(group_m, extended)),
+        "candidate_count": len(candidates(traversal_group_m, extended)),
         "extended": extended,
-        "group_m": group_m,
+        "traversal_group_m": traversal_group_m,
         "selection": "minimum median paired kernel/torch ratio on training inputs",
         "winner": rows[0],
         "ranking": rows,
@@ -399,7 +399,7 @@ def main():
     parser.add_argument(
         "--config",
         default=None,
-        help="locked BM,BN,BK,WM,WN; defaults to selected config",
+        help="tile M, tile N, stage K, waves M, waves N (defaults to the selected config)",
     )
     parser.add_argument(
         "--seeds", type=int, nargs="+", default=[20261104, 20261105, 20261106]
@@ -417,10 +417,11 @@ def main():
         "--timing", choices=("graph-host", "direct-host"), default="direct-host"
     )
     parser.add_argument(
+        "--traversal-group-m",
         "--group-m",
         type=int,
         default=None,
-        help="output tile rows per group; defaults to Config.group_m",
+        help="output tile rows per group; defaults to Config.traversal_group_m",
     )
     args = parser.parse_args()
     if args.output.exists():
@@ -433,23 +434,23 @@ def main():
         if args.config is None
         else Config(*map(int, args.config.split(",")))
     )
-    if args.group_m is not None:
-        config = replace(config, group_m=args.group_m)
-    group_m = config.group_m
+    if args.traversal_group_m is not None:
+        config = replace(config, traversal_group_m=args.traversal_group_m)
+    traversal_group_m = config.traversal_group_m
     extended = args.extended
     MODULE["validate_config"](config, SHAPE)
     if args.check_candidates:
-        accepted, rejected, _ = prepare(group_m, extended)
+        accepted, rejected, _ = prepare(traversal_group_m, extended)
         report = {
             "kind": "candidate_correctness_only",
             "environment": environment(),
             "checked": [asdict(config) for config, _ in accepted],
             "rejected": rejected,
-            "candidate_count": len(candidates(group_m, extended)),
+            "candidate_count": len(candidates(traversal_group_m, extended)),
             "note": "No performance measurements or parity claim",
         }
     elif args.sweep:
-        report = sweep(args.timing, group_m, extended)
+        report = sweep(args.timing, traversal_group_m, extended)
     else:
         report = verify(config, args.seeds, args.timing)
     args.output.parent.mkdir(parents=True, exist_ok=True)

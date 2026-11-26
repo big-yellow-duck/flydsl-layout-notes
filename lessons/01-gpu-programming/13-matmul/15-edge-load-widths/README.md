@@ -6,7 +6,7 @@ A BF16 copy atom moves a fixed number of values. A 128-bit atom moves eight BF16
 
 Use a contiguous `M=17, N=78, K=46` product and a `16×64×32` tile. A’s final K stage begins at 32 and B’s final N group begins at 64. Both have 14 valid values along the copied axis in the displayed window. The first eight values form a wide prefix. The six-value suffix uses two smaller atoms, and the unused slots stay zero in the guarded path.
 
-Use `Config(block_k=32, waves_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
+Use `Config(stage_k=32, waves_per_group_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
 
 ![Mixed-width layout for the last A K stage and last B N group. A uses a 128-bit load for K 32 through 39, a 64-bit load for K 40 through 43, and a 32-bit load for K 44 and 45. B follows the same pattern from N 64.](../../../../assets/01-gpu-programming/13-matmul/15-edge-load-widths/mixed-width-tail.svg)
 

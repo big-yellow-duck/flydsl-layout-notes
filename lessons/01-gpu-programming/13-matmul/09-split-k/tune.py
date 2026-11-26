@@ -293,7 +293,7 @@ def raw_candidates(exhaustive=False):
             for bn, bk, (wm, wn), split_k in product(
                 block_columns, block_reductions, wave_arrangements, (1, 2, 4)
             ):
-                yield Config(bm, bn, bk, wm, wn, group_m=1, split_k=split_k)
+                yield Config(bm, bn, bk, wm, wn, traversal_group_m=1, split_k=split_k)
         return
     block_rows = (16, 32) if SHAPE[0] == 32 else (16,)
     for bm, (bn, wm, wn), bk, split_k in product(
@@ -315,7 +315,7 @@ def raw_candidates(exhaustive=False):
         (16, 32, 64, 128),
         (1, 2, 4),
     ):
-        yield Config(bm, bn, bk, wm, wn, group_m=1, split_k=split_k)
+        yield Config(bm, bn, bk, wm, wn, traversal_group_m=1, split_k=split_k)
 
 
 def candidate_space(exhaustive=False):
@@ -460,7 +460,8 @@ def main():
         "--shape", type=int, nargs=3, default=SHAPE, metavar=("M", "N", "K")
     )
     parser.add_argument(
-        "--config", help="BM,BN,BK,WM,WN,SPLIT_K; defaults to the locked shape config"
+        "--config",
+        help="tile M, tile N, stage K, waves M, waves N, split K (defaults to the locked shape config)",
     )
     parser.add_argument(
         "--timing", choices=("graph-host", "direct-host"), default="graph-host"
@@ -472,7 +473,7 @@ def main():
     parser.add_argument(
         "--exhaustive",
         action="store_true",
-        help="sweep every legal complete tile/wave/split configuration with group_m=1",
+        help="sweep every legal complete tile/wave/split configuration with traversal_group_m=1",
     )
     args = parser.parse_args()
     if args.exhaustive and not args.sweep:
@@ -486,8 +487,10 @@ def main():
     if args.config:
         values = tuple(map(int, args.config.split(",")))
         if len(values) != 6:
-            parser.error("--config requires BM,BN,BK,WM,WN,SPLIT_K")
-        config = Config(*values[:5], group_m=1, split_k=values[5])
+            parser.error(
+                "--config requires tile M, tile N, stage K, waves M, waves N, split K"
+            )
+        config = Config(*values[:5], traversal_group_m=1, split_k=values[5])
     MODULE["validate_config"](config, SHAPE)
     report = (
         sweep(args.timing, args.exhaustive)

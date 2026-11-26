@@ -122,10 +122,12 @@ def compare(
 
 def compare_split_k(config, shape, timing, *, seed, batches, repeats):
     """Compare split counts with the same tile geometry and exact-shaped inputs."""
-    real_stages = (shape[2] + config.block_k - 1) // config.block_k
+    real_stages = (shape[2] + config.stage_k - 1) // config.stage_k
     splits = (1, 2, 4)
     configured_split = max(
-        split for split in splits if split <= config.split_k and real_stages % split == 0
+        split
+        for split in splits
+        if split <= config.split_k and real_stages % split == 0
     )
     COMMON["inputs"].__globals__["SHAPE"] = shape
     data = COMMON["inputs"](seed)
@@ -158,7 +160,7 @@ def square_candidates():
             bk,
             wm,
             wn,
-            group_m=4,
+            traversal_group_m=4,
             split_k=1,
             k_unroll=2,
             right_cache_modifier=b_cache,
@@ -183,7 +185,7 @@ def square_candidates():
                     bk,
                     wm,
                     wn,
-                    group_m=4,
+                    traversal_group_m=4,
                     split_k=1,
                     k_unroll=2,
                     wave_groups_m=gm,
@@ -232,12 +234,12 @@ def tune_square(shape):
 
     # Keep the search starting point fixed after publishing the tuned defaults.
     baseline = PREDICATED["default_config"](shape)
-    evaluate(TARGETED["Config"].from_dict(asdict(baseline)))
+    evaluate(TARGETED["Config"](**asdict(baseline)))
     for config in square_candidates():
         evaluate(config)
     for finalist in ranked()[:2]:
         for field, values in (
-            ("group_m", (1, 2, 8)),
+            ("traversal_group_m", (1, 2, 8)),
             ("right_cache_modifier", (0, 1, 2)),
             ("k_unroll", (1, 4)),
             ("split_k", (2, 4)),
@@ -271,7 +273,9 @@ def print_comparison(report):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shape", type=int, nargs=3, metavar=("M", "N", "K"))
-    parser.add_argument("--suite", choices=("edges", "square", "split-k"), default="edges")
+    parser.add_argument(
+        "--suite", choices=("edges", "square", "split-k"), default="edges"
+    )
     parser.add_argument(
         "--sweep",
         action="store_true",
@@ -304,7 +308,9 @@ def main():
     timings = ("graph-host", "direct-host") if args.timing == "both" else (args.timing,)
     for shape in (tuple(args.shape),) if args.shape else shapes:
         if args.suite == "split-k":
-            config = TARGETED["Config"](block_k=32, waves_n=1, split_k=4, k_unroll=2)
+            config = TARGETED["Config"](
+                stage_k=32, waves_per_group_n=1, split_k=4, k_unroll=2
+            )
         elif args.sweep:
             config, search = tune_square(shape)
             training.append(search)
@@ -323,7 +329,13 @@ def main():
                 )
                 rows.append(row)
                 if args.suite == "split-k":
-                    print(shape, timing, row["empty_k_stages"], row["median_ms"], flush=True)
+                    print(
+                        shape,
+                        timing,
+                        row["empty_k_stages"],
+                        row["median_ms"],
+                        flush=True,
+                    )
                 else:
                     print_comparison(row)
     report = {

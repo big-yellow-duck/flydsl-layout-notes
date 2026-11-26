@@ -35,8 +35,8 @@ def main():
             (False, 2, 2, 2),
         ):
             config = module["Config"](
-                block_k=32,
-                waves_n=1,
+                stage_k=32,
+                waves_per_group_n=1,
                 wave_groups_m=gm,
                 wave_groups_n=gn,
                 split_k=split,

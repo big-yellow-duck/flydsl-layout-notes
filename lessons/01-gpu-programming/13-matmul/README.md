@@ -2,7 +2,7 @@
 
 Every stage exposes `matmul_bf16(left, right, out=None, ...)`, with optional arguments passed by keyword. The launcher infers M,N,K, validates that stage's supported shapes and layout, allocates output if omitted, and returns it. Configurable stages accept `config=Config(...)`. Their `_matmul_bf16` kernels are defined at module scope with explicit constexpr parameters, and `_launch_matmul_bf16` is the thin FlyDSL bridge. Unsupported calls raise a specific error. Split-K scratch is cached per config, shape, device, stream, and graph capture and is absent when `split_k=1`.
 
-Build one GPU matrix product in twenty-one steps: a naive dot product, a column-major B storage experiment, native four-row thread windows, LDS staging, vectorized copies, a matrix instruction, measured LDS bank-conflict reduction, interleaved loads with compute, buffer global access, separate operand staging plans, grouped block traversal, measured parameter tuning, single-kernel split-K for skinny outputs, independent wave tiles, synchronization scope, B cache policy, K-loop unrolling, operand-specific memory paths, predicated tile edges, targeted M/N/K guards, and mixed-width edge loads. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has illustrated notes, a practice program, a worked solution, and a checker. Stage 12 provides a runnable practice walkthrough of the two A copy expressions.
+Build one GPU matrix product in twenty-one steps: a naive dot product, a column-major B storage experiment, native four-row thread windows, LDS staging, vectorized copies, a matrix instruction, measured LDS bank-conflict reduction, interleaved loads with compute, buffer global access, separate operand staging plans, grouped block traversal, measured parameter tuning, single-kernel split-K for skinny outputs, independent wave tiles, synchronization scope, B cache policy, K-loop unrolling, operand-specific memory paths, predicated tile edges, targeted M/N/K guards, and mixed-width edge loads. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has illustrated notes, a practice program, a worked solution, and a checker. Stage 12 asks you to complete two expressions in the direct A copy path.
 
 Stages 00–08 retain the **M = N = K = 1024** comparison; stages 09–12 target declared skinny workloads with K=8192. Stage 13 extends the native view/copy path to arbitrary positive M,N,K with explicit predicates. A is row-major BF16. Stage 01 supplies a column-major BF16 B to make each thread's K walk contiguous; other stages supply row-major BF16 B. All tensors are on the GPU. Kernels accumulate in FP32 and write a BF16 matrix C implementing `C = A @ B`. There is no bias, activation, or alpha/beta scaling. Stage-01 B packing and all allocations are outside timing. Diagrams zoom into block tiles and thread fragments within this same workload; each stage states its tile dimensions.
 
@@ -37,6 +37,22 @@ Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labe
 Stage 09 tests all three split counts on `(16,1024,8192)`, `(32,1024,8192)`, and `(16,4096,8192)`. It has a dedicated skinny-shape benchmark, with one captured kernel per GEMM and no reduction/clear pass. The full-series benchmark retains the twelve 1024³ implementations.
 
 Stage 08 additionally supports a separately tuned **(M,N,K)=(1024,4096,2048)** workload through its shape selector. The standard course benchmark keeps the original 1024³ comparison. See [stage 08](08-parameter-tuning/README.md) for per-shape configurations and verification.
+
+## Read a tuning configuration
+
+`group_tile_m` and `group_tile_n` give the output extent of one compute group.
+`stage_k` gives the K extent processed per pipeline stage.
+`waves_per_group_m` and `waves_per_group_n` arrange cooperating waves within
+that group. In stages 08–09, one group covers the entire physical block.
+From stage 10, `wave_groups_m` and `wave_groups_n` arrange independent groups
+within a block. Multiplying each group tile dimension by its group count
+gives the physical block extent.
+
+`traversal_group_m` sets how many physical block rows the launch order
+groups together. `split_k` sets the number of K partitions. For example,
+`10_tile16x64_stagek16_waves1x1_groups1x2_traversalm1_splitk1` describes
+two independent one-wave groups covering a 16×128 physical block.
+Each lesson defines its shape defaults in its Python source.
 
 ## Practice workflow
 
@@ -98,13 +114,13 @@ The fixed 1024³ harness has not identified Torch's selected library solution. T
 
 After 09, follow **10 → 10a → 10b → 10c → 12 → 13**. [10](10-wave-local-tiles/README.md) assigns independent wave tiles and disjoint LDS with conservative barriers. [10a](10a-synchronization-scope/README.md) narrows the tile handoffs. [10b](10b-cache-policy/README.md) compares B cache policies. [10c](10c-k-unrolling/README.md) expands the prefetched K loop and checks its full-group/tail boundary. Each step has a separate native practice/solution pair, one exact diagram, a controlled benchmark, and an ISA inspector. [Validation and current controlled measurements](10c-k-unrolling/results/README.md) distinguish isolated effects from the earlier combined result.
 
-Stages 10–12 use the same view hierarchy for A, B, and C: select the physical block's tile, divide it into compute-group tiles, slice the group's view, then apply thread ownership. `GROUP_TILE_M/N` name one group's output extent, `STAGE_K` names one staged K extent, and `BLOCK_M/N` name the physical block's output extent. Block traversal and group coordinates use separate native layouts. The host configuration fields retain their serialized `block_m/n/k` names for the group tile and K stage.
+Stages 10–12 use the same view hierarchy for A, B, and C: select the physical block's tile, divide it into compute-group tiles, slice the group's view, then apply thread ownership. `GROUP_TILE_M/N` name one group's output extent, `STAGE_K` names one staged K extent, and `BLOCK_M/N` name the physical block's output extent. Block traversal and group coordinates use separate native layouts. The host uses `group_tile_m`, `group_tile_n`, and `stage_k` for these extents.
 
 [12](12-operand-paths/README.md) then derives direct global-to-register A copies from WMMA ownership, preserving B's coalesced staging path. It compares against tuned 10c and same-geometry prefetch on all three skinny workloads. Every wave loads and computes, and each GEMM remains one kernel.
 
 The [original combined experiment](../../../experiments/wave-local-prefetch/README.md) preserves the profiling/search evidence that motivated these steps. Its prefetched arithmetic continues in 10c with the explicit 2D physical-block/wave views introduced in 10. [Dedicated loader waves and semaphore handoffs](../../../experiments/wave-specialization/README.md) remain research; [12 explains why prefetch was retained](12-operand-paths/README.md#why-the-course-keeps-prefetch). Neither is a main-path prerequisite. Stage numbering is preserved, so the path skips 11.
 
-The [2D wave-group sweep](10-wave-local-tiles/results/20261116-2d-wave-groups/README.md) covers all four `(1..2,1..2)` arrangements through lesson 12, with physical block views sliced into private wave tiles and `group_m` ordering physical block rows.
+The [2D wave-group sweep](10-wave-local-tiles/results/20261116-2d-wave-groups/README.md) covers all four `(1..2,1..2)` arrangements through lesson 12, with physical block views sliced into private wave tiles and `traversal_group_m` ordering physical block rows.
 
 ## Make arbitrary tile edges safe
 
@@ -113,8 +129,6 @@ The [2D wave-group sweep](10-wave-local-tiles/results/20261116-2d-wave-groups/RE
 [Stage 14](14-targeted-guards/README.md) uses bounded copies for whole-row tails, masks A’s partial K columns and C’s partial N columns, and rejects empty K stage slots before selecting a view. Its matched graph comparison tests isolated M, N, and K tails as well as mixed and fully odd shapes.
 
 [Stage 15](15-edge-load-widths/README.md) keeps the wide atom for full chunks and traces a six-value suffix as 64- plus 32-bit loads. B uses the guarded suffix near the physical end of the buffer. The largest measured gains are on odd row pitches.
-
-The [stages 12–15 tuning report](retuning-12-15.md) lists every published benchmark shape, its selected configuration's timing, and the matched Torch result.
 
 ## Scope and next experiments
 

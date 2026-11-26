@@ -183,11 +183,11 @@ def tune_shape(shape):
         evaluate(
             replace(
                 base,
-                block_m=bm,
-                block_n=bn,
-                block_k=32,
-                waves_m=wm,
-                waves_n=wn,
+                group_tile_m=bm,
+                group_tile_n=bn,
+                stage_k=32,
+                waves_per_group_m=wm,
+                waves_per_group_n=wn,
                 k_unroll=2,
                 wave_groups_m=1,
                 wave_groups_n=1,
@@ -196,7 +196,7 @@ def tune_shape(shape):
     for cfg in ranked()[:2]:
         for depth in (16, 32, 64):
             for splits in (1, 2, 4):
-                evaluate(replace(cfg, block_k=depth, split_k=splits))
+                evaluate(replace(cfg, stage_k=depth, split_k=splits))
     best = ranked()[0]
     for unroll in (1, 2, 4):
         evaluate(replace(best, k_unroll=unroll))

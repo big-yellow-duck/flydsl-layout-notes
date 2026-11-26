@@ -116,14 +116,14 @@ def main():
                     for registers, split in choices:
                         evaluate(
                             module["Config"](
-                                block_m=bm,
-                                block_n=bn,
-                                block_k=bk,
-                                waves_m=wm,
-                                waves_n=wn,
+                                group_tile_m=bm,
+                                group_tile_n=bn,
+                                stage_k=bk,
+                                waves_per_group_m=wm,
+                                waves_per_group_n=wn,
                                 wave_groups_m=gm,
                                 wave_groups_n=gn,
-                                group_m=1 if args.small_m else 4,
+                                traversal_group_m=1 if args.small_m else 4,
                                 split_k=split,
                                 k_unroll=2,
                                 left_in_registers=registers,
@@ -134,23 +134,23 @@ def main():
             key=lambda r: r["median_ms"]["operand_paths"],
         )[:2]
         for row in best:
-            base = module["Config"].from_dict(row["config"])
+            base = module["Config"](**row["config"])
             for unroll in (1, 4, 8):
                 evaluate(replace(base, k_unroll=unroll))
-            for group_m in () if args.small_m else (1, 8):
-                evaluate(replace(base, group_m=group_m))
+            for traversal_group_m in () if args.small_m else (1, 8):
+                evaluate(replace(base, traversal_group_m=traversal_group_m))
             for policy in (0, 1):
                 evaluate(replace(base, right_cache_modifier=policy))
             for split in (2, 4):
                 evaluate(replace(base, split_k=split))
             if args.small_m:
                 evaluate(replace(base, left_in_registers=False))
-                evaluate(replace(base, block_k=16))
+                evaluate(replace(base, stage_k=16))
         winner = min(
             (r for r in rows if "median_ms" in r),
             key=lambda r: r["median_ms"]["operand_paths"],
         )
-        config = module["Config"].from_dict(winner["config"])
+        config = module["Config"](**winner["config"])
         result = report["shapes"][str(size)]
         result["selected_config"] = asdict(config)
         result["correctness"] = module["solve"](config, shape)

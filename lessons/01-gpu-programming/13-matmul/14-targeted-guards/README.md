@@ -6,7 +6,7 @@ Keep arbitrary positive `M`, `N`, and `K` for contiguous BF16 matrices while mov
 
 Use `M=17`, `N=65`, `K=33` and a `16×64×32` tile. The row-major layouts are A `(17,33):(33,1)`, B `(33,65):(65,1)`, and C `(17,65):(65,1)`. All three descriptors have their exact byte bounds. The bottom-right tile starts at C row 16 and column 64. Its last real K stage starts at K=32.
 
-Use `Config(block_k=32, waves_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
+Use `Config(stage_k=32, waves_per_group_n=1, split_k=4, k_unroll=2)` to reproduce the illustrated layout through `matmul_bf16(..., config=...)`. The shape selector uses the measured performance configuration.
 
 ![Four address examples distinguish M and B’s K rows beyond the buffer from A’s K columns and C’s N columns that alias the next row. A final panel shows the two empty split-K slots.](../../../../assets/01-gpu-programming/13-matmul/14-targeted-guards/guarded-axes.svg)
 

@@ -162,18 +162,18 @@ def public_api_checks():
         if operation == "matmul_bf16":
             config = next(iter(module.get("CONFIGS_BY_SHAPE", {}).values()), None)
             m = (
-                config.block_m * getattr(config, "wave_groups_m", 1)
+                config.group_tile_m * getattr(config, "wave_groups_m", 1)
                 if config
                 else module.get("BLOCK_M", 16)
             )
             n = (
-                config.block_n
+                config.group_tile_n
                 * getattr(config, "wave_groups_n", getattr(config, "wave_groups", 1))
                 if config
                 else module.get("BLOCK_N", 16)
             )
             k = (
-                config.block_k * getattr(config, "split_k", 1)
+                config.stage_k * getattr(config, "split_k", 1)
                 if config
                 else module.get("BLOCK_K", 16)
             )

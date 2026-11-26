@@ -13,13 +13,16 @@ def _record_ownership(
     output: fx.Tensor,
     m: fx.Constexpr,
     n: fx.Constexpr,
-    waves_m: fx.Constexpr,
-    waves_n: fx.Constexpr,
+    waves_per_group_m: fx.Constexpr,
+    waves_per_group_n: fx.Constexpr,
 ):
     view = fx.make_view(fx.get_iter(output), fx.make_layout((m, n), (n, 1)))
     mma_atom = fx.make_mma_atom(fx.rocdl.WMMA(16, 16, 16, fx.BFloat16, fx.Float32))
     mma = fx.make_tiled_mma(
-        mma_atom, fx.make_layout((waves_m, waves_n, 1), (1, waves_m, 0))
+        mma_atom,
+        fx.make_layout(
+            (waves_per_group_m, waves_per_group_n, 1), (1, waves_per_group_m, 0)
+        ),
     )
     fragment = mma.thr_slice(fx.thread_idx.x).make_fragment_C(view)
     fragment.fill(fx.Float32(fx.thread_idx.x))
@@ -33,28 +36,31 @@ def _launch_record_ownership(
     output: fx.Tensor,
     m: fx.Constexpr,
     n: fx.Constexpr,
-    waves_m: fx.Constexpr,
-    waves_n: fx.Constexpr,
+    waves_per_group_m: fx.Constexpr,
+    waves_per_group_n: fx.Constexpr,
 ):
-    _record_ownership(output, m, n, waves_m, waves_n).launch(
-        grid=(1, 1, 1), block=(32 * waves_m * waves_n, 1, 1)
+    _record_ownership(output, m, n, waves_per_group_m, waves_per_group_n).launch(
+        grid=(1, 1, 1), block=(32 * waves_per_group_m * waves_per_group_n, 1, 1)
     )
 
 
-def check(m, n, waves_m, waves_n):
+def check(m, n, waves_per_group_m, waves_per_group_n):
     output = torch.full((m, n), float("nan"), dtype=torch.float32, device="cuda")
-    _launch_record_ownership(output, m, n, waves_m, waves_n)
+    _launch_record_ownership(output, m, n, waves_per_group_m, waves_per_group_n)
     torch.cuda.synchronize()
     actual = output.cpu()
     rows, cols = torch.meshgrid(torch.arange(m), torch.arange(n), indexing="ij")
-    wave_m, wave_n = (rows // 16) % waves_m, (cols // 16) % waves_n
-    expected = cols % 16 + 16 * (rows % 2) + 32 * (wave_m + waves_m * wave_n)
+    wave_m, wave_n = (rows // 16) % waves_per_group_m, (cols // 16) % waves_per_group_n
+    expected = cols % 16 + 16 * (rows % 2) + 32 * (wave_m + waves_per_group_m * wave_n)
     torch.testing.assert_close(actual, expected.float(), rtol=0, atol=0)
     owners, counts = torch.unique(actual, return_counts=True)
     assert torch.equal(
-        owners, torch.arange(32 * waves_m * waves_n, dtype=torch.float32)
+        owners,
+        torch.arange(32 * waves_per_group_m * waves_per_group_n, dtype=torch.float32),
     )
-    assert torch.all(counts == m * n // (32 * waves_m * waves_n)).item()
+    assert torch.all(
+        counts == m * n // (32 * waves_per_group_m * waves_per_group_n)
+    ).item()
     positions = torch.nonzero(actual == 17).tolist()
     return {
         "tile": [m, n],
@@ -69,7 +75,12 @@ def main():
     config = module["SELECTED_CONFIG"]
     results = [
         check(32, 32, 2, 2),
-        check(config.block_m, config.block_n, config.waves_m, config.waves_n),
+        check(
+            config.group_tile_m,
+            config.group_tile_n,
+            config.waves_per_group_m,
+            config.waves_per_group_n,
+        ),
     ]
     print("Ownership passed:", results)
     return results

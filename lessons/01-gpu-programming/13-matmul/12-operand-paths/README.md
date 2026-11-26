@@ -4,9 +4,9 @@ A and B need not pass through the same storage. For skinny `C=A@B`, A has only 1
 
 This lesson measures that choice. It retains row-major BF16 inputs/output, FP32 accumulation, one-dimensional physical block IDs, prefetch, and stage 09's single-kernel split-K finalizer. All waves load and compute using the [10c prefetch schedule](../10c-k-unrolling/README.md). This lesson changes the operand route while retaining that schedule. Read [10](../10-wave-local-tiles/README.md) for the independent-wave mapping and [stage 05](../05-matrix-instructions/README.md) for WMMA ownership.
 
-The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
+The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `traversal_group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
-With one physical M row, `group_m` is exactly redundant:
+With one physical M row, `traversal_group_m` is exactly redundant:
 `ceil(M / BLOCK_M) == 1`. With several physical M rows,
 grouped traversal can still improve B locality between blocks. The
 [M-grouping study](results/20261117-group-m/README.md) uses this lesson's
@@ -148,7 +148,7 @@ The A/B cache modifiers are instruction policy hints. L0/L1/L2 contents remain h
 
 The comparison uses locked configurations selected on training seed 13, then tests fresh inputs. It compares the operand-path kernel directly with **independently tuned 10c prefetch**, **same-geometry prefetch**, and GPU Torch. Both native strategies let every wave load and compute; their timed kernels use no dedicated loader waves, semaphore polling, or ready/free signals.
 
-The independently tuned control tests against the previous prefetch selection. The same-geometry control keeps the output tile, K chunk, wave arrangement, split count, unroll and B cache policy fixed while using the earlier A/B LDS path. This separates A's route from other tuning changes. The selected configurations stay fixed for the rerun; removing a benchmark reference does not change the native kernel.
+The independently tuned control uses stage 10c’s defaults for the same shape. The same-geometry control keeps the output tile, K chunk, wave arrangement, split count, unroll and B cache policy fixed while using the earlier A/B LDS path. This separates A's route from other tuning changes. The selected configurations stay fixed for the rerun; removing a benchmark reference does not change the native kernel.
 
 [Current results and reproduction commands](results/README.md) report graph replay throughput and ordinary Python dispatch separately. The [initial study](results/initial-study.md) retains the earlier wave-specialization comparison and raw samples. The active lesson benchmark depends directly on stages 09 and 10c and contains no wave-specialized implementation.
 
@@ -156,7 +156,7 @@ The controlled M=32 profile holds geometry and scheduling fixed while switching 
 
 ## Practice
 
-[practice.py](practice.py) contains the runnable walkthrough. Follow two expressions in the direct A path:
+Complete two expressions in the direct A path in [practice.py](practice.py):
 
 1. `left_staging_thread_copy` derives A’s copy plan from `gmem_left_load_128b` and `mma`, then selects `thread_id_in_wave_group`.
 2. `left_source` selects `inner_k` from `left_compute_tiled` and keeps the operand’s first three axes.
