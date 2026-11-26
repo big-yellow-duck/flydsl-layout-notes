@@ -75,7 +75,7 @@ Converting every partial to BF16 before adding them would introduce repeated rou
 
 For the illustrated tile, 64 threads each own 16 accumulator values. The workspace holds `16 tiles * 4 splits * 1024 values = 65536` FP32 values, or **256 KiB**, plus **4 KiB** of arrival counters. These are temporary partial results; they do not change the BF16 output contract.
 
-`partial_view` uses `accumulator.layout`. Its base is selected by the output tile, split, and thread ID. `fx.copy(copy_128b_f32, accumulator, partial_view)` publishes the fragment. No two peers write the same partial region. With `split_k=1`, the specialization bypasses this workspace path and stores its complete result directly.
+`partial_view` uses `c_accum.layout`. Its base is selected by the output tile, split, and thread ID. `fx.copy(copy_128b_f32, c_accum, partial_view)` publishes the fragment. No two peers write the same partial region. With `split_k=1`, the specialization bypasses this workspace path and stores its complete result directly.
 
 ## 3. Finish inside the same kernel
 
@@ -108,8 +108,8 @@ Earlier arrivals leave without waiting. There is no polling loop or grid-wide ba
 The public `matmul_bf16` launcher allocates scratch and initializes counters when a Split-K cache entry is first needed. Ordinary repeated calls reuse it; a graph capture owns separate scratch and records its initialization once. Partial storage needs no per-call initialization: every peer overwrites its own region before arriving. Output storage can contain NaNs or results of an earlier GEMM; the finalizer overwrites it completely.
 
 ```python
-out = matmul_bf16(a, b, config=config)
-matmul_bf16(other_a, b, out=out, config=config)  # reuse output and cached scratch
+c = matmul_bf16(a, b, config=config)
+matmul_bf16(other_a, b, out=c, config=config)  # reuse output and cached scratch
 ```
 
 The launcher caches scratch separately for each config, shape, device, stream, and graph capture. Calls using one workspace are ordered on its stream. Pass `stream=s` to use a nondefault stream, and establish input dependencies before calling it. Different streams and graph captures receive independent buffers. Unsplit calls allocate no partials or counters. Each Split-K graph captures its workspace initialization once before its matmuls; timing reports record those setup nodes separately from the one compute kernel per GEMM.
@@ -120,7 +120,7 @@ The checker changes inputs between workspace reuses, poisons outputs, checks the
 
 The completed [practice](practice.py) also supports `--counter-scope cta`; its default `thread` mode retains the per-thread baseline. In CTA mode, each thread stores its FP32 partial and executes an agent-scope release fence before a workgroup barrier. Thread 0 performs the agent-scope acquire/release arrival atomic and writes the election result into an aligned word of the now-unused operand LDS. Another workgroup barrier broadcasts that result. All threads of the winning CTA execute an agent-scope acquire fence and reduce their original fragment slots. A final workgroup barrier precedes thread 0's release reset. Earlier CTAs leave without polling. These barriers transfer publication and acquisition between the leader and its workers; see the [AMDGPU execution-barrier rules](https://llvm.org/docs/AMDGPUUsage.html#execution-barriers).
 
-For the 16×64 tile with 64 threads and four splits, this reduces counters per output tile from 64 to 1 and atomic increments from 256 to 4. Partial layout and FP32 traffic stay fixed at 16 KiB of writes plus 16 KiB of reads per output tile. The fragment size is inferred from `accumulator.shape` in both modes.
+For the 16×64 tile with 64 threads and four splits, this reduces counters per output tile from 64 to 1 and atomic increments from 256 to 4. Partial layout and FP32 traffic stay fixed at 16 KiB of writes plus 16 KiB of reads per output tile. The fragment size is inferred from `c_accum.shape` in both modes.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/09-split-k/practice.py --counter-scope cta --check-only

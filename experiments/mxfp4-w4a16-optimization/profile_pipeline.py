@@ -25,7 +25,7 @@ import torch
 ROOT = Path(__file__).resolve().parents[2]
 LESSON = (
     ROOT
-    / "lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/solution.py"
+    / "lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/04-lut-decode/solution.py"
 )
 TUNING = (
     ROOT
@@ -83,30 +83,30 @@ def _inputs(module, shape, seed=20261117):
     generator = torch.Generator().manual_seed(seed)
     a_cpu = torch.randn((m, k), generator=generator).to(torch.bfloat16)
     b_cpu = torch.randn((k, n), generator=generator).to(torch.bfloat16)
-    packed_cpu, scales_cpu, dense_cpu = module["quantize_mxfp4"](b_cpu)
+    b_packed_cpu, b_scales_cpu, b_bf16_cpu = module["quantize_mxfp4"](b_cpu)
     return (
         a_cpu.cuda(),
-        packed_cpu.cuda(),
-        scales_cpu.cuda(),
-        dense_cpu.cuda(),
-        a_cpu.float() @ dense_cpu.float(),
+        b_packed_cpu.cuda(),
+        b_scales_cpu.cuda(),
+        b_bf16_cpu.cuda(),
+        a_cpu.float() @ b_bf16_cpu.float(),
     )
 
 
 def _callbacks(module, shape, config, data):
     m, n, k = shape
-    a, packed, scales, dense, expected = data
+    a, b_packed, b_scales, dense, expected = data
     output = torch.empty((m, n), dtype=torch.bfloat16, device=a.device)
     stream = torch.cuda.current_stream(a.device)
     operand_paths = runpy.run_path(
-        str(LESSON.parents[2] / "13-matmul/12-operand-paths/solution.py")
+        str(LESSON.parents[3] / "13-matmul/12-operand-paths/solution.py")
     )
     dense_config = operand_paths["Config"](**config.__dict__)
 
     def unpack():
         module["_launch_matmul_mxfp4_w4a16"](
-            packed.view(torch.int32),
-            scales.view(torch.int64),
+            b_packed.view(torch.int32),
+            b_scales.view(torch.int64),
             dense,
             k,
             n,

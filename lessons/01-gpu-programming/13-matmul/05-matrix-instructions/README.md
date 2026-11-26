@@ -9,10 +9,10 @@ The problem is **M=N=K=1024**, with row-major BF16 inputs, FP32 accumulation, an
 The global views use `(M,K):(K,1)`, `(K,N):(N,1)`, and `(M,N):(N,1)` layouts. Divide them into block windows:
 
 ```python
-left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
-right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
-out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
-out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+a_tiled_view = fx.flat_divide(a_global_view, (BLOCK_M, BLOCK_K))
+b_tiled_view = fx.flat_divide(b_global_view, (BLOCK_K, BLOCK_N))
+c_tiled_view = fx.flat_divide(c_global_view, (BLOCK_M, BLOCK_N))
+c_block_view = fx.slice(c_tiled_view, (None, None, block_row, block_col))
 ```
 
 With `BLOCK_M = BLOCK_N = BLOCK_K = 64`, each divided view has shape `(64,64,16,16)`. Selecting a block retains its global row stride of 1024. Inside the outer K loop, A fixes `(block_row,tile_k)` and B fixes `(tile_k,block_col)`. No handwritten global pointer offsets are needed.
@@ -32,10 +32,10 @@ At block `(x,y)=(1,2)` and `tile_k=2`, thread 17's first group reads A row 130, 
 `make_tiled_copy` builds staging ownership; its thread slice partitions the source and LDS destination views. Copies move each input through a reusable register fragment:
 
 ```python
-fx.copy(copy_128b, left_global_source, left_staging_fragment)
-fx.copy(copy_128b, right_global_source, right_staging_fragment)
-fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
-fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
+fx.copy(copy_128b, a_global_source, a_staging_fragment)
+fx.copy(copy_128b, b_global_source, b_staging_fragment)
+fx.copy(copy_128b, a_staging_fragment, a_lds_destination)
+fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
 fx.barrier()
 ```
 
@@ -46,8 +46,8 @@ The barrier makes all cooperative LDS writes visible before operand loads.
 The staged B storage is physically `(K,N)`. WMMA's B operand view uses `(N,K)`:
 
 ```python
-right_mma_lds_view = fx.make_view(
-    fx.get_iter(right_lds_view),
+b_mma_lds_view = fx.make_view(
+    fx.get_iter(b_lds_view),
     fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
 )
 ```
@@ -60,8 +60,8 @@ For coordinate `(n,k)=(1,2)`, this reaches element offset `1+2*64=129`, the same
 mma_atom = fx.make_mma_atom(fx.rocdl.WMMA(MMA_M, MMA_N, MMA_K, fx.BFloat16, fx.Float32))
 mma = fx.make_tiled_mma(mma_atom, fx.make_layout((2, 2, 1), (1, 2, 0)))
 thread_mma = mma.thr_slice(fx.thread_idx.x)
-accumulator = thread_mma.make_fragment_C(out_block_view)
-accumulator.fill(0)
+c_accum = thread_mma.make_fragment_C(c_block_view)
+c_accum.fill(0)
 ```
 
 `MMA_M = MMA_N = MMA_K = 16`. The atom layout maps wave-group coordinates to `wave_id = wave_m + 2*wave_n`. Four wave32 groups give 128 threads and a natural **32×32×16** MMA footprint.
@@ -88,26 +88,26 @@ The diagram uses a smaller LDS example with strides `(32,1)` and `(1,32)`; the r
 Give fragment allocation views whose K extent is only 16:
 
 ```python
-left_mma_lds_view = fx.slice(
-    fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)), (None, None, 0, 0)
+a_mma_lds_view = fx.slice(
+    fx.flat_divide(a_lds_view, (BLOCK_M, MMA_K)), (None, None, 0, 0)
 )
-right_mma_slice = fx.slice(
-    fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)), (None, None, 0, 0)
+b_mma_slice = fx.slice(
+    fx.flat_divide(b_mma_lds_view, (BLOCK_N, MMA_K)), (None, None, 0, 0)
 )
-left_r_tile = thread_mma.make_fragment_A(left_mma_lds_view)
-right_r_tile = thread_mma.make_fragment_B(right_mma_slice)
+a_r_tile = thread_mma.make_fragment_A(a_mma_lds_view)
+b_r_tile = thread_mma.make_fragment_B(b_mma_slice)
 ```
 
 The A/B views have shape `(64,16)` with their respective operand conventions. `make_fragment_A/B` allocates instruction-compatible registers; it does not load or initialize them. Copies supply the values.
 
 ```python
 copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-left_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
-left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
-right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
-left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
-right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
+a_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
+b_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+a_lds2reg_thread_copy = a_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+b_lds2reg_thread_copy = b_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+a_r_destination = a_lds2reg_thread_copy.retile(a_r_tile)
+b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
 ```
 
 The A/B helpers derive thread/value ownership from `mma`. `retile` creates a copy-compatible alias of an existing register fragment, without another allocation or data transfer. Staging ownership stays independent of WMMA ownership.
@@ -118,26 +118,26 @@ After staging each 64-wide K tile and synchronizing, run this inner loop directl
 
 ```python
 for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-    left_subview = fx.slice(
-        fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
+    a_subview = fx.slice(
+        fx.flat_divide(a_lds_view, (BLOCK_M, MMA_K)),
         (None, None, 0, inner_k),
     )
-    right_subview = fx.slice(
-        fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
+    b_subview = fx.slice(
+        fx.flat_divide(b_mma_lds_view, (BLOCK_N, MMA_K)),
         (None, None, 0, inner_k),
     )
-    left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
-    right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
-    fx.copy(copy_16b, left_r_source, left_r_destination)
-    fx.copy(copy_16b, right_r_source, right_r_destination)
-    fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+    a_r_source = lds2reg_thread_copies[0].partition_S(a_subview)
+    b_r_source = lds2reg_thread_copies[1].partition_S(b_subview)
+    fx.copy(copy_16b, a_r_source, a_r_destination)
+    fx.copy(copy_16b, b_r_source, b_r_destination)
+    fx.gemm(mma_atom, c_accum, a_r_tile, b_r_tile, c_accum)
 fx.barrier()
 ```
 
 These API fragments use the tuple defined before the outer loop:
 
 ```python
-lds2reg_thread_copies = (left_lds2reg_thread_copy, right_lds2reg_thread_copy)
+lds2reg_thread_copies = (a_lds2reg_thread_copy, b_lds2reg_thread_copy)
 ```
 
 Tuple access avoids FlyDSL 0.4.1 treating method calls on copy wrappers as loop-carried state. The loads and WMMA calls remain inline. `range_constexpr` unrolls the four steps during compilation.
@@ -151,13 +151,13 @@ Larger M/N dimensions provide reuse: each staged A value contributes across 64 o
 ## 6. Convert and store with C ownership
 
 ```python
-out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
+c_registers = fx.make_rmem_tensor(c_accum.layout, fx.BFloat16)
 for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
-    out_registers[slot] = accumulator[slot].to(fx.BFloat16)
+    c_registers[slot] = c_accum[slot].to(fx.BFloat16)
 rmem2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
 rmem2gmem_thread_copy = rmem2gmem_copy_plan.get_slice(fx.thread_idx.x)
-rmem2gmem_source = rmem2gmem_thread_copy.retile(out_registers)
-rmem2gmem_dest = rmem2gmem_thread_copy.partition_D(out_block_view)
+rmem2gmem_source = rmem2gmem_thread_copy.retile(c_registers)
+rmem2gmem_dest = rmem2gmem_thread_copy.partition_D(c_block_view)
 fx.copy(copy_16b, rmem2gmem_source, rmem2gmem_dest)
 ```
 
@@ -167,8 +167,8 @@ fx.copy(copy_16b, rmem2gmem_source, rmem2gmem_dest)
 
 In [practice.py](practice.py), fill three copy-plan expressions:
 
-1. `left_lds2reg_copy_plan` with `fx.make_tiled_copy_A(copy_16b, mma)`.
-2. `right_lds2reg_copy_plan` with `fx.make_tiled_copy_B(copy_16b, mma)`.
+1. `a_lds2reg_copy_plan` with `fx.make_tiled_copy_A(copy_16b, mma)`.
+2. `b_lds2reg_copy_plan` with `fx.make_tiled_copy_B(copy_16b, mma)`.
 3. `rmem2gmem_copy_plan` with `fx.make_tiled_copy_C(copy_16b, mma)`.
 
 These helpers derive A, B, and C ownership from the WMMA instruction. The kernel supplies the views, K slicing, staging, launch, and checker. Compare your plans with the [worked solution](solution.py).

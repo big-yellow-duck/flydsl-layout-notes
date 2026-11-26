@@ -37,13 +37,13 @@ With `wave_groups>1`, validation requires exactly one wave per compute group. `w
 The [solution](solution.py) retains the named views and helpers from 07c–09. It offsets each wave's views inside the shared allocation:
 
 ```python
-left_lds_view = fx.make_view(
-    fx.get_iter(left_lds_view) + wave_group * BLOCK_M * (BLOCK_K + 8),
-    left_lds_view.layout,
+a_lds_view = fx.make_view(
+    fx.get_iter(a_lds_view) + wave_group * BLOCK_M * (BLOCK_K + 8),
+    a_lds_view.layout,
 )
-right_lds_view = fx.make_view(
-    fx.get_iter(right_lds_view) + wave_group * BLOCK_K * BLOCK_N,
-    right_lds_view.layout,
+b_lds_view = fx.make_view(
+    fx.get_iter(b_lds_view) + wave_group * BLOCK_K * BLOCK_N,
+    b_lds_view.layout,
 )
 ```
 
@@ -82,7 +82,7 @@ Both panels use the same scale and count **128-byte requests**, not elements. B 
 The wide configuration also selects:
 
 ```python
-gmem_right_load_128b = fx.make_copy_atom(
+b_gmem_load_128b = fx.make_copy_atom(
     fx.rocdl.BufferCopy128b(RIGHT_CACHE_MODIFIER), fx.BFloat16
 )
 ```

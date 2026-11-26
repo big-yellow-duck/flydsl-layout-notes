@@ -11,7 +11,10 @@ from flydsl._mlir import ir
 from flydsl._mlir.dialects import gpu, scf
 
 _MXFP4 = runpy.run_path(
-    str(Path(__file__).resolve().parent.parent / "01-mxfp4-w4a16/solution.py")
+    str(
+        Path(__file__).resolve().parent.parent
+        / "01-mxfp4-w4a16/04-lut-decode/solution.py"
+    )
 )
 MX_BLOCK_K = _MXFP4["MX_BLOCK_K"]
 Config = _MXFP4["Config"]
@@ -148,11 +151,11 @@ def _load_left_tail(resource, row, column, m, k, cache_modifier):
 
 @flyc.kernel
 def _matmul_mxfp8(
-    left: fx.Tensor,
-    right: fx.Tensor,
-    left_scales: fx.Tensor,
-    right_scales: fx.Tensor,
-    out: fx.Tensor,
+    a: fx.Tensor,
+    b: fx.Tensor,
+    a_scales: fx.Tensor,
+    b_scales: fx.Tensor,
+    c: fx.Tensor,
     partials,
     counters,
     m: fx.Constexpr,
@@ -191,36 +194,36 @@ def _matmul_mxfp8(
         fx.barrier(address_spaces=lds_address_spaces, scope=barrier_scope)
 
     # 1. The source descriptors bound the four compact allocations.
-    left_resource = fx.rocdl.get_buffer_rsrc(
-        fx.rocdl.make_buffer_ptr(fx.get_iter(left), num_records_bytes=m * k)
+    a_resource = fx.rocdl.get_buffer_rsrc(
+        fx.rocdl.make_buffer_ptr(fx.get_iter(a), num_records_bytes=m * k)
     )
-    right_resource = fx.rocdl.get_buffer_rsrc(
-        fx.rocdl.make_buffer_ptr(fx.get_iter(right), num_records_bytes=k * n)
+    b_resource = fx.rocdl.get_buffer_rsrc(
+        fx.rocdl.make_buffer_ptr(fx.get_iter(b), num_records_bytes=k * n)
     )
     SCALE_ROWS = (k + MX_BLOCK_K - 1) // MX_BLOCK_K
-    left_scale_resource = fx.rocdl.get_buffer_rsrc(
+    a_scale_resource = fx.rocdl.get_buffer_rsrc(
         fx.rocdl.make_buffer_ptr(
-            fx.get_iter(left_scales), num_records_bytes=m * SCALE_ROWS
+            fx.get_iter(a_scales), num_records_bytes=m * SCALE_ROWS
         )
     )
-    right_scale_resource = fx.rocdl.get_buffer_rsrc(
+    b_scale_resource = fx.rocdl.get_buffer_rsrc(
         fx.rocdl.make_buffer_ptr(
-            fx.get_iter(right_scales), num_records_bytes=SCALE_ROWS * n
+            fx.get_iter(b_scales), num_records_bytes=SCALE_ROWS * n
         )
     )
-    out_buffer = fx.rocdl.make_buffer_tensor(out, max_size=False)
-    out_global_view = fx.make_view(
-        fx.get_iter(out_buffer), fx.make_layout((m, n), (n, 1))
+    c_buffer = fx.rocdl.make_buffer_tensor(c, max_size=False)
+    c_global_view = fx.make_view(
+        fx.get_iter(c_buffer), fx.make_layout((m, n), (n, 1))
     )
     REAL_K_STAGES = (k + STAGE_K - 1) // STAGE_K
     HAS_EMPTY_K_STAGES = REAL_K_STAGES % SPLIT_K != 0
     HAS_K_TAIL = k % STAGE_K != 0
     HAS_N_TAIL = n % BLOCK_N != 0
     if fx.const_expr(HAS_N_TAIL):
-        out_coordinates = fx.make_view(
+        c_coordinates = fx.make_view(
             fx.make_int_tuple((0, 0)), fx.make_identity_layout((m, n))
         )
-        out_coordinate_tiles = fx.flat_divide(out_coordinates, (BLOCK_M, BLOCK_N))
+        c_coordinate_tiles = fx.flat_divide(c_coordinates, (BLOCK_M, BLOCK_N))
 
     # 2. Decode block traversal separately from groups inside the block.
     group_layout = fx.make_layout((WAVE_GROUPS_M, WAVE_GROUPS_N), (WAVE_GROUPS_N, 1))
@@ -228,9 +231,9 @@ def _matmul_mxfp8(
     group_row = fx.get_scalar(group_coords[0])
     group_col = fx.get_scalar(group_coords[1])
 
-    out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
-    blocks_m = fx.size(out_block_tiles.shape[2]).to_py_value()
-    blocks_n = fx.size(out_block_tiles.shape[3]).to_py_value()
+    c_block_tiles = fx.flat_divide(c_global_view, (BLOCK_M, BLOCK_N))
+    blocks_m = fx.size(c_block_tiles.shape[2]).to_py_value()
+    blocks_n = fx.size(c_block_tiles.shape[3]).to_py_value()
     group_m_width = min(GROUP_M, blocks_m)
     # Consecutive splits share an output tile. Decode the output tile ID next.
     output_block_id = fx.block_idx.x // SPLIT_K
@@ -259,9 +262,9 @@ def _matmul_mxfp8(
         block_col = fx.Int32(fx.get_scalar(full_coords[1]))
 
     # Select the complete block output, then this group's output tile.
-    out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))
-    out_group_tiles = fx.flat_divide(out_block_view, (GROUP_TILE_M, GROUP_TILE_N))
-    out_group_view = fx.slice(out_group_tiles, (None, None, group_row, group_col))
+    c_block_view = fx.slice(c_block_tiles, (None, None, block_row, block_col))
+    c_group_tiles = fx.flat_divide(c_block_view, (GROUP_TILE_M, GROUP_TILE_N))
+    c_group_view = fx.slice(c_group_tiles, (None, None, group_row, group_col))
 
     # Workspace IDs name group output tiles independently of launch order.
     output_group_layout = fx.make_layout(
@@ -284,7 +287,7 @@ def _matmul_mxfp8(
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
 
     # 3. Each independent group owns padded A and row-major B in LDS.
-    left_group_staging_view, right_group_staging_view = _create_staging_views(
+    a_group_staging_view, b_group_staging_view = _create_staging_views(
         None,
         GROUP_TILE_M,
         GROUP_TILE_N,
@@ -297,25 +300,25 @@ def _matmul_mxfp8(
     )
 
     thread_mma = mma.thr_slice(thread_id_in_wave_group)
-    accumulator = thread_mma.make_fragment_C(out_group_view)
-    ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
-    accumulator.fill(0)
+    c_accum = thread_mma.make_fragment_C(c_group_view)
+    ACCUMULATOR_VALUES = fx.size(c_accum.shape).to_py_value()
+    c_accum.fill(0)
 
     # Staging ownership. Every lane loads eight contiguous FP8 bytes per chunk.
     LEFT_K_THREADS = STAGE_K // 8
     LEFT_M_THREADS = THREADS_PER_GROUP // LEFT_K_THREADS
     LEFT_ROWS_PER_THREAD = GROUP_TILE_M // LEFT_M_THREADS
-    left_m_lane = thread_id_in_wave_group // LEFT_K_THREADS
-    left_k_col = thread_id_in_wave_group % LEFT_K_THREADS * 8
-    left_codes = fx.make_rmem_tensor(LEFT_ROWS_PER_THREAD, fx.Uint64)
-    left_scale_bytes = fx.make_rmem_tensor(LEFT_ROWS_PER_THREAD, fx.Uint8)
+    a_m_lane = thread_id_in_wave_group // LEFT_K_THREADS
+    a_k_col = thread_id_in_wave_group % LEFT_K_THREADS * 8
+    a_codes = fx.make_rmem_tensor(LEFT_ROWS_PER_THREAD, fx.Uint64)
+    a_scale_bytes = fx.make_rmem_tensor(LEFT_ROWS_PER_THREAD, fx.Uint8)
 
     RIGHT_N_THREADS = GROUP_TILE_N // 8
     RIGHT_K_THREADS = THREADS_PER_GROUP // RIGHT_N_THREADS
     RIGHT_ROWS_PER_THREAD = STAGE_K // RIGHT_K_THREADS
-    right_k_lane = thread_id_in_wave_group // RIGHT_N_THREADS
-    right_n_col = thread_id_in_wave_group % RIGHT_N_THREADS * 8
-    global_n_col = output_group_col * GROUP_TILE_N + right_n_col
+    b_k_lane = thread_id_in_wave_group // RIGHT_N_THREADS
+    b_n_col = thread_id_in_wave_group % RIGHT_N_THREADS * 8
+    global_n_col = output_group_col * GROUP_TILE_N + b_n_col
     if fx.const_expr(STAGE_K in (16, 32)):
         ROW_SLOTS_PER_SCALE = RIGHT_ROWS_PER_THREAD
     elif fx.const_expr(STAGE_K % MX_BLOCK_K == 0 and MX_BLOCK_K % RIGHT_K_THREADS == 0):
@@ -323,77 +326,77 @@ def _matmul_mxfp8(
     else:
         ROW_SLOTS_PER_SCALE = 1
     RIGHT_SCALE_SLOTS = RIGHT_ROWS_PER_THREAD // ROW_SLOTS_PER_SCALE
-    right_codes = fx.make_rmem_tensor(RIGHT_ROWS_PER_THREAD, fx.Uint64)
-    right_scale_words = fx.make_rmem_tensor(RIGHT_SCALE_SLOTS, fx.Uint64)
+    b_codes = fx.make_rmem_tensor(RIGHT_ROWS_PER_THREAD, fx.Uint64)
+    b_scale_words = fx.make_rmem_tensor(RIGHT_SCALE_SLOTS, fx.Uint64)
 
     # MMA copies for A and B.
-    left_group_staging_tiled = fx.flat_divide(
-        left_group_staging_view, (GROUP_TILE_M, MMA_K)
+    a_group_staging_tiled = fx.flat_divide(
+        a_group_staging_view, (GROUP_TILE_M, MMA_K)
     )
-    left_group_staging_mma_initial_view = fx.slice(
-        left_group_staging_tiled, (None, None, 0, 0)
+    a_group_staging_mma_initial_view = fx.slice(
+        a_group_staging_tiled, (None, None, 0, 0)
     )
     # WMMA consumes one MMA_K step at a time.
-    left_r_tile = thread_mma.make_fragment_A(left_group_staging_mma_initial_view)
-    left_lds2reg_thread_copy = fx.make_tiled_copy_A(copy_16b, mma).get_slice(
+    a_r_tile = thread_mma.make_fragment_A(a_group_staging_mma_initial_view)
+    a_lds2reg_thread_copy = fx.make_tiled_copy_A(copy_16b, mma).get_slice(
         thread_id_in_wave_group
     )
-    left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
+    a_r_destination = a_lds2reg_thread_copy.retile(a_r_tile)
 
     # Reinterpret B as (N,K) for WMMA without moving its physical data.
-    right_group_staging_transposed_view = fx.make_view(
-        fx.get_iter(right_group_staging_view),
+    b_group_staging_transposed_view = fx.make_view(
+        fx.get_iter(b_group_staging_view),
         fx.make_layout((GROUP_TILE_N, STAGE_K), (1, GROUP_TILE_N)),
     )
-    right_group_staging_transposed_tiled = fx.flat_divide(
-        right_group_staging_transposed_view, (GROUP_TILE_N, MMA_K)
+    b_group_staging_transposed_tiled = fx.flat_divide(
+        b_group_staging_transposed_view, (GROUP_TILE_N, MMA_K)
     )
 
     # One K=16 slice of B determines the operand register shape.
-    right_group_staging_transposed_initial_view = fx.slice(
-        right_group_staging_transposed_tiled, (None, None, 0, 0)
+    b_group_staging_transposed_initial_view = fx.slice(
+        b_group_staging_transposed_tiled, (None, None, 0, 0)
     )
 
-    right_group_staging2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+    b_group_staging2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-    right_lds2reg_thread_copy = right_group_staging2reg_copy_plan.get_slice(
+    b_lds2reg_thread_copy = b_group_staging2reg_copy_plan.get_slice(
         thread_id_in_wave_group
     )
 
-    right_r_tile = thread_mma.make_fragment_B(
-        right_group_staging_transposed_initial_view
+    b_r_tile = thread_mma.make_fragment_B(
+        b_group_staging_transposed_initial_view
     )
 
-    right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
+    b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
 
-    def load_left_stage(tile_k, is_tail):
-        column = tile_k * STAGE_K + left_k_col
+    def load_a_stage(tile_k, is_tail):
+        column = tile_k * STAGE_K + a_k_col
         for row_slot in fx.range_constexpr(LEFT_ROWS_PER_THREAD):
-            local_row = left_m_lane + row_slot * LEFT_M_THREADS
+            local_row = a_m_lane + row_slot * LEFT_M_THREADS
             row = output_group_row * GROUP_TILE_M + local_row
             if fx.const_expr(is_tail):
                 word = _load_left_tail(
-                    left_resource, row, column, m, k, LEFT_CACHE_MODIFIER
+                    a_resource, row, column, m, k, LEFT_CACHE_MODIFIER
                 )
             else:
                 word = _load_buffer_word(
-                    left_resource, row * k + column, fx.Uint64, LEFT_CACHE_MODIFIER
+                    a_resource, row * k + column, fx.Uint64, LEFT_CACHE_MODIFIER
                 )
-            left_codes[row_slot] = word
+            a_codes[row_slot] = word
             # TODO 1: Select the A row and the K scale block. See README.md.
             scale_offset = None
             if scale_offset is None:
                 raise NotImplementedError("Fill in scale_offset.")
-            left_scale_bytes[row_slot] = _load_buffer_word(
-                left_scale_resource, scale_offset, fx.Uint8, LEFT_CACHE_MODIFIER
+            a_scale_bytes[row_slot] = _load_buffer_word(
+                a_scale_resource, scale_offset, fx.Uint8, LEFT_CACHE_MODIFIER
             )
 
-    def load_right_stage(tile_k, check_boundary):
-        first_row = tile_k * STAGE_K + right_k_lane
+    def load_b_stage(tile_k, check_boundary):
+        first_row = tile_k * STAGE_K + b_k_lane
         for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
             row = first_row + row_slot * RIGHT_K_THREADS
-            right_codes[row_slot] = _load_row_word(
-                right_resource,
+            b_codes[row_slot] = _load_row_word(
+                b_resource,
                 row,
                 global_n_col,
                 k,
@@ -406,8 +409,8 @@ def _matmul_mxfp8(
             scale_row = None
             if scale_row is None:
                 raise NotImplementedError("Fill in scale_row.")
-            right_scale_words[scale_slot] = _load_row_word(
-                right_scale_resource,
+            b_scale_words[scale_slot] = _load_row_word(
+                b_scale_resource,
                 scale_row,
                 global_n_col,
                 SCALE_ROWS,
@@ -421,13 +424,13 @@ def _matmul_mxfp8(
             last_stage = tile_k == REAL_K_STAGES - 1
             edge = scf.IfOp(last_stage.ir_value(), [], has_else=True)
             with ir.InsertionPoint(edge.then_block):
-                load_left_stage(tile_k, True)
+                load_a_stage(tile_k, True)
                 scf.yield_([])
             with ir.InsertionPoint(edge.else_block):
-                load_left_stage(tile_k, False)
+                load_a_stage(tile_k, False)
                 scf.yield_([])
         else:
-            load_left_stage(tile_k, False)
+            load_a_stage(tile_k, False)
 
         # A complete N group can stay wide. In an earlier MX block,
         # the next rows of packed values and scales are still allocated.
@@ -438,21 +441,21 @@ def _matmul_mxfp8(
                 (full_group | before_final_scale).ir_value(), [], has_else=True
             )
             with ir.InsertionPoint(edge.then_block):
-                load_right_stage(tile_k, False)
+                load_b_stage(tile_k, False)
                 scf.yield_([])
             with ir.InsertionPoint(edge.else_block):
-                load_right_stage(tile_k, True)
+                load_b_stage(tile_k, True)
                 scf.yield_([])
         else:
-            load_right_stage(tile_k, True)
+            load_b_stage(tile_k, True)
 
     def load_stage(tile_k):
         if fx.const_expr(HAS_EMPTY_K_STAGES):
             stage_exists = tile_k < REAL_K_STAGES
-            left_codes.fill(0)
-            left_scale_bytes.fill(0)
-            right_codes.fill(0)
-            right_scale_words.fill(0)
+            a_codes.fill(0)
+            a_scale_bytes.fill(0)
+            b_codes.fill(0)
+            b_scale_words.fill(0)
             if stage_exists:
                 load_nonempty_stage(tile_k)
         else:
@@ -462,64 +465,64 @@ def _matmul_mxfp8(
         # Eight A bytes share one scale along K. Each B byte has its own
         # column scale, which rows in the same 32-K block reuse.
         for row_slot in fx.range_constexpr(LEFT_ROWS_PER_THREAD):
-            local_row = left_m_lane + row_slot * LEFT_M_THREADS
-            word = fx.Uint64(left_codes[row_slot])
-            scale_byte = fx.Uint8(left_scale_bytes[row_slot]).to(fx.Int32)
+            local_row = a_m_lane + row_slot * LEFT_M_THREADS
+            word = fx.Uint64(a_codes[row_slot])
+            scale_byte = fx.Uint8(a_scale_bytes[row_slot]).to(fx.Int32)
             subnormals = _lookup_e4m3_subnormals(word)
-            left_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
+            a_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
             for value_id in fx.range_constexpr(8):
                 code = (word >> (8 * value_id)).to(fx.Uint8)
                 value = _decode_scaled_e4m3(
                     code, scale_byte, _subnormal_byte(subnormals, value_id)
                 )
                 if fx.const_expr(HAS_K_TAIL):
-                    valid_k = tile_k * STAGE_K + left_k_col + value_id < k
+                    valid_k = tile_k * STAGE_K + a_k_col + value_id < k
                     value = valid_k.select(value, fx.BFloat16(0))
-                left_staging_fragment[value_id] = value
-            left_lds_destination = fx.make_view(
-                fx.get_iter(left_group_staging_view)
+                a_staging_fragment[value_id] = value
+            a_lds_destination = fx.make_view(
+                fx.get_iter(a_group_staging_view)
                 + local_row * (STAGE_K + 8)
-                + left_k_col,
+                + a_k_col,
                 fx.make_layout(8, 1),
             )
-            fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+            fx.copy(copy_128b, a_staging_fragment, a_lds_destination)
 
         for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
-            local_row = right_k_lane + row_slot * RIGHT_K_THREADS
-            word = fx.Uint64(right_codes[row_slot])
-            scale_word = fx.Uint64(right_scale_words[row_slot // ROW_SLOTS_PER_SCALE])
+            local_row = b_k_lane + row_slot * RIGHT_K_THREADS
+            word = fx.Uint64(b_codes[row_slot])
+            scale_word = fx.Uint64(b_scale_words[row_slot // ROW_SLOTS_PER_SCALE])
             if fx.const_expr(HAS_K_TAIL):
                 valid_k = tile_k * STAGE_K + local_row < k
                 word = valid_k.select(word, fx.Uint64(0))
                 scale_word = valid_k.select(scale_word, fx.Uint64(0))
             subnormals = _lookup_e4m3_subnormals(word)
-            right_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
+            b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
             for value_id in fx.range_constexpr(8):
                 code = (word >> (8 * value_id)).to(fx.Uint8)
                 scale_byte = (scale_word >> (8 * value_id)).to(fx.Uint8).to(fx.Int32)
-                right_staging_fragment[value_id] = _decode_scaled_e4m3(
+                b_staging_fragment[value_id] = _decode_scaled_e4m3(
                     code, scale_byte, _subnormal_byte(subnormals, value_id)
                 )
-            right_lds_destination = fx.make_view(
-                fx.get_iter(right_group_staging_view)
+            b_lds_destination = fx.make_view(
+                fx.get_iter(b_group_staging_view)
                 + local_row * GROUP_TILE_N
-                + right_n_col,
+                + b_n_col,
                 fx.make_layout(8, 1),
             )
-            fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
+            fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
         lds_barrier()
 
     def compute_stage():
         for inner_k in fx.range_constexpr(STAGE_K // MMA_K):
-            left_mma_view = fx.slice(left_group_staging_tiled, (None, None, 0, inner_k))
-            right_mma_view = fx.slice(
-                right_group_staging_transposed_tiled, (None, None, 0, inner_k)
+            a_mma_view = fx.slice(a_group_staging_tiled, (None, None, 0, inner_k))
+            b_mma_view = fx.slice(
+                b_group_staging_transposed_tiled, (None, None, 0, inner_k)
             )
-            left_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
-            right_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
-            fx.copy(copy_16b, left_source, left_r_destination)
-            fx.copy(copy_16b, right_source, right_r_destination)
-            fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+            a_source = a_lds2reg_thread_copy.partition_S(a_mma_view)
+            b_source = b_lds2reg_thread_copy.partition_S(b_mma_view)
+            fx.copy(copy_16b, a_source, a_r_destination)
+            fx.copy(copy_16b, b_source, b_r_destination)
+            fx.gemm(mma_atom, c_accum, a_r_tile, b_r_tile, c_accum)
 
     # Prime one stage, then prefetch the next stage before consuming the current one.
     # Equal ceiling-counted slots cover K once. Surplus stages load zeros.
@@ -548,15 +551,15 @@ def _matmul_mxfp8(
     lds_barrier()
 
     def store_output():
-        out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
+        c_registers = fx.make_rmem_tensor(c_accum.layout, fx.BFloat16)
         for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
-            out_registers[slot] = accumulator[slot].to(fx.BFloat16)
+            c_registers[slot] = c_accum[slot].to(fx.BFloat16)
         # The MMA C plan stores into this group's selected output view.
         gmem_store_16b = fx.make_copy_atom(fx.rocdl.BufferCopy16b(), fx.BFloat16)
         reg2gmem_copy_plan = fx.make_tiled_copy_C(gmem_store_16b, mma)
         reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(thread_id_in_wave_group)
-        reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
-        reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_group_view)
+        reg2gmem_source = reg2gmem_thread_copy.retile(c_registers)
+        reg2gmem_dest = reg2gmem_thread_copy.partition_D(c_group_view)
         # Complete groups store through C's descriptor, which also handles M tails.
         if fx.const_expr(HAS_N_TAIL):
             complete_n = (output_group_col + 1) * GROUP_TILE_N <= n
@@ -566,7 +569,7 @@ def _matmul_mxfp8(
                 scf.yield_([])
             with ir.InsertionPoint(n_tile.else_block):
                 coordinate_block = fx.slice(
-                    out_coordinate_tiles, (None, None, block_row, block_col)
+                    c_coordinate_tiles, (None, None, block_row, block_col)
                 )
                 coordinate_groups = fx.flat_divide(
                     coordinate_block, (GROUP_TILE_M, GROUP_TILE_N)
@@ -599,10 +602,10 @@ def _matmul_mxfp8(
             flat_group_id * SPLIT_K + split_id
         ) * tile_values + thread_offset
         partial_view = fx.make_view(
-            fx.get_iter(partials) + partial_offset, accumulator.layout
+            fx.get_iter(partials) + partial_offset, c_accum.layout
         )
         copy_128b_f32 = fx.make_copy_atom(fx.UniversalCopy128b(), fx.Float32)
-        fx.copy(copy_128b_f32, accumulator, partial_view)
+        fx.copy(copy_128b_f32, c_accum, partial_view)
 
         # One counter per (output tile, thread), shared by its split-K peers.
         # AcqRel publishes this thread's stores and acquires all earlier arrivals.
@@ -621,18 +624,18 @@ def _matmul_mxfp8(
         finalizer = scf.IfOp(last_arrival.ir_value(), [], has_else=False)
         with ir.InsertionPoint(finalizer.then_block):
             # No polling: only the last thread for these output slots reduces.
-            accumulator.fill(0)
-            partial_registers = fx.make_fragment_like(accumulator)
+            c_accum.fill(0)
+            partial_registers = fx.make_fragment_like(c_accum)
             for part in fx.range_constexpr(SPLIT_K):
                 source_offset = (
                     flat_group_id * SPLIT_K + part
                 ) * tile_values + thread_offset
                 partial_source = fx.make_view(
-                    fx.get_iter(partials) + source_offset, accumulator.layout
+                    fx.get_iter(partials) + source_offset, c_accum.layout
                 )
                 fx.copy(copy_128b_f32, partial_source, partial_registers)
                 for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
-                    accumulator[slot] = accumulator[slot] + partial_registers[slot]
+                    c_accum[slot] = c_accum[slot] + partial_registers[slot]
             store_output()
             # Same-stream launches can reuse the workspace without a clear kernel.
             fx.generic_store(
@@ -646,11 +649,11 @@ def _matmul_mxfp8(
 
 @flyc.jit
 def _launch_matmul_mxfp8(
-    left: fx.Tensor,
-    right: fx.Tensor,
-    left_scales: fx.Tensor,
-    right_scales: fx.Tensor,
-    out: fx.Tensor,
+    a: fx.Tensor,
+    b: fx.Tensor,
+    a_scales: fx.Tensor,
+    b_scales: fx.Tensor,
+    c: fx.Tensor,
     partials,
     counters,
     m: fx.Constexpr,
@@ -677,11 +680,11 @@ def _launch_matmul_mxfp8(
     THREADS_PER_GROUP = 32 * WAVES_M * WAVES_N
     THREADS_PER_BLOCK = THREADS_PER_GROUP * WAVE_GROUPS
     _matmul_mxfp8(
-        left,
-        right,
-        left_scales,
-        right_scales,
-        out,
+        a,
+        b,
+        a_scales,
+        b_scales,
+        c,
         partials,
         counters,
         m,
@@ -714,11 +717,16 @@ def matmul_mxfp8(
     left, right, left_scales, right_scales, *, out=None, config=None, stream=None
 ):
     """Multiply row-major E4M3FN A and B with E8M0 scales along K."""
+    a = left
+    b = right
+    a_scales = left_scales
+    b_scales = right_scales
+    c = out
     tensors = (
-        ("left", left),
-        ("right", right),
-        ("left_scales", left_scales),
-        ("right_scales", right_scales),
+        ("left", a),
+        ("right", b),
+        ("left_scales", a_scales),
+        ("right_scales", b_scales),
     )
     for name, tensor in tensors:
         if (
@@ -733,22 +741,22 @@ def matmul_mxfp8(
             or not tensor.is_contiguous()
         ):
             raise ValueError(f"{name} must be a contiguous ROCm GPU matrix")
-        if tensor.is_neg() or tensor.device != left.device:
+        if tensor.is_neg() or tensor.device != a.device:
             raise ValueError(
                 f"{name} must be on the input device with ordinary strides"
             )
-    m, k = left.shape
-    other_k, n = right.shape
+    m, k = a.shape
+    other_k, n = b.shape
     if k != other_k or min(m, n, k) <= 0:
         raise ValueError(
             "M, N and K must be positive and the reduction axes must match"
         )
     scale_rows = (k + MX_BLOCK_K - 1) // MX_BLOCK_K
-    if left_scales.shape != (m, scale_rows) or right_scales.shape != (scale_rows, n):
+    if a_scales.shape != (m, scale_rows) or b_scales.shape != (scale_rows, n):
         raise ValueError("Expected scale shapes (M, ceil(K/32)) and (ceil(K/32), N)")
     if torch.version.hip is None:
         raise RuntimeError("This lesson requires ROCm")
-    arch = torch.cuda.get_device_properties(left.device).gcnArchName.split(":")[0]
+    arch = torch.cuda.get_device_properties(a.device).gcnArchName.split(":")[0]
     if arch not in ("gfx1151", "gfx1152"):
         raise RuntimeError(f"This lesson requires gfx1151/gfx1152; detected {arch}")
     shape = (m, n, k)
@@ -757,51 +765,51 @@ def matmul_mxfp8(
     if not isinstance(config, Config):
         raise TypeError("config must be a Config")
     validate_config(config, shape)
-    if stream is not None and stream.device != left.device:
+    if stream is not None and stream.device != a.device:
         raise ValueError("stream and inputs must use the same device")
 
-    supplied_out = out is not None
+    supplied_out = c is not None
     if supplied_out:
         if (
-            type(out) not in (torch.Tensor, torch.nn.Parameter)
-            or out.dtype != torch.bfloat16
+            type(c) not in (torch.Tensor, torch.nn.Parameter)
+            or c.dtype != torch.bfloat16
         ):
             raise TypeError("out must be a BF16 tensor")
         if (
-            out.shape != (m, n)
-            or out.layout != torch.strided
-            or not out.is_contiguous()
-            or out.device != left.device
-            or out.is_neg()
+            c.shape != (m, n)
+            or c.layout != torch.strided
+            or not c.is_contiguous()
+            or c.device != a.device
+            or c.is_neg()
         ):
             raise ValueError(
                 "out must be a contiguous (M,N) matrix on the input device"
             )
-        if torch.is_grad_enabled() and out.requires_grad:
+        if torch.is_grad_enabled() and c.requires_grad:
             raise RuntimeError("matmul_mxfp8 does not support autograd")
-        start = out.data_ptr()
-        stop = start + out.nbytes
+        start = c.data_ptr()
+        stop = start + c.nbytes
         for name, tensor in tensors:
             address = tensor.data_ptr()
             if start < address + tensor.nbytes and address < stop:
                 raise ValueError(f"out must not overlap {name}")
 
-    with torch.cuda.device(left.device), torch.cuda.stream(stream):
-        current_stream = torch.cuda.current_stream(left.device)
-        if out is None:
-            out = torch.empty((m, n), dtype=torch.bfloat16, device=left.device)
+    with torch.cuda.device(a.device), torch.cuda.stream(stream):
+        current_stream = torch.cuda.current_stream(a.device)
+        if c is None:
+            c = torch.empty((m, n), dtype=torch.bfloat16, device=a.device)
         partials, counters = fx.Empty(), fx.Empty()
         if config.split_k > 1:
             workspace = _workspace_for(
-                config, shape, left.device, current_stream, _capture_id(current_stream)
+                config, shape, a.device, current_stream, _capture_id(current_stream)
             )
             partials, counters = (storage[:-16] for storage in workspace)
         _launch_matmul_mxfp8(
-            left,
-            right,
-            left_scales,
-            right_scales,
-            out,
+            a,
+            b,
+            a_scales,
+            b_scales,
+            c,
             partials,
             counters,
             *shape,
@@ -820,8 +828,8 @@ def matmul_mxfp8(
             SPLIT_K=config.split_k,
         )
         if supplied_out:
-            torch.autograd.graph.increment_version(out)
-    return out
+            torch.autograd.graph.increment_version(c)
+    return c
 
 
 def torch_dequantize_mxfp8(values, scales):
@@ -852,10 +860,10 @@ def quantize_mxfp8(values):
 def make_inputs(shape, seed):
     m, n, k = shape
     generator = torch.Generator().manual_seed(seed)
-    left = torch.randn((m, k), generator=generator).bfloat16()
-    right = torch.randn((k, n), generator=generator).bfloat16()
-    a, a_scales, dense_a = quantize_mxfp8(left.T)
-    b, b_scales, dense_b = quantize_mxfp8(right)
+    a_bf16 = torch.randn((m, k), generator=generator).bfloat16()
+    b_bf16 = torch.randn((k, n), generator=generator).bfloat16()
+    a, a_scales, dense_a = quantize_mxfp8(a_bf16.T)
+    b, b_scales, dense_b = quantize_mxfp8(b_bf16)
     a, a_scales, dense_a = (
         a.T.contiguous(),
         a_scales.T.contiguous(),

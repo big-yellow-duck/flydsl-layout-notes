@@ -93,10 +93,10 @@ BF16 byte displacements are twice the element offsets: 4368 and 266384 bytes. De
 The derived coordinates feed the same selections:
 
 ```python
-out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+c_block_view = fx.slice(c_tiled_view, (None, None, block_row, block_col))
 # In gmem2reg_load_tile(tile_k):
-left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
-right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+a_block_view = fx.slice(a_tiled_view, (None, None, block_row, tile_k))
+b_block_view = fx.slice(b_tiled_view, (None, None, tile_k, block_col))
 ```
 
 Each selected tile still runs its entire K reduction independently. Loading, prefetch, four K=16 compute steps per LDS stage, barriers, drain, and output ownership retain 07b's behavior. There is no inter-block synchronization or shared LDS allocation.

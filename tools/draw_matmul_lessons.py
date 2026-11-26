@@ -47,22 +47,22 @@ def naive_views():
     f.text(
         32, 66, "Fixed workload: A, B, C are 1024 x 1024. Labels below are view SHAPES."
     )
-    f.card(32, 112, 410, "left_global_view", "(1024,1024), strides (1024,1)", BLUE)
-    f.card(515, 112, 410, "right_global_view", "(1024,1024), strides (1024,1)", TEAL)
-    f.text(32, 225, "flat_divide(left, (16,K))", 20)
-    f.text(515, 225, "flat_divide(right, (K,16))", 20)
-    f.card(32, 268, 410, "left_tiled_view", "(16,1024,64,1)", BLUE)
-    f.card(515, 268, 410, "right_tiled_view", "(1024,16,1,64)", TEAL)
+    f.card(32, 112, 410, "a_global_view", "(1024,1024), strides (1024,1)", BLUE)
+    f.card(515, 112, 410, "b_global_view", "(1024,1024), strides (1024,1)", TEAL)
+    f.text(32, 225, "flat_divide(a_global_view, (16,K))", 20)
+    f.text(515, 225, "flat_divide(b_global_view, (K,16))", 20)
+    f.card(32, 268, 410, "a_tiled_view", "(16,1024,64,1)", BLUE)
+    f.card(515, 268, 410, "b_tiled_view", "(1024,16,1,64)", TEAL)
     f.text(32, 380, "Select tile row 2, column 0", 19)
     f.text(515, 380, "Select tile row 0, column 1", 19)
     f.card(
-        32, 422, 410, "left_block_view: (16,1024)", "Global A rows 32..47; all K", BLUE
+        32, 422, 410, "a_block_view: (16,1024)", "Global A rows 32..47; all K", BLUE
     )
     f.card(
         515,
         422,
         410,
-        "right_block_view: (1024,16)",
+        "b_block_view: (1024,16)",
         "All K; global B columns 16..31",
         TEAL,
     )
@@ -72,7 +72,7 @@ def naive_views():
     f.text(
         32,
         580,
-        "left_row: shape 1024, stride 1. right_column: shape 1024, stride 1024.",
+        "a_row: shape 1024, stride 1. b_column: shape 1024, stride 1024.",
         18,
     )
     f.box(32, 625, 893, 75, GOLD)
@@ -80,7 +80,7 @@ def naive_views():
     f.text(
         48,
         670,
-        "out_block_view[1,1] carries the selected block base; output offset = 33809.",
+        "c_block_view[1,1] carries the selected block base; output offset = 33809.",
         17,
     )
     f.save(f"{BASE}/00-naive/view-hierarchy")
@@ -101,9 +101,9 @@ def naive_block_windows():
         17,
     )
     for x, title, mode in [
-        (32, "A: left_global_view", "A"),
-        (350, "B: right_global_view", "B"),
-        (668, "C: out_global_view", "C"),
+        (32, "A: a_global_view", "A"),
+        (350, "B: b_global_view", "B"),
+        (668, "C: c_global_view", "C"),
     ]:
         f.text(x, 150, title, 19)
         for col in range(4):
@@ -143,7 +143,7 @@ def naive_block_windows():
 
 def naive_flat_modes():
     f = Diagram(590, "Steps 2-3 - Four modes become one selected two-dimensional view")
-    f.text(32, 66, "out_tiled_view = flat_divide(out_global_view, (16,16))", 21)
+    f.text(32, 66, "c_tiled_view = flat_divide(c_global_view, (16,16))", 21)
     labels = ["local row", "local column", "tile row", "tile column"]
     for i, (label, extent, coord) in enumerate(
         zip(labels, [16, 16, 64, 64], ["None", "None", "2", "1"])
@@ -155,7 +155,7 @@ def naive_flat_modes():
         f.box(x, 270, 207, 73, BLUE if i < 2 else GOLD)
         f.text(x + 12, 283, coord, 23)
         f.text(x + 12, 316, "keep this mode" if i < 2 else "fix this tile", 15)
-    f.text(32, 382, "out_block_view = slice(out_tiled_view, (None, None, 2, 1))", 21)
+    f.text(32, 382, "c_block_view = slice(c_tiled_view, (None, None, 2, 1))", 21)
     f.card(
         32,
         438,
@@ -201,7 +201,7 @@ def naive_thread_map():
     f.text(
         32,
         477,
-        "Local row 1 selects left_row; local column 1 selects right_column.",
+        "Local row 1 selects a_row; local column 1 selects b_column.",
         19,
     )
     f.text(32, 522, "Block (1,2): global output = (32+1,16+1) = (33,17).", 21)
@@ -229,10 +229,10 @@ def naive_scalar_steps():
         f.text(285 + col * 100, 118, f"inner={inner}", 16)
     for row, (label, values, color) in enumerate(
         [
-            ("left_row[inner]", left, BLUE),
-            ("right_column[inner]", right, TEAL),
-            ("a * b (FP32)", products, GOLD),
-            ("accumulator (FP32)", partial, PURPLE),
+            ("a_row[inner]", left, BLUE),
+            ("b_column[inner]", right, TEAL),
+            ("a_value * b_value", products, GOLD),
+            ("c_accum (FP32)", partial, PURPLE),
         ]
     ):
         y = 158 + row * 80
@@ -246,13 +246,13 @@ def naive_scalar_steps():
     f.text(
         32,
         536,
-        f"Final accumulator={result}; convert once to BF16 and store out_block_view[(1,1)].",
+        f"Final accumulator={result}; convert once to BF16 and store c_block_view[(1,1)].",
         18,
     )
     f.text(
         32,
         585,
-        "left_row strides by 1 element; right_column strides by 1024 elements.",
+        "a_row strides by 1 element; b_column strides by 1024 elements.",
         18,
     )
     f.save(f"{BASE}/00-naive/scalar-steps")
@@ -388,14 +388,14 @@ def register_thread_windows():
         "Block (1,2), thread 17: thread_coordinate=(1,1) in a (4,16) thread layout.",
         18,
     )
-    f.text(32, 112, "out_thread_tiled_view = flat_divide(out_block_view, (4,1))", 21)
+    f.text(32, 112, "c_thread_tiled_view = flat_divide(c_block_view, (4,1))", 21)
     f.text(
         32,
         154,
         "Shape (4,1,4,16): (local row, local column, row group, column group)",
         18,
     )
-    f.text(32, 199, "slice(..., (None,None,1,1)) -> out_thread_view: shape (4,1)", 20)
+    f.text(32, 199, "slice(..., (None,None,1,1)) -> c_thread_view: shape (4,1)", 20)
     f.text(
         32,
         244,
@@ -420,7 +420,7 @@ def register_thread_windows():
     f.text(
         32,
         554,
-        "left_thread_view: (4,1024); right_column: 1024. One B value updates four sums.",
+        "a_thread_view: (4,1024); b_column: 1024. One B value updates four sums.",
         17,
     )
     f.save(f"{BASE}/02-register-tiling/thread-windows")
@@ -437,14 +437,14 @@ def staged_k_windows():
         18,
     )
     f.card(
-        32, 114, 410, "left_block_view: (16,16)", "slice(left, (None,None,2,2))", BLUE
+        32, 114, 410, "a_block_view: (16,16)", "slice(a, (None,None,2,2))", BLUE
     )
     f.card(
         515,
         114,
         410,
-        "right_block_view: (16,16)",
-        "slice(right, (None,None,2,1))",
+        "b_block_view: (16,16)",
+        "slice(b, (None,None,2,1))",
         TEAL,
     )
     f.text(32, 233, "A: rows 32..47, K 32..47", 18)
@@ -496,21 +496,21 @@ def mma_native_views():
         "Four wave32 groups (128 threads) cover a 32 x 32 output block.",
         17,
     )
-    f.card(32, 113, 410, "left_block_view: (32,32)", "Global strides (1024,1)", BLUE)
-    f.card(515, 113, 410, "right_block_view: (32,32)", "Global strides (1024,1)", TEAL)
+    f.card(32, 113, 410, "a_block_view: (32,32)", "Global strides (1024,1)", BLUE)
+    f.card(515, 113, 410, "b_block_view: (32,32)", "Global strides (1024,1)", TEAL)
     f.text(
         32,
         229,
         "UniversalCopy128b: global -> register fragment -> LDS, eight BF16 per thread.",
         19,
     )
-    f.card(32, 276, 410, "left_lds_view: (32,32)", "LDS strides (32,1)", BLUE)
-    f.card(515, 276, 410, "right_lds_view: (32,32)", "LDS strides (32,1)", TEAL)
-    f.text(32, 391, "MMA operand views: left (M,K):(32,1), right (N,K):(1,32).", 20)
+    f.card(32, 276, 410, "a_lds_view: (32,32)", "LDS strides (32,1)", BLUE)
+    f.card(515, 276, 410, "b_lds_view: (32,32)", "LDS strides (32,1)", TEAL)
+    f.text(32, 391, "MMA operand views: A (M,K):(32,1), B (N,K):(1,32).", 20)
     f.text(
         32,
         434,
-        "right_mma_view reinterprets the existing LDS storage; it does not transpose data.",
+        "b_mma_view reinterprets the existing LDS storage; it does not transpose data.",
         17,
     )
     f.box(32, 483, 893, 82, GOLD)
@@ -523,7 +523,7 @@ def mma_native_views():
     f.text(
         48,
         532,
-        "fx.gemm(atom, accumulator, left_r_tile, right_r_tile, accumulator)",
+        "fx.gemm(atom, c_accum, a_r_tile, b_r_tile, c_accum)",
         18,
     )
     f.text(
@@ -541,7 +541,7 @@ def mma_native_views():
     f.text(
         32,
         694,
-        "The C copy plan stores through out_block_view, retaining its global row stride 1024.",
+        "The C copy plan stores through c_block_view, retaining its global row stride 1024.",
         17,
     )
     f.text(

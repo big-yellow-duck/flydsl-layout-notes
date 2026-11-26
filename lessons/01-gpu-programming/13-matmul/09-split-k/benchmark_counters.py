@@ -63,14 +63,14 @@ def stress_reuse(config, shape, count):
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     a, b = a_cpu.cuda(), b_cpu.cuda()
     storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
-    out = storage[:-16].view(m, n)
+    c = storage[:-16].view(m, n)
     for iteration in range(count):
         sign = 1 if iteration % 2 == 0 else -1
         a.copy_(a_cpu * sign)
-        out.fill_(float("nan"))
-        launch(a, b, out=out)
+        c.fill_(float("nan"))
+        launch(a, b, out=c)
         torch.cuda.synchronize()
-        torch.testing.assert_close(out.cpu(), expected * sign, rtol=0.016, atol=0.03125)
+        torch.testing.assert_close(c.cpu(), expected * sign, rtol=0.016, atol=0.03125)
         assert torch.all(storage[-16:] == -99).item(), "Output sentinel changed"
         PRACTICE["check_workspace"](
             PRACTICE["_workspace_for"](

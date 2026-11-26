@@ -9,19 +9,19 @@ The new distinction is between a **global block view**, which addresses existing
 Global layouts are still `(M,K):(K,1)`, `(K,N):(N,1)`, and `(M,N):(N,1)`. The tilers now use `(16,16)` for every matrix:
 
 ```python
-left_tiled_view = fx.flat_divide(left_global_view, (16, 16))
-right_tiled_view = fx.flat_divide(right_global_view, (16, 16))
-out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
-out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+a_tiled_view = fx.flat_divide(a_global_view, (16, 16))
+b_tiled_view = fx.flat_divide(b_global_view, (16, 16))
+c_tiled_view = fx.flat_divide(c_global_view, (16, 16))
+c_block_view = fx.slice(c_tiled_view, (None, None, block_row, block_col))
 ```
 
 All tiled shapes are `(16,16,64,64)`, but the final modes have different meanings:
 
 | View | Four coordinate modes |
 | --- | --- |
-| `left_tiled_view` | `(local_row, local_inner, output_tile_row, K_tile)` |
-| `right_tiled_view` | `(local_inner, local_column, K_tile, output_tile_column)` |
-| `out_tiled_view` | `(local_row, local_column, output_tile_row, output_tile_column)` |
+| `a_tiled_view` | `(local_row, local_inner, output_tile_row, K_tile)` |
+| `b_tiled_view` | `(local_inner, local_column, K_tile, output_tile_column)` |
+| `c_tiled_view` | `(local_row, local_column, output_tile_row, output_tile_column)` |
 
 Unlike lesson 02's full-K windows, each input window now covers **16** K positions. There are 64 K windows in the reduction. Select the output once; select the matching input windows anew on each iteration.
 
@@ -32,16 +32,16 @@ Declare the two tile buffers together with `@fx.struct`, outside the kernel:
 ```python
 @fx.struct
 class SharedStorage:
-    left: fx.Array[fx.BFloat16, 256]
-    right: fx.Array[fx.BFloat16, 256]
+    a: fx.Array[fx.BFloat16, 256]
+    b: fx.Array[fx.BFloat16, 256]
 ```
 
 Each field describes storage for 256 BF16 values. The declaration allocates no memory. Inside `@flyc.kernel`, allocate that storage in LDS and attach a logical layout to each field:
 
 ```python
 lds = fx.SharedAllocator().allocate(SharedStorage).peek()
-left_shared_view = lds.left.view(fx.make_layout((16, 16), (16, 1)))
-right_shared_view = lds.right.view(fx.make_layout((16, 16), (16, 1)))
+a_shared_view = lds.a.view(fx.make_layout((16, 16), (16, 1)))
+b_shared_view = lds.b.view(fx.make_layout((16, 16), (16, 1)))
 ```
 
 `SharedAllocator` reserves the storage, `.peek()` exposes its typed fields, and `.view(...)` describes how coordinates address each buffer. Creating a view does not initialize or copy values into LDS; cooperative stores fill the tiles later.
@@ -55,21 +55,21 @@ The `(4,16)` thread layout and `(4,1)` output tiler from lesson 02 stay unchange
 The compute views now refer to LDS:
 
 ```python
-left_thread_tiled_view = fx.flat_divide(left_shared_view, (4, 16))
-left_thread_view = fx.slice(
-    left_thread_tiled_view, (None, None, thread_coordinate[0], 0)
+a_thread_tiled_view = fx.flat_divide(a_shared_view, (4, 16))
+a_thread_view = fx.slice(
+    a_thread_tiled_view, (None, None, thread_coordinate[0], 0)
 )
-right_column = fx.slice(right_shared_view, (None, thread_coordinate[1]))
+b_column = fx.slice(b_shared_view, (None, thread_coordinate[1]))
 ```
 
 | View | Shape | Strides in elements |
 | --- | --- | --- |
-| `left_thread_tiled_view` | `(4,16,4,1)` | Derived from the LDS layout |
-| `left_thread_view` | `(4,16)` | `(16,1)` |
-| `right_column` | `16` | `16` |
-| `out_thread_view` | `(4,1)` | `(1024,0)` |
+| `a_thread_tiled_view` | `(4,16,4,1)` | Derived from the LDS layout |
+| `a_thread_view` | `(4,16)` | `(16,1)` |
+| `b_column` | `16` | `16` |
+| `c_thread_view` | `(4,1)` | `(1024,0)` |
 
-FlyDSL canonicalizes the single-column mode of `out_thread_view` to stride 0: its only valid column coordinate is 0, so this does not change any address. Its row stride remains 1024.
+FlyDSL canonicalizes the single-column mode of `c_thread_view` to stride 0: its only valid column coordinate is 0, so this does not change any address. Its row stride remains 1024.
 
 The input thread views keep addressing the same LDS allocation across iterations. Each iteration replaces the values in that storage with the next global K windows; the views themselves do not need rebuilding.
 
@@ -77,8 +77,8 @@ The input thread views keep addressing the same LDS allocation across iterations
 
 ```python
 for tile_k in range(k // 16):
-    left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
-    right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+    a_block_view = fx.slice(a_tiled_view, (None, None, block_row, tile_k))
+    b_block_view = fx.slice(b_tiled_view, (None, None, tile_k, block_col))
 ```
 
 ![At tile_k 2, global A and B windows retain row stride 1024 while the LDS destination views have row stride 16. Native copy coordinates address the corresponding local position in both.](../../../../assets/01-gpu-programming/13-matmul/03-shared-memory/k-windows.svg)
@@ -91,8 +91,8 @@ A separate copy layout distributes the tile's 256 positions among the 64 threads
 copy_layout = fx.make_ordered_layout((16, 16), (1, 0))
 for load_slot in fx.range_constexpr(4):
     copy_coordinate = fx.idx2crd(fx.thread_idx.x + load_slot * 64, copy_layout)
-    left_shared_view[copy_coordinate] = left_block_view[copy_coordinate]
-    right_shared_view[copy_coordinate] = right_block_view[copy_coordinate]
+    a_shared_view[copy_coordinate] = a_block_view[copy_coordinate]
+    b_shared_view[copy_coordinate] = b_block_view[copy_coordinate]
 ```
 
 Thread 17's first load has coordinate `(1,1)`. It copies global A `(33,33)` and B `(33,17)` to local LDS `(1,1)` in their respective allocations. Across four load slots, every tile position has one loader. The copy layout assigns loading work; the `(4,16)` compute layout assigns output work. They serve different purposes.
@@ -102,10 +102,10 @@ Thread 17's first load has coordinate `(1,1)`. It copies global A `(33,33)` and 
 ```python
 fx.gpu.barrier()
 for inner in range(16):
-    b = fx.Float32(right_column[inner])
+    b_value = fx.Float32(b_column[inner])
     for slot in fx.range_constexpr(4):
-        a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
-        accumulators[slot] = accumulators[slot] + a * b
+        a_value = fx.Float32(a_thread_view[fx.make_coord(slot, inner)])
+        c_accums[slot] = c_accums[slot] + a_value * b_value
 fx.gpu.barrier()
 ```
 
@@ -113,7 +113,7 @@ The first barrier completes cooperative staging before consumers read any tile p
 
 At `tile_k=2`, thread 17's `slot=0, inner=1` updates C `(36,17)` using global A `(36,33)` and B `(33,17)`. `inner` is local to the selected K window. Native slicing supplies its global base automatically.
 
-Initialize accumulators before the K-tile loop, keep them FP32 across all 64 iterations, then convert and store through `out_thread_view` once. Initializing inside that loop would discard prior partial sums. This version adds real data reuse but also LDS traffic and barriers; performance remains measured separately.
+Initialize accumulators before the K-tile loop, keep them FP32 across all 64 iterations, then convert and store through `c_thread_view` once. Initializing inside that loop would discard prior partial sums. This version adds real data reuse but also LDS traffic and barriers; performance remains measured separately.
 
 TODO 1 is `copy_coordinate`, the inverse of the copy ownership layout. TODO 2 is `a`, loaded and widened through the four-row LDS thread view. Keep both barriers and all output stores supplied.
 
@@ -121,7 +121,7 @@ TODO 1 is `copy_coordinate`, the inverse of the copy ownership layout. TODO 2 is
 
 Complete the two numbered expressions in `practice.py`. Keep the supplied launch, initialization, stores, and checker. The unfinished starter reports `Practice not finished: ...` and exits with status 1.
 
-For an additional 4×4 register-tile variant, use [practice-4x4.py](practice-4x4.py). It changes each thread's output window to four rows and four columns; fill `left_thread_view` so A loads select the four LDS rows owned by the thread. The supplied B view, accumulation, stores, and correctness checker remain in place. Run it from the repository root:
+For an additional 4×4 register-tile variant, use [practice-4x4.py](practice-4x4.py). It changes each thread's output window to four rows and four columns; fill `a_thread_view` so A loads select the four LDS rows owned by the thread. The supplied B view, accumulation, stores, and correctness checker remain in place. Run it from the repository root:
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/03-shared-memory/practice-4x4.py --check-only

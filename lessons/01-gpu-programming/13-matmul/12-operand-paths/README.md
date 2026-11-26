@@ -52,11 +52,11 @@ Follow the gold A path first. Only its owner needs the loaded fragment. The blue
 The input views remain:
 
 ```python
-left_global_view = fx.make_view(
-    fx.get_iter(left_buffer), fx.make_layout((M, K), (K, 1))
+a_global_view = fx.make_view(
+    fx.get_iter(a_buffer), fx.make_layout((M, K), (K, 1))
 )
-right_global_view = fx.make_view(
-    fx.get_iter(right_buffer), fx.make_layout((K, N), (N, 1))
+b_global_view = fx.make_view(
+    fx.get_iter(b_buffer), fx.make_layout((K, N), (N, 1))
 )
 ```
 
@@ -64,22 +64,22 @@ A's `(row,K)` layout has strides `(8192,1)`; B's `(K,column)` layout has strides
 
 ## Load A using the WMMA ownership plan
 
-`thread_mma.make_fragment_A(left_group_global_view)` allocates each thread’s registers for a full A stage. The first global tile supplies the shape `(GROUP_TILE_M, STAGE_K)`. `load_stage(tile_k)` selects the tile that the copy actually reads.
+`thread_mma.make_fragment_A(a_group_global_view)` allocates each thread’s registers for a full A stage. The first global tile supplies the shape `(GROUP_TILE_M, STAGE_K)`. `load_stage(tile_k)` selects the tile that the copy actually reads.
 
 The copy plan uses the MMA's A ownership directly:
 
 ```python
-gmem_left_load_128b = fx.make_copy_atom(
+a_gmem_load_128b = fx.make_copy_atom(
     fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
 )
-left_staging_thread_copy = fx.make_tiled_copy_A(gmem_left_load_128b, mma).get_slice(
+a_staging_thread_copy = fx.make_tiled_copy_A(a_gmem_load_128b, mma).get_slice(
     thread_id_in_wave_group
 )
-left_staging_destination = left_staging_thread_copy.retile(left_staging_fragment)
+a_staging_destination = a_staging_thread_copy.retile(a_staging_fragment)
 
-# Inside load_stage(tile_k), after selecting left_group_view.
-left_source = left_staging_thread_copy.partition_S(left_group_view)
-fx.copy(gmem_left_load_128b, left_source, left_staging_destination)
+# Inside load_stage(tile_k), after selecting a_group_view.
+a_source = a_staging_thread_copy.partition_S(a_group_view)
+fx.copy(a_gmem_load_128b, a_source, a_staging_destination)
 ```
 
 These are API fragments from the [runnable solution](solution.py). The copy atom transfers eight BF16 values, or 128 bits, per complete vector. Retiling describes the same register values in the copy plan's domain; it does not change their numerical type.
@@ -102,17 +102,17 @@ Loading B directly with the WMMA plan required many narrow global reads in the e
 
 ## Advance A privately while protecting B
 
-`left_staging_fragment` holds the prefetched A stage. `publish_stage()` copies it to `left_compute_fragment` so the next global load can reuse the staging registers. In the K=64 walkthrough, the compute fragment has shape `(16, 2, 4)` per thread, with 16 slots per WMMA operand, two M repetitions, and four K steps. `fx.flat_divide` exposes the K steps as separate tiles.
+`a_staging_fragment` holds the prefetched A stage. `publish_stage()` copies it to `a_compute_fragment` so the next global load can reuse the staging registers. In the K=64 walkthrough, the compute fragment has shape `(16, 2, 4)` per thread, with 16 slots per WMMA operand, two M repetitions, and four K steps. `fx.flat_divide` exposes the K steps as separate tiles.
 
 ```python
-left_compute_tiled = fx.flat_divide(
-    left_compute_fragment, (MMA_K, GROUP_TILE_M // (MMA_M * WAVES_M), 1)
+a_compute_tiled = fx.flat_divide(
+    a_compute_fragment, (MMA_K, GROUP_TILE_M // (MMA_M * WAVES_M), 1)
 )
-left_source = fx.slice(left_compute_tiled, (None, None, None, 0, 0, inner_k))
-fx.copy(copy_16b, left_source, left_r_destination)
+a_source = fx.slice(a_compute_tiled, (None, None, None, 0, 0, inner_k))
+fx.copy(copy_16b, a_source, a_r_destination)
 ```
 
-The divided shape is `(16, 2, 1, 1, 1, 4)`. The three `None`s keep the inner `(16, 2, 1)` operand tile. The first two outer axes each have one tile, so their coordinates are zero. `inner_k` selects one of the four K steps. The copy stays within each lane and fills `left_r_tile` for `fx.gemm`.
+The divided shape is `(16, 2, 1, 1, 1, 4)`. The three `None`s keep the inner `(16, 2, 1)` operand tile. The first two outer axes each have one tile, so their coordinates are zero. `inner_k` selects one of the four K steps. The copy stays within each lane and fills `a_r_tile` for `fx.gemm`.
 
 The steady state remains prefetched:
 
@@ -158,8 +158,8 @@ The controlled M=32 profile holds geometry and scheduling fixed while switching 
 
 Complete two expressions in the direct A path in [practice.py](practice.py):
 
-1. `left_staging_thread_copy` derives A’s copy plan from `gmem_left_load_128b` and `mma`, then selects `thread_id_in_wave_group`.
-2. `left_source` selects `inner_k` from `left_compute_tiled` and keeps the operand’s first three axes.
+1. `a_staging_thread_copy` derives A’s copy plan from `a_gmem_load_128b` and `mma`, then selects `thread_id_in_wave_group`.
+2. `a_source` selects `inner_k` from `a_compute_tiled` and keeps the operand’s first three axes.
 
 The default full-size trace checkpoint is **`[7,4,1,-2]`**, the first four outputs in row 0. The wide selector's checkpoint is `[8,5,2,-1]`. These are BF16 output values, not addresses or per-split partials.
 

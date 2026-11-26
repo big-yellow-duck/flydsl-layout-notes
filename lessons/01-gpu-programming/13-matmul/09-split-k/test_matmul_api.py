@@ -31,10 +31,10 @@ pytestmark = pytest.mark.skipif(
 def inputs(shape):
     m, n, k = shape
     generator = torch.Generator().manual_seed(73)
-    left = torch.randn(m, k, generator=generator).to(torch.bfloat16)
-    right = torch.randn(k, n, generator=generator).to(torch.bfloat16)
-    expected = (left.float() @ right.float()).to(torch.bfloat16)
-    return left.cuda(), right.cuda(), expected
+    a = torch.randn(m, k, generator=generator).to(torch.bfloat16)
+    b = torch.randn(k, n, generator=generator).to(torch.bfloat16)
+    expected = (a.float() @ b.float()).to(torch.bfloat16)
+    return a.cuda(), b.cuda(), expected
 
 
 def assert_result(actual, expected):
@@ -50,8 +50,8 @@ def workspace(config, shape, device=None, stream=None):
 def test_unsplit_allocates_no_scratch():
     shape = MODULE.SHAPES[0]
     config = replace(MODULE.CONFIGS_BY_SHAPE[shape], split_k=1)
-    left, right, expected = inputs(shape)
-    out = MODULE.matmul_bf16(left, right, config=config)
+    a, b, expected = inputs(shape)
+    c = MODULE.matmul_bf16(a, b, config=config)
     with (
         patch.object(
             torch, "empty", side_effect=AssertionError("Unexpected allocation")
@@ -63,16 +63,16 @@ def test_unsplit_allocates_no_scratch():
             MODULE, "_workspace_for", side_effect=AssertionError("Unexpected workspace")
         ),
     ):
-        assert MODULE.matmul_bf16(left, right, out=out, config=config) is out
-    assert_result(out, expected)
-    assert workspace(config, shape, left.device) is None
+        assert MODULE.matmul_bf16(a, b, out=c, config=config) is c
+    assert_result(c, expected)
+    assert workspace(config, shape, a.device) is None
 
 
 @pytest.mark.parametrize(
     "changes", ({"split_k": 3}, {"group_tile_m": 0}, {"traversal_group_m": 0})
 )
 def test_config_is_validated_before_allocation(changes):
-    left, right, _ = inputs(MODULE.SHAPES[0])
+    a, b, _ = inputs(MODULE.SHAPES[0])
     config = replace(MODULE.Config(), **changes)
     with (
         patch.object(
@@ -83,36 +83,36 @@ def test_config_is_validated_before_allocation(changes):
         ),
         pytest.raises(ValueError),
     ):
-        MODULE.matmul_bf16(left, right, config=config)
+        MODULE.matmul_bf16(a, b, config=config)
 
 
 def test_supported_calls_can_replace_torch_matmul():
-    left, right, expected = inputs(MODULE.SHAPES[0])
+    a, b, expected = inputs(MODULE.SHAPES[0])
     with patch.object(torch, "matmul", MODULE.matmul_bf16):
-        assert_result(torch.matmul(left, right), expected)
+        assert_result(torch.matmul(a, b), expected)
 
 
 @pytest.mark.parametrize("shape", MODULE.SHAPES)
 def test_result_out_identity_and_reuse(shape):
-    left, right, expected = inputs(shape)
+    a, b, expected = inputs(shape)
     # A successful call must run the FlyDSL kernel, without delegating to Torch.
     with patch.object(
         torch, "matmul", side_effect=AssertionError("Unexpected fallback")
     ):
-        result = MODULE.matmul_bf16(input=left, other=right)
+        result = MODULE.matmul_bf16(input=a, other=b)
         assert_result(result, expected)
-        out = torch.full_like(result, float("nan"))
-        version = out._version
-        assert MODULE.matmul_bf16(left, right, out=out) is out
-        assert out._version == version + 1
-        assert_result(out, expected)
-        left.neg_()
-        out.fill_(float("nan"))
-        assert MODULE.matmul_bf16(left, right, out=out) is out
-        assert_result(out, -expected)
+        c = torch.full_like(result, float("nan"))
+        version = c._version
+        assert MODULE.matmul_bf16(a, b, out=c) is c
+        assert c._version == version + 1
+        assert_result(c, expected)
+        a.neg_()
+        c.fill_(float("nan"))
+        assert MODULE.matmul_bf16(a, b, out=c) is c
+        assert_result(c, -expected)
     config = MODULE.CONFIGS_BY_SHAPE[shape]
-    scratch = workspace(config, shape, left.device)
-    assert workspace(config, shape, left.device) is scratch
+    scratch = workspace(config, shape, a.device)
+    assert workspace(config, shape, a.device) is scratch
     if config.split_k == 1:
         assert scratch is None
     MODULE.check_workspace(scratch)
@@ -141,49 +141,49 @@ def test_low_level_solver(split_k, scope):
 )
 def test_unsupported_input_reports_reason(case, error, message):
     if case == "cpu":
-        left = torch.ones(3, 5, dtype=torch.bfloat16)
-        right = torch.ones(5, 7, dtype=torch.bfloat16)
+        a = torch.ones(3, 5, dtype=torch.bfloat16)
+        b = torch.ones(5, 7, dtype=torch.bfloat16)
     elif case == "batched":
-        left = torch.ones(2, 3, 5, dtype=torch.bfloat16, device="cuda")
-        right = torch.ones(2, 5, 7, dtype=torch.bfloat16, device="cuda")
+        a = torch.ones(2, 3, 5, dtype=torch.bfloat16, device="cuda")
+        b = torch.ones(2, 5, 7, dtype=torch.bfloat16, device="cuda")
     elif case == "shape":
-        left = torch.ones(16, 64, dtype=torch.bfloat16, device="cuda")
-        right = torch.ones(64, 32, dtype=torch.bfloat16, device="cuda")
+        a = torch.ones(16, 64, dtype=torch.bfloat16, device="cuda")
+        b = torch.ones(64, 32, dtype=torch.bfloat16, device="cuda")
     else:
-        left, right, _ = inputs(MODULE.SHAPES[0])
+        a, b, _ = inputs(MODULE.SHAPES[0])
         if case == "dtype":
-            left, right = left.float(), right.float()
+            a, b = a.float(), b.float()
         elif case == "stride":
-            right = right.T.contiguous().T
+            b = b.T.contiguous().T
         elif case == "unaligned":
             storage = torch.empty(
-                left.numel() + 1, dtype=left.dtype, device=left.device
+                a.numel() + 1, dtype=a.dtype, device=a.device
             )
-            left = storage[1:].view_as(left).copy_(left)
+            a = storage[1:].view_as(a).copy_(a)
         elif case == "negative":
-            left = torch._neg_view(left)
+            a = torch._neg_view(a)
         elif case == "inner":
-            right = torch.empty(
-                right.shape[0] + 16,
-                right.shape[1],
-                dtype=right.dtype,
-                device=right.device,
+            b = torch.empty(
+                b.shape[0] + 16,
+                b.shape[1],
+                dtype=b.dtype,
+                device=b.device,
             )
         else:
-            left = [1, 2, 3]
+            a = [1, 2, 3]
     with (
         patch.object(
             torch, "matmul", side_effect=AssertionError("Unexpected fallback")
         ),
         pytest.raises(error, match=message),
     ):
-        MODULE.matmul_bf16(left, right)
+        MODULE.matmul_bf16(a, b)
 
 
 def test_unsupported_gpu_reports_architecture():
     from types import SimpleNamespace
 
-    left, right, _ = inputs(MODULE.SHAPES[0])
+    a, b, _ = inputs(MODULE.SHAPES[0])
     with (
         patch.object(
             torch.cuda,
@@ -192,57 +192,57 @@ def test_unsupported_gpu_reports_architecture():
         ),
         pytest.raises(RuntimeError, match="detected gfx942"),
     ):
-        MODULE.matmul_bf16(left, right)
+        MODULE.matmul_bf16(a, b)
 
 
 def test_autograd_requires_no_grad():
-    left, right, expected = inputs(MODULE.SHAPES[0])
-    left.requires_grad_()
+    a, b, expected = inputs(MODULE.SHAPES[0])
+    a.requires_grad_()
     with pytest.raises(RuntimeError, match="no autograd support"):
-        MODULE.matmul_bf16(left, right)
+        MODULE.matmul_bf16(a, b)
     with torch.no_grad():
-        result = MODULE.matmul_bf16(left, right)
+        result = MODULE.matmul_bf16(a, b)
         assert not result.requires_grad
         assert_result(result, expected)
 
 
 def test_autocast_reports_reason():
-    left, right, _ = inputs(MODULE.SHAPES[0])
+    a, b, _ = inputs(MODULE.SHAPES[0])
     with (
         torch.autocast("cuda", dtype=torch.float16),
         pytest.raises(RuntimeError, match="disable autocast"),
     ):
-        MODULE.matmul_bf16(left, right)
+        MODULE.matmul_bf16(a, b)
 
 
 def test_forward_autograd_reports_reason():
-    left, right, _ = inputs(MODULE.SHAPES[0])
+    a, b, _ = inputs(MODULE.SHAPES[0])
     with torch.autograd.forward_ad.dual_level():
-        dual = torch.autograd.forward_ad.make_dual(left, torch.ones_like(left))
+        dual = torch.autograd.forward_ad.make_dual(a, torch.ones_like(a))
         with pytest.raises(RuntimeError, match="forward-mode autograd"):
-            MODULE.matmul_bf16(dual, right)
+            MODULE.matmul_bf16(dual, b)
 
 
 def test_vmap_reports_reason():
-    left, right, _ = inputs(MODULE.SHAPES[0])
-    batch = torch.stack((left, -left))
+    a, b, _ = inputs(MODULE.SHAPES[0])
+    batch = torch.stack((a, -a))
     with pytest.raises(RuntimeError, match="vmap or tensor transforms"):
-        torch.vmap(lambda value: MODULE.matmul_bf16(value, right))(batch)
+        torch.vmap(lambda value: MODULE.matmul_bf16(value, b))(batch)
 
 
 def test_inference_mode():
-    left, right, expected = inputs(MODULE.SHAPES[0])
+    a, b, expected = inputs(MODULE.SHAPES[0])
     with torch.inference_mode():
-        out = torch.empty_like(expected, device=left.device)
-        assert MODULE.matmul_bf16(left, right, out=out) is out
-        assert_result(out, expected)
+        c = torch.empty_like(expected, device=a.device)
+        assert MODULE.matmul_bf16(a, b, out=c) is c
+        assert_result(c, expected)
 
 
 def test_parameter_in_no_grad():
-    left, right, expected = inputs(MODULE.SHAPES[0])
-    right = torch.nn.Parameter(right)
+    a, b, expected = inputs(MODULE.SHAPES[0])
+    b = torch.nn.Parameter(b)
     with torch.no_grad():
-        assert_result(MODULE.matmul_bf16(left, right), expected)
+        assert_result(MODULE.matmul_bf16(a, b), expected)
 
 
 @pytest.mark.parametrize(
@@ -257,41 +257,41 @@ def test_parameter_in_no_grad():
     ),
 )
 def test_unsupported_out_reports_reason(case, error, message):
-    left, right, expected = inputs(MODULE.SHAPES[0])
+    a, b, expected = inputs(MODULE.SHAPES[0])
     if case == "shape":
-        out = torch.empty(0, dtype=left.dtype, device=left.device)
+        c = torch.empty(0, dtype=a.dtype, device=a.device)
     elif case == "alias":
-        out = left.flatten()[: expected.numel()].view_as(expected)
+        c = a.flatten()[: expected.numel()].view_as(expected)
     elif case == "dtype":
-        out = torch.empty_like(expected, dtype=torch.float32, device=left.device)
+        c = torch.empty_like(expected, dtype=torch.float32, device=a.device)
     elif case == "stride":
-        out = torch.empty(
-            expected.shape[1], expected.shape[0], dtype=left.dtype, device=left.device
+        c = torch.empty(
+            expected.shape[1], expected.shape[0], dtype=a.dtype, device=a.device
         ).T
     elif case == "cpu":
-        out = torch.empty_like(expected)
+        c = torch.empty_like(expected)
     else:
-        out = []
+        c = []
     with (
         patch.object(
             torch, "matmul", side_effect=AssertionError("Unexpected fallback")
         ),
         pytest.raises(error, match=message),
     ):
-        MODULE.matmul_bf16(left, right, out=out)
+        MODULE.matmul_bf16(a, b, out=c)
 
 
 def test_separate_stream_workspaces():
     shape = MODULE.SHAPES[0]
     config = MODULE.CONFIGS_BY_SHAPE[shape]
-    left, right, expected = inputs(shape)
+    a, b, expected = inputs(shape)
     streams = (torch.cuda.Stream(), torch.cuda.Stream())
-    values = (left, left * 2)
+    values = (a, a * 2)
     results, workspaces = [], []
     for value, stream in zip(values, streams, strict=True):
         stream.wait_stream(torch.cuda.current_stream())
-        results.append(MODULE.matmul_bf16(value, right, stream=stream))
-        workspaces.append(workspace(config, shape, left.device, stream))
+        results.append(MODULE.matmul_bf16(value, b, stream=stream))
+        workspaces.append(workspace(config, shape, a.device, stream))
     torch.cuda.synchronize()
     for index, result in enumerate(results):
         assert_result(result, expected * (index + 1))
@@ -301,19 +301,19 @@ def test_separate_stream_workspaces():
 
 
 def test_graphs_have_private_scratch_and_survive_cache_eviction():
-    left, right, expected = inputs(MODULE.SHAPES[0])
-    other_left = -left
+    a, b, expected = inputs(MODULE.SHAPES[0])
+    other_left = -a
     capture_stream = torch.cuda.Stream()
     capture_stream.wait_stream(torch.cuda.current_stream())
     with torch.cuda.stream(capture_stream):
-        MODULE.matmul_bf16(left, right)  # Warm the specialization before capture.
+        MODULE.matmul_bf16(a, b)  # Warm the specialization before capture.
     torch.cuda.synchronize()
     graphs, outputs = [], []
     before = MODULE._workspace_for.cache_info().misses
-    for value in (left, other_left):
+    for value in (a, other_left):
         graph = torch.cuda.CUDAGraph()
         with torch.cuda.graph(graph, stream=capture_stream):
-            outputs.append(MODULE.matmul_bf16(value, right))
+            outputs.append(MODULE.matmul_bf16(value, b))
         graphs.append(graph)
     assert MODULE._workspace_for.cache_info().misses == before + 2
     # Drop all Python workspace references. Graph pools must retain captured scratch.
@@ -328,7 +328,7 @@ def test_graphs_have_private_scratch_and_survive_cache_eviction():
     assert_result(outputs[0], expected)
     assert_result(outputs[1], -expected)
     # Replay must read changed values at the original input addresses.
-    left.neg_()
+    a.neg_()
     torch.cuda.synchronize()
     for graph in graphs:
         graph.replay()

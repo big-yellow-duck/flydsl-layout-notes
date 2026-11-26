@@ -18,14 +18,14 @@ THREADS_PER_BLOCK = 128
 
 @fx.struct
 class SharedStorage:
-    left: fx.Array[fx.BFloat16, BLOCK_M * BLOCK_K, 16]
-    right: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
+    a: fx.Array[fx.BFloat16, BLOCK_M * BLOCK_K, 16]
+    b: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
 
 
 @fx.struct
 class PaddedSharedStorage:
-    left: fx.Array[fx.BFloat16, BLOCK_M * (BLOCK_K + 8), 16]
-    right: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
+    a: fx.Array[fx.BFloat16, BLOCK_M * (BLOCK_K + 8), 16]
+    b: fx.Array[fx.BFloat16, BLOCK_K * BLOCK_N, 16]
 
 
 def create_lds_views(layout_mode):
@@ -33,47 +33,47 @@ def create_lds_views(layout_mode):
     # Packed/swizzled A needs 4096 elements; padded A reserves 64*72 elements.
     if layout_mode == "padded":
         lds = fx.SharedAllocator().allocate(PaddedSharedStorage).peek()
-        left_lds_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
+        a_lds_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
     else:
         lds = fx.SharedAllocator().allocate(SharedStorage).peek()
-        left_lds_base_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K, 1))
-        left_lds_layout = left_lds_base_layout
+        a_lds_base_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K, 1))
+        a_lds_layout = a_lds_base_layout
         if layout_mode == "swizzle":
             # Element-offset bits 6..8 XOR into bits 3..5; low 3 stay intact.
             swizzle = fx.static(fx.SwizzleType.get(3, 3, 3))
-            left_lds_layout = fx.make_composed_layout(swizzle, 0, left_lds_base_layout)
-    left_lds_view = lds.left.view(left_lds_layout)
+            a_lds_layout = fx.make_composed_layout(swizzle, 0, a_lds_base_layout)
+    a_lds_view = lds.a.view(a_lds_layout)
     # Keep B packed in every variant to isolate A's physical placement.
-    right_lds_view = lds.right.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))
+    b_lds_view = lds.b.view(fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1)))
 
-    return left_lds_view, right_lds_view
+    return a_lds_view, b_lds_view
 
 
 @flyc.kernel
 def _matmul_bf16(
-    left: fx.Tensor,
-    right: fx.Tensor,
-    out: fx.Tensor,
+    a: fx.Tensor,
+    b: fx.Tensor,
+    c: fx.Tensor,
     m: fx.Constexpr,
     n: fx.Constexpr,
     k: fx.Constexpr,
     layout_mode: fx.Constexpr = "swizzle",
 ):
     # 1. Describe the global row-major matrices, as in stage 04.
-    left_global_view = fx.make_view(fx.get_iter(left), fx.make_layout((m, k), (k, 1)))
-    right_global_view = fx.make_view(fx.get_iter(right), fx.make_layout((k, n), (n, 1)))
-    out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
+    a_global_view = fx.make_view(fx.get_iter(a), fx.make_layout((m, k), (k, 1)))
+    b_global_view = fx.make_view(fx.get_iter(b), fx.make_layout((k, n), (n, 1)))
+    c_global_view = fx.make_view(fx.get_iter(c), fx.make_layout((m, n), (n, 1)))
     block_row = fx.block_idx.y
     block_col = fx.block_idx.x
 
     # 2. Select a four-wave block tile, retaining global row strides.
-    left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
-    right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
-    out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
-    out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+    a_tiled_view = fx.flat_divide(a_global_view, (BLOCK_M, BLOCK_K))
+    b_tiled_view = fx.flat_divide(b_global_view, (BLOCK_K, BLOCK_N))
+    c_tiled_view = fx.flat_divide(c_global_view, (BLOCK_M, BLOCK_N))
+    c_block_view = fx.slice(c_tiled_view, (None, None, block_row, block_col))
 
     # 3. Change A's physical placement; preserve its logical coordinates.
-    left_lds_view, right_lds_view = create_lds_views(layout_mode)
+    a_lds_view, b_lds_view = create_lds_views(layout_mode)
 
     # 4. Keep stage 04's generic staging plan; adapt ownership to 128 threads.
     copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16)
@@ -86,19 +86,19 @@ def _matmul_bf16(
         copy_128b, staging_copy_tv, staging_copy_tile
     )
     thread_staging_copy = staging_copy_plan.get_slice(fx.thread_idx.x)
-    left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
-    right_lds_destination = thread_staging_copy.partition_D(right_lds_view)
-    left_staging_fragment = fx.make_fragment_like(left_lds_destination)
-    right_staging_fragment = fx.make_fragment_like(right_lds_destination)
+    a_lds_destination = thread_staging_copy.partition_D(a_lds_view)
+    b_lds_destination = thread_staging_copy.partition_D(b_lds_view)
+    a_staging_fragment = fx.make_fragment_like(a_lds_destination)
+    b_staging_fragment = fx.make_fragment_like(b_lds_destination)
 
     # Allocate registers for only one K=16 slice of the K=64 LDS tile.
-    left_mma_lds_view = fx.slice(
-        fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)), (None, None, 0, 0)
+    a_mma_lds_view = fx.slice(
+        fx.flat_divide(a_lds_view, (BLOCK_M, MMA_K)), (None, None, 0, 0)
     )
 
     # right mma requires (N,K) pattern transpose the view without transpoing the data
-    right_mma_lds_view = fx.make_view(
-        fx.get_iter(right_lds_view), fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N))
+    b_mma_lds_view = fx.make_view(
+        fx.get_iter(b_lds_view), fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N))
     )
     # create mma atom
     mma_atom = fx.make_mma_atom(
@@ -109,94 +109,94 @@ def _matmul_bf16(
 
     # prepare accumulator for mma
     thread_mma = mma.thr_slice(fx.thread_idx.x)
-    accumulator = thread_mma.make_fragment_C(out_block_view)
-    ACCUMULATOR_VALUES = fx.size(accumulator.shape).to_py_value()
-    accumulator.fill(0)
+    c_accum = thread_mma.make_fragment_C(c_block_view)
+    ACCUMULATOR_VALUES = fx.size(c_accum.shape).to_py_value()
+    c_accum.fill(0)
 
     # lds to register copies using mma compatible plans
     copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-    left_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-    right_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+    a_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
+    b_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-    left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
-    right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+    a_lds2reg_thread_copy = a_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
+    b_lds2reg_thread_copy = b_lds2reg_copy_plan.get_slice(fx.thread_idx.x)
 
-    left_r_tile = thread_mma.make_fragment_A(left_mma_lds_view)
-    right_mma_slice = fx.slice(
-        fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)), (None, None, 0, 0)
+    a_r_tile = thread_mma.make_fragment_A(a_mma_lds_view)
+    b_mma_slice = fx.slice(
+        fx.flat_divide(b_mma_lds_view, (BLOCK_N, MMA_K)), (None, None, 0, 0)
     )
-    right_r_tile = thread_mma.make_fragment_B(right_mma_slice)
+    b_r_tile = thread_mma.make_fragment_B(b_mma_slice)
 
-    left_r_destination = left_lds2reg_thread_copy.retile(left_r_tile)
-    right_r_destination = right_lds2reg_thread_copy.retile(right_r_tile)
+    a_r_destination = a_lds2reg_thread_copy.retile(a_r_tile)
+    b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
 
-    def create_gmem2reg_sources(left_block_view, right_block_view):
+    def create_gmem2reg_sources(a_block_view, b_block_view):
         return (
-            thread_staging_copy.partition_S(left_block_view),
-            thread_staging_copy.partition_S(right_block_view),
+            thread_staging_copy.partition_S(a_block_view),
+            thread_staging_copy.partition_S(b_block_view),
         )
 
     # Tuple access keeps FlyDSL from treating copy wrappers as loop-carried state.
-    lds2reg_thread_copies = (left_lds2reg_thread_copy, right_lds2reg_thread_copy)
+    lds2reg_thread_copies = (a_lds2reg_thread_copy, b_lds2reg_thread_copy)
 
     # loop through tile K
     for tile_k in range(k // BLOCK_K):
-        left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
-        right_block_view = fx.slice(right_tiled_view, (None, None, tile_k, block_col))
+        a_block_view = fx.slice(a_tiled_view, (None, None, block_row, tile_k))
+        b_block_view = fx.slice(b_tiled_view, (None, None, tile_k, block_col))
 
-        left_global_source, right_global_source = create_gmem2reg_sources(
-            left_block_view, right_block_view
+        a_global_source, b_global_source = create_gmem2reg_sources(
+            a_block_view, b_block_view
         )
         # load block tile to lds
-        fx.copy(copy_128b, left_global_source, left_staging_fragment)
-        fx.copy(copy_128b, right_global_source, right_staging_fragment)
-        fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
-        fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
+        fx.copy(copy_128b, a_global_source, a_staging_fragment)
+        fx.copy(copy_128b, b_global_source, b_staging_fragment)
+        fx.copy(copy_128b, a_staging_fragment, a_lds_destination)
+        fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
         fx.barrier()
 
         # Consume four distinct K=16 slices before replacing the LDS tile.
         # range_constexpr unrolls this inner loop during compilation.
         for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-            left_subview = fx.slice(
-                fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
+            a_subview = fx.slice(
+                fx.flat_divide(a_lds_view, (BLOCK_M, MMA_K)),
                 (None, None, 0, inner_k),
             )
-            right_subview = fx.slice(
-                fx.flat_divide(right_mma_lds_view, (BLOCK_N, MMA_K)),
+            b_subview = fx.slice(
+                fx.flat_divide(b_mma_lds_view, (BLOCK_N, MMA_K)),
                 (None, None, 0, inner_k),
             )
-            left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
-            right_r_source = lds2reg_thread_copies[1].partition_S(right_subview)
-            fx.copy(copy_16b, left_r_source, left_r_destination)
-            fx.copy(copy_16b, right_r_source, right_r_destination)
-            fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+            a_r_source = lds2reg_thread_copies[0].partition_S(a_subview)
+            b_r_source = lds2reg_thread_copies[1].partition_S(b_subview)
+            fx.copy(copy_16b, a_r_source, a_r_destination)
+            fx.copy(copy_16b, b_r_source, b_r_destination)
+            fx.gemm(mma_atom, c_accum, a_r_tile, b_r_tile, c_accum)
         # All waves must finish reading before the next outer tile overwrites LDS.
         fx.barrier()
 
-    out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
+    c_registers = fx.make_rmem_tensor(c_accum.layout, fx.BFloat16)
     # A 64x64 output over 128 threads has 32 accumulator values per thread.
     for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
-        out_registers[slot] = accumulator[slot].to(fx.BFloat16)
+        c_registers[slot] = c_accum[slot].to(fx.BFloat16)
 
     rmem2gmem_copy_plan = fx.make_tiled_copy_C(copy_16b, mma)
     rmem2gmem_thread_copy = rmem2gmem_copy_plan.get_slice(fx.thread_idx.x)
-    rmem2gmem_source = rmem2gmem_thread_copy.retile(out_registers)
-    rmem2gmem_dest = rmem2gmem_thread_copy.partition_D(out_block_view)
+    rmem2gmem_source = rmem2gmem_thread_copy.retile(c_registers)
+    rmem2gmem_dest = rmem2gmem_thread_copy.partition_D(c_block_view)
     fx.copy(copy_16b, rmem2gmem_source, rmem2gmem_dest)
 
 
 @flyc.jit
 def _launch_matmul_bf16(
-    left: fx.Tensor,
-    right: fx.Tensor,
-    out: fx.Tensor,
+    a: fx.Tensor,
+    b: fx.Tensor,
+    c: fx.Tensor,
     m: fx.Constexpr,
     n: fx.Constexpr,
     k: fx.Constexpr,
     layout_mode: fx.Constexpr = "swizzle",
     stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
 ):
-    _matmul_bf16(left, right, out, m, n, k, layout_mode).launch(
+    _matmul_bf16(a, b, c, m, n, k, layout_mode).launch(
         grid=(n // BLOCK_N, m // BLOCK_M, 1),
         block=(THREADS_PER_BLOCK, 1, 1),
         stream=stream,
@@ -205,9 +205,12 @@ def _launch_matmul_bf16(
 
 def matmul_bf16(input, other, *, out=None, layout_mode="swizzle", stream=None):
     """Multiply complete BF16 matrix tiles with this lesson's kernel."""
-    tensors = [("input", input), ("other", other)]
-    if out is not None:
-        tensors.append(("out", out))
+    a = input
+    b = other
+    c = out
+    tensors = [("input", a), ("other", b)]
+    if c is not None:
+        tensors.append(("out", c))
     for name, tensor in tensors:
         if type(tensor) not in (torch.Tensor, torch.nn.Parameter):
             raise TypeError(
@@ -228,7 +231,7 @@ def matmul_bf16(input, other, *, out=None, layout_mode="swizzle", stream=None):
             )
         if not tensor.is_cuda:
             raise ValueError(f"{name} must be on a ROCm GPU")
-        if tensor.device != input.device:
+        if tensor.device != a.device:
             raise ValueError(f"{name} must be on the same device as input")
         if tensor.layout != torch.strided or not tensor.is_contiguous():
             raise ValueError(f"{name} must be contiguous and row-major")
@@ -240,20 +243,20 @@ def matmul_bf16(input, other, *, out=None, layout_mode="swizzle", stream=None):
             raise RuntimeError(
                 f"{name} requires gradients; matmul_bf16 has no autograd support, use torch.no_grad()"
             )
-    if input.ndim != 2 or other.ndim != 2:
+    if a.ndim != 2 or b.ndim != 2:
         raise ValueError("input and other must be two-dimensional matrices")
-    if input.shape[1] != other.shape[0]:
+    if a.shape[1] != b.shape[0]:
         raise ValueError(
-            f"K dimensions must match; got {input.shape[1]} and {other.shape[0]}"
+            f"K dimensions must match; got {a.shape[1]} and {b.shape[0]}"
         )
-    if input.data_ptr() % 16 or other.data_ptr() % 16:
+    if a.data_ptr() % 16 or b.data_ptr() % 16:
         raise ValueError("input and other must have 16-byte aligned data pointers")
     if torch.version.hip is None:
         raise RuntimeError("matmul_bf16 requires ROCm")
-    arch = torch.cuda.get_device_properties(input.device).gcnArchName.split(":")[0]
+    arch = torch.cuda.get_device_properties(a.device).gcnArchName.split(":")[0]
     if arch not in ("gfx1151", "gfx1152"):
         raise RuntimeError(f"matmul_bf16 requires gfx1151/gfx1152; detected {arch}")
-    shape = (input.shape[0], other.shape[1], input.shape[1])
+    shape = (a.shape[0], b.shape[1], a.shape[1])
     if (
         min(shape) <= 0
         or shape[0] % BLOCK_M
@@ -263,38 +266,38 @@ def matmul_bf16(input, other, *, out=None, layout_mode="swizzle", stream=None):
         raise ValueError("M,N,K must contain complete positive block tiles")
     if layout_mode not in ("packed", "padded", "swizzle"):
         raise ValueError("Unsupported layout_mode")
-    if out is not None:
-        if out.shape != (shape[0], shape[1]):
+    if c is not None:
+        if c.shape != (shape[0], shape[1]):
             raise ValueError(
-                f"out must have shape {(shape[0], shape[1])}; got {tuple(out.shape)}"
+                f"out must have shape {(shape[0], shape[1])}; got {tuple(c.shape)}"
             )
-        start = out.data_ptr()
-        stop = start + out.numel() * out.element_size()
+        start = c.data_ptr()
+        stop = start + c.numel() * c.element_size()
         for name, tensor in tensors[:2]:
             if (
                 start < tensor.data_ptr() + tensor.numel() * tensor.element_size()
                 and tensor.data_ptr() < stop
             ):
                 raise ValueError(f"out must not overlap {name}")
-    if stream is not None and stream.device != input.device:
+    if stream is not None and stream.device != a.device:
         raise ValueError("Stream and inputs must use the same device")
-    supplied_out = out is not None
-    with torch.cuda.device(input.device), torch.cuda.stream(stream):
-        if out is None:
-            out = torch.empty(
-                (shape[0], shape[1]), dtype=input.dtype, device=input.device
+    supplied_out = c is not None
+    with torch.cuda.device(a.device), torch.cuda.stream(stream):
+        if c is None:
+            c = torch.empty(
+                (shape[0], shape[1]), dtype=a.dtype, device=a.device
             )
         _launch_matmul_bf16(
-            input,
-            other,
-            out,
+            a,
+            b,
+            c,
             *shape,
             layout_mode=layout_mode,
-            stream=fx.Stream(torch.cuda.current_stream(input.device)),
+            stream=fx.Stream(torch.cuda.current_stream(a.device)),
         )
         if supplied_out:
-            torch.autograd.graph.increment_version(out)
-    return out
+            torch.autograd.graph.increment_version(c)
+    return c
 
 
 def solve(layout_mode="swizzle"):
@@ -317,26 +320,26 @@ def solve(layout_mode="swizzle"):
             else:
                 a_cpu = torch.randn(m, k, generator=generator).to(torch.bfloat16)
                 b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)
-            left, right = a_cpu.cuda(), b_cpu.cuda()
+            a, b = a_cpu.cuda(), b_cpu.cuda()
             storage = torch.full(
                 (m * n + 16,), -99, dtype=torch.bfloat16, device="cuda"
             )
-            out = storage[: m * n].view(m, n)
-            out.fill_(float("nan"))
-            matmul_bf16(left, right, out=out, layout_mode=layout_mode)
+            c = storage[: m * n].view(m, n)
+            c.fill_(float("nan"))
+            matmul_bf16(a, b, out=c, layout_mode=layout_mode)
             torch.cuda.synchronize()
             # CPU FP32 arithmetic on the actual quantized BF16 inputs is independent
             # of the GPU kernel. Round the reference to the same output dtype.
             expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
             torch.testing.assert_close(
-                out.cpu(),
+                c.cpu(),
                 expected,
                 rtol=0 if pattern == "trace" else 0.016,
                 atol=0.001 if pattern == "trace" else 0.03125,
             )
             assert torch.all(storage[m * n :] == -99).item(), "Output sentinel changed"
             if (m, n, k) == (1024, 1024, 1024) and pattern == "trace":
-                checkpoint = out[0, :4].cpu().tolist()
+                checkpoint = c[0, :4].cpu().tolist()
     return {"shapes_MNK": shapes, "patterns": 2, "first_four": checkpoint}
 
 

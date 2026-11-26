@@ -17,8 +17,8 @@ Follow thread 3's first vector. It loads B row 0, columns 24–31. In the struct
 These API fragments come from the [native solution](solution.py):
 
 ```python
-right_load_operation = fx.rocdl.BufferCopy128b(RIGHT_CACHE_MODIFIER)
-gmem_right_load_128b = fx.make_copy_atom(right_load_operation, fx.BFloat16)
+b_load_operation = fx.rocdl.BufferCopy128b(RIGHT_CACHE_MODIFIER)
+b_gmem_load_128b = fx.make_copy_atom(b_load_operation, fx.BFloat16)
 ```
 
 The existing `gmem_right_load_thread` partitions the selected B view with this atom. Copy ownership, the row-major global stride, LDS layout, WMMA computation, and split-K reduction are identical for modifiers 0 and 2.
@@ -44,8 +44,8 @@ The selected configs use modifier 2. The benchmark pairs it with modifier 0 on i
 
 [practice.py](practice.py) supplies the global views, copy/MMA ownership, prefetch pipeline, single-kernel split-K finalizer, launch, and independent host checker. Fill only these two expressions:
 
-1. `right_load_operation`: construct `BufferCopy128b` with `RIGHT_CACHE_MODIFIER`.
-2. `gmem_right_load_128b`: wrap that operation in a BF16 copy atom.
+1. `b_load_operation`: construct `BufferCopy128b` with `RIGHT_CACHE_MODIFIER`.
+2. `b_gmem_load_128b`: wrap that operation in a BF16 copy atom.
 
 The default full-size checkpoint is **`[8,5,2,-1]`**, the first four BF16 output values in row 0 of the wide workload. Both narrow shape selectors return `[7,4,1,-2]`. The tile-tag traces above use different inputs to isolate pipeline boundaries.
 

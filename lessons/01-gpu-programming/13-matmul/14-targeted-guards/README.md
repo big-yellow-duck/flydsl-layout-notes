@@ -23,7 +23,7 @@ Follow the two offsets that alias another row. For A, the extra K coordinate `(1
 
 The copy setup follows the earlier lessons. Set up staging for A and B first, then configure the one-step WMMA copies for A and B. The prefetch and split-K schedules still cover full register and LDS tiles. The global A/B atom width divides the actual contiguous row length, so a vector beginning in a valid row segment fits that segment.
 
-The A K tail can pick up a NaN or Inf from the next row. A zero from B cannot cancel that value. Clear A’s destination for the last partial stage, partition its coordinate view with `left_global_thread_copy`, and allow a whole vector only if `column + LEFT_WIDTH <= k`. The full stages use ordinary buffer copies. B uses an ordinary buffer copy for all real stages. C uses scalar copies, so its masked path applies `column + 1 <= n`.
+The A K tail can pick up a NaN or Inf from the next row. A zero from B cannot cancel that value. Clear A’s destination for the last partial stage, partition its coordinate view with `a_global_thread_copy`, and allow a whole vector only if `column + LEFT_WIDTH <= k`. The full stages use ordinary buffer copies. B uses an ordinary buffer copy for all real stages. C uses scalar copies, so its masked path applies `column + 1 <= n`.
 
 These expressions select the real-stage and full-column paths in the [solution](solution.py).
 

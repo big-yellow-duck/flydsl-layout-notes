@@ -13,40 +13,40 @@ Read down the gold column in each grid. The logical B coordinates stay the same;
 The host creates the same logical BF16 matrix as before, then packs it before launching:
 
 ```python
-left = a_cpu.cuda()
-right = b_cpu.cuda().t().contiguous().t()
-assert right.shape == (k, n) and right.stride() == (1, k)
+a = a_cpu.cuda()
+b = b_cpu.cuda().t().contiguous().t()
+assert b.shape == (k, n) and b.stride() == (1, k)
 ```
 
 Trace the three operations on B. The first `.t()` gives a view of shape `(N,K)`. `.contiguous()` physically packs that transposed view. The final `.t()` returns a view of shape `(K,N)` with strides `(1,K)` over the new storage. The logical values are again `B[inner,column]`, not `B.T`. A single transpose would change the mathematical input; these two transposes preserve it while changing storage order.
 
-At 1024³, `right.stride()` is `(1,1024)` in **elements**. This storage is column-major even though PyTorch's default row-major `is_contiguous()` would be false. The packing operation allocates/copies data; it is setup work outside every timed interval. The reported TFLOP/s measures the prepared-input multiplication, not packing plus multiplication.
+At 1024³, `b.stride()` is `(1,1024)` in **elements**. This storage is column-major even though PyTorch's default row-major `is_contiguous()` would be false. The packing operation allocates/copies data; it is setup work outside every timed interval. The reported TFLOP/s measures the prepared-input multiplication, not packing plus multiplication.
 
 ## 2. Describe the actual storage with native global views
 
 ```python
-left_global_view = fx.make_view(fx.get_iter(left), fx.make_layout((m, k), (k, 1)))
-right_global_view = fx.make_view(fx.get_iter(right), fx.make_layout((k, n), (1, k)))
-out_global_view = fx.make_view(fx.get_iter(out), fx.make_layout((m, n), (n, 1)))
+a_global_view = fx.make_view(fx.get_iter(a), fx.make_layout((m, k), (k, 1)))
+b_global_view = fx.make_view(fx.get_iter(b), fx.make_layout((k, n), (1, k)))
+c_global_view = fx.make_view(fx.get_iter(c), fx.make_layout((m, n), (n, 1)))
 ```
 
 | View | Shape | Strides in elements | Storage |
 | --- | --- | --- | --- |
-| `left_global_view` | `(1024,1024)` | `(1024,1)` | Row-major A |
-| `right_global_view` | `(1024,1024)` | `(1,1024)` | Column-major B |
-| `out_global_view` | `(1024,1024)` | `(1024,1)` | Row-major C |
+| `a_global_view` | `(1024,1024)` | `(1024,1)` | Row-major A |
+| `b_global_view` | `(1024,1024)` | `(1,1024)` | Column-major B |
+| `c_global_view` | `(1024,1024)` | `(1024,1)` | Row-major C |
 
 `make_view` must agree with the physical allocation. Merely writing `(1,k)` over a row-major pointer does not move values into columns and would compute a different result. The CPU reference still uses the original logical matrices to catch that error, including on random, nonsymmetric inputs.
 
 ## 3. Keep the same full-K tiled and block views
 
 ```python
-left_tiled_view = fx.flat_divide(left_global_view, (16, k))
-right_tiled_view = fx.flat_divide(right_global_view, (k, 16))
-out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
-left_block_view = fx.slice(left_tiled_view, (None, None, block_row, 0))
-right_block_view = fx.slice(right_tiled_view, (None, None, 0, block_col))
-out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+a_tiled_view = fx.flat_divide(a_global_view, (16, k))
+b_tiled_view = fx.flat_divide(b_global_view, (k, 16))
+c_tiled_view = fx.flat_divide(c_global_view, (16, 16))
+a_block_view = fx.slice(a_tiled_view, (None, None, block_row, 0))
+b_block_view = fx.slice(b_tiled_view, (None, None, 0, block_col))
+c_block_view = fx.slice(c_tiled_view, (None, None, block_row, block_col))
 ```
 
 The tiled shapes remain A `(16,1024,64,1)`, B `(1024,16,1,64)`, C `(16,16,64,64)`. Shapes describe coordinate extents; changing storage strides does not change the number of tiles. Each block still spans all K rather than using K staging.
@@ -55,9 +55,9 @@ For block `(x,y)=(1,2)`, A covers rows 32–47, B covers columns 16–31, and C 
 
 | Block view | Shape | Strides in elements |
 | --- | --- | --- |
-| `left_block_view` | `(16,1024)` | `(1024,1)` |
-| `right_block_view` | `(1024,16)` | `(1,1024)` |
-| `out_block_view` | `(16,16)` | `(1024,1)` |
+| `a_block_view` | `(16,1024)` | `(1024,1)` |
+| `b_block_view` | `(1024,16)` | `(1,1024)` |
+| `c_block_view` | `(16,16)` | `(1024,1)` |
 
 The two leading `None` entries retain local coordinates. Native slicing carries the chosen tile base; no handwritten global offset is needed.
 
@@ -66,23 +66,23 @@ The two leading `None` entries retain local coordinates. Native slicing carries 
 ```python
 thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
 thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
-left_row = fx.slice(left_block_view, (thread_coordinate[0], None))
-right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))
+a_row = fx.slice(a_block_view, (thread_coordinate[0], None))
+b_column = fx.slice(b_block_view, (None, thread_coordinate[1]))
 ```
 
 The thread layout still maps local output coordinates to thread IDs; `idx2crd` inverts it. Thread 17 gets `(1,1)`, selecting global A row 33, B column 17, and output C `(33,17)` in the running block.
 
-Both `left_row` and `right_column` now have shape `1024` and **stride 1**. A row 33 starts at element offset 33792. In column-major B, column 17 starts at offset `17*1024=17408`. Increasing `inner` by one advances each address by one element. These offsets explain the views; the kernel only indexes `left_row[inner]` and `right_column[inner]`.
+Both `a_row` and `b_column` now have shape `1024` and **stride 1**. A row 33 starts at element offset 33792. In column-major B, column 17 starts at offset `17*1024=17408`. Increasing `inner` by one advances each address by one element. These offsets explain the views; the kernel only indexes `a_row[inner]` and `b_column[inner]`.
 
 ## 5. Load, widen, reduce, and store
 
 ```python
-accumulator = fx.Float32(0)
+c_accum = fx.Float32(0)
 for inner in range(k):
-    a = fx.Float32(left_row[inner])
-    b = fx.Float32(right_column[inner])
-    accumulator = accumulator + a * b
-out_block_view[thread_coordinate] = accumulator.to(fx.BFloat16)
+    a_value = fx.Float32(a_row[inner])
+    b_value = fx.Float32(b_column[inner])
+    c_accum = c_accum + a_value * b_value
+c_block_view[thread_coordinate] = c_accum.to(fx.BFloat16)
 ```
 
 The math is unchanged. Widen both BF16 values before multiplication, retain FP32 across all K, and round once at the output store. The selected output view retains the original block base and row stride. Each of the 256 threads writes one unique output, so no reduction between lanes or synchronization is introduced.

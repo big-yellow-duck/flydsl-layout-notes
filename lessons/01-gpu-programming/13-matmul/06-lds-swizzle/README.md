@@ -27,10 +27,10 @@ A conflict involves different addresses served through the same bank in the same
 Inside the tracing-time `create_lds_views` helper, the swizzled path constructs:
 
 ```python
-left_lds_base_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K, 1))
+a_lds_base_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K, 1))
 swizzle = fx.static(fx.SwizzleType.get(3, 3, 3))
-left_lds_layout = fx.make_composed_layout(swizzle, 0, left_lds_base_layout)
-left_lds_view = lds.left.view(left_lds_layout)
+a_lds_layout = fx.make_composed_layout(swizzle, 0, a_lds_base_layout)
+a_lds_view = lds.a.view(a_lds_layout)
 ```
 
 `SwizzleType.get(B,M,S)` describes an XOR swizzle. Here `B=3` selects three bits, `M=3` leaves the lowest three bits unchanged, and `S=3` places the source bits three positions above the destination bits. The packed layout first computes an **element** offset. The composition then XORs offset bits 6–8 into bits 3–5:
@@ -54,9 +54,9 @@ The storage declaration stays `fx.Array[fx.BFloat16, BLOCK_M * BLOCK_K, 16]`. La
 The existing generic staging plan partitions the swizzled LDS view:
 
 ```python
-left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
-fx.copy(copy_128b, left_global_source, left_staging_fragment)
-fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+a_lds_destination = thread_staging_copy.partition_D(a_lds_view)
+fx.copy(copy_128b, a_global_source, a_staging_fragment)
+fx.copy(copy_128b, a_staging_fragment, a_lds_destination)
 fx.barrier()
 ```
 
@@ -64,12 +64,12 @@ The source retains global row stride 1024. The destination maps the same logical
 
 ```python
 for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-    left_subview = fx.slice(
-        fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K)),
+    a_subview = fx.slice(
+        fx.flat_divide(a_lds_view, (BLOCK_M, MMA_K)),
         (None, None, 0, inner_k),
     )
-    left_r_source = lds2reg_thread_copies[0].partition_S(left_subview)
-    fx.copy(copy_16b, left_r_source, left_r_destination)
+    a_r_source = lds2reg_thread_copies[0].partition_S(a_subview)
+    fx.copy(copy_16b, a_r_source, a_r_destination)
     # Load the corresponding B slice, then call fx.gemm as in stage 05.
 ```
 
@@ -84,7 +84,7 @@ B retains its packed `(K,N):(64,1)` LDS view and `(N,K):(1,64)` MMA view. Global
 The padded mode reserves `64*72` BF16 elements for A and attaches:
 
 ```python
-left_lds_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
+a_lds_layout = fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
 ```
 
 The logical domain remains 64×64; the eight extra positions per physical row are unused. Reserve the larger allocation before applying the stride: changing a view alone does not enlarge its buffer. B still reserves 64×64 BF16 elements. Together they use `(64*72 + 64*64)*2 = 17408` bytes.
@@ -139,7 +139,7 @@ All modes reported zero scratch. The swizzle reduced the conflict numerator by 7
 
 ## Practice and checkpoint
 
-In [practice.py](practice.py), TODO 1 constructs the native swizzle descriptor. TODO 2 composes it with `left_lds_base_layout` and zero offset. The surrounding staging, MMA, padded comparison path, and checker are supplied. The default `swizzle` path reaches both TODOs; leave the compile-time mode unchanged while completing them.
+In [practice.py](practice.py), TODO 1 constructs the native swizzle descriptor. TODO 2 composes it with `a_lds_base_layout` and zero offset. The surrounding staging, MMA, padded comparison path, and checker are supplied. The default `swizzle` path reaches both TODOs; leave the compile-time mode unchanged while completing them.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/06-lds-swizzle/practice.py --check-only

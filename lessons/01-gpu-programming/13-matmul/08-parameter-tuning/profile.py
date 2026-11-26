@@ -66,17 +66,17 @@ def worker(output):
     for launch in implementations.values():
         tune["validate"](launch, data)
     a, b, storage, _ = data
-    out = storage[:-16].view(1024, 1024)
+    c = storage[:-16].view(1024, 1024)
     for _ in range(20):
         for launch in implementations.values():
-            launch(a, b, out=out)
+            launch(a, b, out=c)
     torch.cuda.synchronize()
     sequence = []
     set_profiling(marker, True)
     for pair in range(PAIRS):
         order = ("native", "torch") if pair % 2 == 0 else ("torch", "native")
         for name in order:
-            implementations[name](a, b, out)
+            implementations[name](a, b, c)
             torch.cuda.synchronize()
             sequence.append(name)
     set_profiling(marker, False)

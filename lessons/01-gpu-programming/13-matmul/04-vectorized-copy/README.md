@@ -41,11 +41,11 @@ The compute thread layout remains `(16,16):(16,1)`. Thread 9 computes rows 0–3
 The complete [solution](solution.py) names source and destination views before copying:
 
 ```python
-left_global_source = thread_staging_copy.partition_S(left_block_view)
-left_lds_destination = thread_staging_copy.partition_D(left_lds_view)
-left_staging_fragment = fx.make_fragment_like(left_lds_destination)
-fx.copy(copy_128b, left_global_source, left_staging_fragment)
-fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
+a_global_source = thread_staging_copy.partition_S(a_block_view)
+a_lds_destination = thread_staging_copy.partition_D(a_lds_view)
+a_staging_fragment = fx.make_fragment_like(a_lds_destination)
+fx.copy(copy_128b, a_global_source, a_staging_fragment)
+fx.copy(copy_128b, a_staging_fragment, a_lds_destination)
 ```
 
 These are API fragments; the runnable solution allocates the reusable fragment and partitions the LDS destination outside the K loop. It places source partitioning in `create_gmem2reg_sources`, a tracing-time helper: the installed compiler otherwise attempts to carry the `ThrCopy` wrapper through the runtime loop. The helper selects views without loading values.
@@ -86,8 +86,8 @@ The native API fragment selecting each physical thread's operand ownership is:
 ```python
 compute_thread_layout = fx.make_ordered_layout((16, 16), (1, 0))
 thread_coord = fx.idx2crd(fx.thread_idx.x, compute_thread_layout)
-left_lds2reg_thread_copy = left_lds2reg_copy_plan.get_slice(thread_coord[0])
-right_lds2reg_thread_copy = right_lds2reg_copy_plan.get_slice(thread_coord[1])
+a_lds2reg_thread_copy = a_lds2reg_copy_plan.get_slice(thread_coord[0])
+b_lds2reg_thread_copy = b_lds2reg_copy_plan.get_slice(thread_coord[1])
 ```
 
 `get_slice` chooses a logical slot in a copy plan; it does not launch a thread, loop over 0–15, or load data. The row or column coordinate is already in 0–15. Many physical threads intentionally choose the same slot, then load the same shared elements into their own private registers.
@@ -99,27 +99,27 @@ Follow **thread 17**: `17 // 16 = 1`, `17 % 16 = 1`, so its coordinate is `(1,1)
 | 16–31, all in thread row 1 | A slot 1 | `A[4,2]`, `A[5,2]`, `A[6,2]`, `A[7,2]` |
 | 1, 17, 33, …, 241, all in thread column 1 | B slot 1 | `B[2,4]`, `B[2,5]`, `B[2,6]`, `B[2,7]` |
 
-For thread 17, these are A element offsets **258, 322, 386, 450**, and B offsets **132–135**, relative to their respective LDS buffers. A is reused across thread columns; B is reused across thread rows. Each physical thread has its own four-value `left_r_tile` and `right_r_tile`, and each loaded operand value is reused four times in that thread's outer product. The logical slot is shared; register storage is private.
+For thread 17, these are A element offsets **258, 322, 386, 450**, and B offsets **132–135**, relative to their respective LDS buffers. A is reused across thread columns; B is reused across thread rows. Each physical thread has its own four-value `a_r_tile` and `b_r_tile`, and each loaded operand value is reused four times in that thread's outer product. The logical slot is shared; register storage is private.
 
 ## Select one K position, partition, then load
 
 First divide the LDS views into whole columns of A and whole rows of B:
 
 ```python
-left_lds_tiled_view = fx.flat_divide(left_lds_view, (64, 1))
-right_lds_tiled_view = fx.flat_divide(right_lds_view, (1, 64))
+a_lds_tiled_view = fx.flat_divide(a_lds_view, (64, 1))
+b_lds_tiled_view = fx.flat_divide(b_lds_view, (1, 64))
 ```
 
 Their shapes are `(64,1,1,64)` and `(1,64,64,1)`. Inside the K loop, slice the appropriate tile modes:
 
 ```python
-left_lds_innerk_view = fx.slice(left_lds_tiled_view, (None, None, 0, inner_k))
-right_lds_innerk_view = fx.slice(right_lds_tiled_view, (None, None, inner_k, 0))
-left_r_source, right_r_source = create_lds2reg_sources(
-    left_lds_innerk_view, right_lds_innerk_view
+a_lds_innerk_view = fx.slice(a_lds_tiled_view, (None, None, 0, inner_k))
+b_lds_innerk_view = fx.slice(b_lds_tiled_view, (None, None, inner_k, 0))
+a_r_source, b_r_source = create_lds2reg_sources(
+    a_lds_innerk_view, b_lds_innerk_view
 )
-fx.copy(copy_16b, left_r_source, left_r_tile)
-fx.copy(copy_64b, right_r_source, right_r_tile)
+fx.copy(copy_16b, a_r_source, a_r_tile)
+fx.copy(copy_64b, b_r_source, b_r_tile)
 ```
 
 `create_lds2reg_sources` calls each selected thread copy's `partition_S` on the incoming view. Slicing chooses the K position; partitioning chooses the four rows or columns. Both describe accesses without moving data. The two `fx.copy` calls actually load the private fragments. The view already carries the selected K base; do not add it again.
@@ -130,8 +130,8 @@ The fragments are allocated once with `make_fragment_like` from partitions of th
 for row in range(4):
     for col in range(4):
         coord = fx.make_coord(row, col)
-        accumulator[coord] += fx.Float32(left_r_tile[row]) * fx.Float32(
-            right_r_tile[col]
+        c_accum[coord] += fx.Float32(a_r_tile[row]) * fx.Float32(
+            b_r_tile[col]
         )
 ```
 
@@ -143,17 +143,17 @@ Bank conflicts depend on the addresses issued together by the lanes of an instru
 
 ## Copy the output from registers to global memory
 
-The 16 output accumulators survive all 16 K stages. Afterward, `flat_divide(out_block_view, (4,4))` and `thread_coord` select this physical thread's unique 4×4 output window. Convert the accumulator into a BF16 `out_registers` fragment before copying.
+The 16 output accumulators survive all 16 K stages. Afterward, `flat_divide(c_block_view, (4,4))` and `thread_coord` select this physical thread's unique 4×4 output window. Convert the accumulator into a BF16 `c_registers` fragment before copying.
 
-The output plan uses one logical thread with layout `(1,1):(1,1)` and a `(4,4)` value layout ordered by `(1,0)`. Every physical thread calls `reg2gmem_copy_plan.get_slice(0)`: its output view already selects its own window. `partition_S(out_registers)` and `partition_D(out_thread_view)` pair the values, then `fx.copy(copy_64b, reg2gmem_source, reg2gmem_dest)` stores four contiguous BF16 elements per row. Reusing slot 0 here does not make different physical threads write the same output addresses.
+The output plan uses one logical thread with layout `(1,1):(1,1)` and a `(4,4)` value layout ordered by `(1,0)`. Every physical thread calls `reg2gmem_copy_plan.get_slice(0)`: its output view already selects its own window. `partition_S(c_registers)` and `partition_D(c_thread_view)` pair the values, then `fx.copy(copy_64b, reg2gmem_source, reg2gmem_dest)` stores four contiguous BF16 elements per row. Reusing slot 0 here does not make different physical threads write the same output addresses.
 
 ## Practice and verification
 
 In [practice.py](practice.py), build four `TiledCopy` plans from the supplied atoms and thread/value layouts:
 
 1. `staging_copy_plan` for eight-value 128-bit global loads and LDS stores.
-2. `left_lds2reg_copy_plan` for A's four strided rows using 16-bit copies.
-3. `right_lds2reg_copy_plan` for B's four contiguous columns using 64-bit copies.
+2. `a_lds2reg_copy_plan` for A's four strided rows using 16-bit copies.
+3. `b_lds2reg_copy_plan` for B's four contiguous columns using 64-bit copies.
 4. `reg2gmem_copy_plan` for four BF16 output values per 64-bit row store.
 
 The remaining code partitions each source and destination, moves data, computes, and checks the full output. Compare each plan's logical slots with the supplied layouts and the [worked solution](solution.py).

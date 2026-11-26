@@ -51,6 +51,9 @@ assets/
     │   └── 15-edge-load-widths/
     └── 14-quantized-matmul/
         ├── 01-mxfp4-w4a16/
+        │   ├── 01-mxfp4-format/
+        │   ├── 02-scalar-dequant/
+        │   └── 04-lut-decode/
         └── 02-mxfp8-blockscale/
 ```
 
@@ -89,3 +92,5 @@ Stage 13 includes `edge-predicates` and `cross-row-bounds` SVG/PNG pairs. Regene
 Stage 14 includes the `guarded-axes` SVG/PNG pair. Regenerate with `python3 tools/draw_targeted_guards.py`. It follows the same corner trace to identify the accesses that require explicit guards.
 
 Stage 15 includes the `mixed-width-tail` SVG/PNG pair. Regenerate with `python3 tools/draw_edge_load_widths.py`. The figure traces the eight-, four-, and two-value copies in the 17×78×46 example.
+
+Lesson 14.1 includes the `block-scales`, `scalar-decode`, `mxfp4-w4a16`, and `register-lookup` SVG/PNG pairs. Regenerate them with `python3 tools/draw_mxfp4_lesson.py`.

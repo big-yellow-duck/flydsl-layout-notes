@@ -14,12 +14,12 @@ global views -> full-K tiled views -> block views
 The native global layouts and `flat_divide` calls match lesson 01:
 
 ```python
-left_tiled_view = fx.flat_divide(left_global_view, (16, k))
-right_tiled_view = fx.flat_divide(right_global_view, (k, 16))
-out_tiled_view = fx.flat_divide(out_global_view, (16, 16))
-left_block_view = fx.slice(left_tiled_view, (None, None, block_row, 0))
-right_block_view = fx.slice(right_tiled_view, (None, None, 0, block_col))
-out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+a_tiled_view = fx.flat_divide(a_global_view, (16, k))
+b_tiled_view = fx.flat_divide(b_global_view, (k, 16))
+c_tiled_view = fx.flat_divide(c_global_view, (16, 16))
+a_block_view = fx.slice(a_tiled_view, (None, None, block_row, 0))
+b_block_view = fx.slice(b_tiled_view, (None, None, 0, block_col))
+c_block_view = fx.slice(c_tiled_view, (None, None, block_row, block_col))
 ```
 
 A block sees A `(16,1024)`, B `(1024,16)`, and C `(16,16)`. Their row strides remain 1024. We still reduce over the complete K axis directly from global memory; no LDS storage exists yet.
@@ -34,50 +34,50 @@ thread_coordinate = fx.idx2crd(fx.thread_idx.x, thread_layout)
 Here the first coordinate means **row group**, not an individual output row. Four groups times 16 columns give 64 threads. Thread 17 gets `(1,1)`: row group 1 and output column 1.
 
 ```python
-out_thread_tiled_view = fx.flat_divide(out_block_view, (4, 1))
-out_thread_view = fx.slice(
-    out_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
+c_thread_tiled_view = fx.flat_divide(c_block_view, (4, 1))
+c_thread_view = fx.slice(
+    c_thread_tiled_view, (None, None, thread_coordinate[0], thread_coordinate[1])
 )
 ```
 
 ![A 4-by-1 tiler selects local rows 4–7 at column 1 for thread 17; the corresponding global outputs are rows 36–39, column 17.](../../../../assets/01-gpu-programming/13-matmul/02-register-tiling/thread-windows.svg)
 
-Read the four modes of `out_thread_tiled_view` as `(within_row, within_column, row_group, column_group)`. Its shape is `(4,1,4,16)`. Fixing the final two modes selects a `(4,1)` view. The first dimension keeps four positions, so `slot=0..3` names the four output values owned by this one thread.
+Read the four modes of `c_thread_tiled_view` as `(within_row, within_column, row_group, column_group)`. Its shape is `(4,1,4,16)`. Fixing the final two modes selects a `(4,1)` view. The first dimension keeps four positions, so `slot=0..3` names the four output values owned by this one thread.
 
 In block `(1,2)`, row group 1 corresponds to local rows 4–7, hence global rows 36–39. Local column 1 becomes global column 17. Slicing carries the block and group bases; no `block_row*16` or `group*4` appears in the load/store expressions.
 
 ## 3. Select matching A rows and one B column
 
 ```python
-left_thread_tiled_view = fx.flat_divide(left_block_view, (4, k))
-left_thread_view = fx.slice(
-    left_thread_tiled_view, (None, None, thread_coordinate[0], 0)
+a_thread_tiled_view = fx.flat_divide(a_block_view, (4, k))
+a_thread_view = fx.slice(
+    a_thread_tiled_view, (None, None, thread_coordinate[0], 0)
 )
-right_column = fx.slice(right_block_view, (None, thread_coordinate[1]))
+b_column = fx.slice(b_block_view, (None, thread_coordinate[1]))
 ```
 
 | View | Shape | Strides in elements | Meaning for block `(1,2)`, thread 17 |
 | --- | --- | --- | --- |
-| `left_thread_tiled_view` | `(4,1024,4,1)` | Inherited from A | Four-row A groups, each spanning K |
-| `left_thread_view` | `(4,1024)` | `(1024,1)` | A rows 36–39 |
-| `right_column` | `1024` | `1024` | B column 17 |
-| `out_thread_view` | `(4,1)` | `(1024,0)` | C rows 36–39 at column 17 |
+| `a_thread_tiled_view` | `(4,1024,4,1)` | Inherited from A | Four-row A groups, each spanning K |
+| `a_thread_view` | `(4,1024)` | `(1024,1)` | A rows 36–39 |
+| `b_column` | `1024` | `1024` | B column 17 |
+| `c_thread_view` | `(4,1)` | `(1024,0)` | C rows 36–39 at column 17 |
 
-FlyDSL canonicalizes the single-column mode of `out_thread_view` to stride 0: its only valid column coordinate is 0, so this does not change any address. Its row stride remains 1024.
+FlyDSL canonicalizes the single-column mode of `c_thread_view` to stride 0: its only valid column coordinate is 0, so this does not change any address. Its row stride remains 1024.
 
 These views describe where this thread reads and writes. They do not allocate register storage or move any input values.
 
 ## 4. Allocate four private accumulators and reuse B
 
 ```python
-accumulators = fx.make_rmem_tensor(fx.make_layout(4, 1), fx.Float32)
-accumulators.fill(0)
+c_accums = fx.make_rmem_tensor(fx.make_layout(4, 1), fx.Float32)
+c_accums.fill(0)
 for inner in range(k):
-    b = fx.Float32(right_column[inner])
+    b_value = fx.Float32(b_column[inner])
     for slot in fx.range_constexpr(4):
-        a = fx.Float32(left_thread_view[fx.make_coord(slot, inner)])
-        updated = accumulators[slot] + a * b
-        accumulators[slot] = updated
+        a_value = fx.Float32(a_thread_view[fx.make_coord(slot, inner)])
+        updated = c_accums[slot] + a_value * b_value
+        c_accums[slot] = updated
 ```
 
 ![One B load is reused in four separate accumulator updates. The example shows thread 1 in block (0,0), which owns output rows 0–3 at column 1.](../../../../assets/01-gpu-programming/13-matmul/02-register-tiling/register-reuse.svg)
@@ -90,18 +90,18 @@ Read the picture as the same rule for a different row group: four distinct A row
 
 ```python
 for slot in fx.range_constexpr(4):
-    out_thread_view[fx.make_coord(slot, 0)] = accumulators[slot].to(fx.BFloat16)
+    c_thread_view[fx.make_coord(slot, 0)] = c_accums[slot].to(fx.BFloat16)
 ```
 
 The local column is zero because the selected view is only one column wide. The view carries the global row stride and all base displacements. Four groups × 16 columns × four slots cover the block's 256 outputs exactly once. Larger private state and fewer threads change resource use; they do not promise a speedup.
 
-TODO 1 selects `left_thread_view` from its four-mode tiled view. TODO 2 forms `updated` from the current FP32 sum and widened A/B values. The same `slot` must refer to the A row, accumulator, and output row.
+TODO 1 selects `a_thread_view` from its four-mode tiled view. TODO 2 forms `updated` from the current FP32 sum and widened A/B values. The same `slot` must refer to the A row, accumulator, and output row.
 
 ## Practice and checkpoint
 
 Complete the two numbered expressions in `practice.py`. Keep the supplied launch, initialization, stores, and checker. The unfinished starter reports `Practice not finished: ...` and exits with status 1.
 
-The optional [practice-4x4.py](practice-4x4.py) assigns a 4×4 output window to each thread. Fill its `left_thread_view` expression to select the thread's four A rows from the tiled input view. Run it from the repository root with `pixi run python lessons/01-gpu-programming/13-matmul/02-register-tiling/practice-4x4.py --check-only`; it reports `Practice not finished:` until the view is filled, then checks both input patterns and the first-four checkpoint.
+The optional [practice-4x4.py](practice-4x4.py) assigns a 4×4 output window to each thread. Fill its `a_thread_view` expression to select the thread's four A rows from the tiled input view. Run it from the repository root with `pixi run python lessons/01-gpu-programming/13-matmul/02-register-tiling/practice-4x4.py --check-only`; it reports `Practice not finished:` until the view is filled, then checks both input patterns and the first-four checkpoint.
 
 Every exercise runs **M = N = K = 1024**: row-major BF16 inputs, FP32 accumulation, and BF16 output. The checker evaluates all 1,048,576 outputs for two input patterns. The trace pattern uses `A[r,k] = ((r*1024+k) % 5)-2` and `B[k,c] = ((k*1024+c) % 7)-3`; the first four values of output row 0 are `[3, -6, -1, -3]`. A second pattern uses seeded random values quantized to BF16 before either implementation sees them. An independent CPU FP32 matrix product, rounded to BF16, supplies the untimed reference. Trace checks use `rtol=0, atol=0.001` to accommodate the small WMMA residue near zero; random checks use `rtol=0.016, atol=0.03125` for BF16 rounding and accumulation differences. These are exercise tolerances, not a numerical guarantee for arbitrary inputs.
 

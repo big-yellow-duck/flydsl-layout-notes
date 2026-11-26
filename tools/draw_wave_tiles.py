@@ -147,7 +147,7 @@ def wave_grid_2d():
     d.text(
         32,
         807,
-        "out_block_view: 32 x 128  ->  divide 16 x 64  ->  slice (group_row,group_col)",
+        "c_block_view: 32 x 128  ->  divide 16 x 64  ->  slice (group_row,group_col)",
         20,
     )
     d.text(

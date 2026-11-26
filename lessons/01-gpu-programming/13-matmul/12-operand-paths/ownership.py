@@ -55,7 +55,7 @@ def solve():
     ]
     _launch_record_operand_offsets(*outputs)
     torch.cuda.synchronize()
-    a, stage, operand = [out.cpu().view(64, -1) for out in outputs]
+    a, stage, operand = [c.cpu().view(64, -1) for c in outputs]
     tid = torch.arange(64)[:, None]
     slot = torch.arange(128)[None, :]
     a_expected = (

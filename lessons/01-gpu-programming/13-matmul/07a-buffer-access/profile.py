@@ -63,18 +63,18 @@ def main():
     a_cpu = torch.randn(1024, 1024, generator=gen).to(torch.bfloat16)
     b_cpu = torch.randn(1024, 1024, generator=gen).to(torch.bfloat16)
     a, b = a_cpu.cuda(), b_cpu.cuda()
-    out = torch.empty_like(a)
+    c = torch.empty_like(a)
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     launches = {
-        name: partial(module["matmul_bf16"], a, b, out=out)
+        name: partial(module["matmul_bf16"], a, b, out=c)
         for name, module in modules.items()
     }
     for launch in launches.values():
-        out.fill_(float("nan"))
+        c.fill_(float("nan"))
         for _ in range(10):
             launch()
         torch.cuda.synchronize()
-        torch.testing.assert_close(out.cpu(), expected, rtol=0.016, atol=0.03125)
+        torch.testing.assert_close(c.cpu(), expected, rtol=0.016, atol=0.03125)
 
     def batch(launch, method):
         torch.cuda.synchronize()

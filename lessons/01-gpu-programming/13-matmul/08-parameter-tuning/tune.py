@@ -78,12 +78,12 @@ def inputs(seed, trace=False):
 
 def validate(launch, data, trace=False):
     a, b, storage, expected = data
-    out = storage[:-16].view(SHAPE[0], SHAPE[1])
-    out.fill_(float("nan"))
-    launch(a, b, out=out)
+    c = storage[:-16].view(SHAPE[0], SHAPE[1])
+    c.fill_(float("nan"))
+    launch(a, b, out=c)
     torch.cuda.synchronize()
     torch.testing.assert_close(
-        out.cpu(),
+        c.cpu(),
         expected,
         rtol=0 if trace else 0.016,
         atol=0.001 if trace else 0.03125,
@@ -138,34 +138,34 @@ def graph_nodes(graph):
 
 def capture(launch, data, operations=32):
     a, b, storage, expected = data
-    out = storage[:-16].view(SHAPE[0], SHAPE[1])
+    c = storage[:-16].view(SHAPE[0], SHAPE[1])
     stream = torch.cuda.Stream()
     with torch.cuda.stream(stream):
         for _ in range(3):
-            launch(a, b, out=out, stream=stream)
+            launch(a, b, out=c, stream=stream)
     torch.cuda.synchronize()
     graph = torch.cuda.CUDAGraph(keep_graph=True)
     with torch.cuda.graph(graph, stream=stream):
         for _ in range(operations):
-            launch(a, b, out=out, stream=stream)
+            launch(a, b, out=c, stream=stream)
     metadata = graph_nodes(graph)
     if metadata["kernel_nodes"] < operations:
         raise RuntimeError(f"Incomplete graph capture: {metadata}")
     graph.instantiate()
     # Prove replay consumes changed inputs, rather than captured values or an empty graph.
     a.mul_(-1)
-    out.fill_(float("nan"))
+    c.fill_(float("nan"))
     torch.cuda.synchronize()
     graph.replay()
     torch.cuda.synchronize()
-    torch.testing.assert_close(out.cpu(), -expected, rtol=0.016, atol=0.03125)
+    torch.testing.assert_close(c.cpu(), -expected, rtol=0.016, atol=0.03125)
     assert torch.all(storage[-16:] == -99).item(), "Graph sentinel changed"
     a.mul_(-1)
-    out.fill_(float("nan"))
+    c.fill_(float("nan"))
     torch.cuda.synchronize()
     graph.replay()
     torch.cuda.synchronize()
-    torch.testing.assert_close(out.cpu(), expected, rtol=0.016, atol=0.03125)
+    torch.testing.assert_close(c.cpu(), expected, rtol=0.016, atol=0.03125)
     assert torch.all(storage[-16:] == -99).item(), "Graph sentinel changed"
     return graph, {
         **metadata,
@@ -177,7 +177,7 @@ def capture(launch, data, operations=32):
 
 def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing):
     a, b, storage, _ = data
-    out = storage[:-16].view(SHAPE[0], SHAPE[1])
+    c = storage[:-16].view(SHAPE[0], SHAPE[1])
     graph_metadata = {}
     graphs = []
     if timing == "graph-host":
@@ -190,8 +190,8 @@ def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing)
         operations = 32
     else:
         launches = {
-            "kernel": lambda: kernel(a, b, out=out),
-            "torch": lambda: baseline(a, b, out=out),
+            "kernel": lambda: kernel(a, b, out=c),
+            "torch": lambda: baseline(a, b, out=c),
         }
         operations = 1
     for launch in launches.values():
@@ -225,8 +225,8 @@ def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing)
     }
 
 
-def torch_launch(a, b, out, stream=None):
-    torch.matmul(a, b, out=out)
+def torch_launch(a, b, c, stream=None):
+    torch.matmul(a, b, out=c)
 
 
 def candidates(traversal_group_m=8, extended=False):

@@ -160,14 +160,14 @@ def build(config):
     @fx.struct
     class SharedStorage:
         # Retain stage 06's measured padded A layout and packed B layout.
-        left: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_M * (BLOCK_K + 8), 16]
-        right: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_K * BLOCK_N, 16]
+        a: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_M * (BLOCK_K + 8), 16]
+        b: fx.Array[fx.BFloat16, WAVE_GROUPS * BLOCK_K * BLOCK_N, 16]
 
     @flyc.kernel
     def exercise_kernel(
-        left: fx.Tensor,
-        right: fx.Tensor,
-        out: fx.Tensor,
+        a: fx.Tensor,
+        b: fx.Tensor,
+        c: fx.Tensor,
         partials: fx.Tensor,
         counters: fx.Tensor,
         m: fx.Constexpr,
@@ -190,19 +190,19 @@ def build(config):
             fx.barrier(address_spaces=lds_address_spaces, scope=barrier_scope)
 
         # 1. Buffer resources retain the existing row-major matrix layouts.
-        left_buffer = fx.rocdl.make_buffer_tensor(left)
-        right_buffer = fx.rocdl.make_buffer_tensor(right)
-        out_buffer = fx.rocdl.make_buffer_tensor(out)
-        left_global_view = fx.make_view(
-            fx.get_iter(left_buffer),
+        a_buffer = fx.rocdl.make_buffer_tensor(a)
+        b_buffer = fx.rocdl.make_buffer_tensor(b)
+        c_buffer = fx.rocdl.make_buffer_tensor(c)
+        a_global_view = fx.make_view(
+            fx.get_iter(a_buffer),
             fx.make_layout((m, k), (k, 1)),
         )
-        right_global_view = fx.make_view(
-            fx.get_iter(right_buffer),
+        b_global_view = fx.make_view(
+            fx.get_iter(b_buffer),
             fx.make_layout((k, n), (n, 1)),
         )
-        out_global_view = fx.make_view(
-            fx.get_iter(out_buffer),
+        c_global_view = fx.make_view(
+            fx.get_iter(c_buffer),
             fx.make_layout((m, n), (n, 1)),
         )
         # Keep the grouped strategy; express block selection with native layouts.
@@ -224,82 +224,82 @@ def build(config):
         block_col = fx.get_scalar(output_tile_coords[1])
 
         # 2. Group neighboring blocks along M to share B tiles in cache.
-        left_tiled_view = fx.flat_divide(left_global_view, (BLOCK_M, BLOCK_K))
-        right_tiled_view = fx.flat_divide(right_global_view, (BLOCK_K, BLOCK_N))
-        out_tiled_view = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
-        out_block_view = fx.slice(out_tiled_view, (None, None, block_row, block_col))
+        a_tiled_view = fx.flat_divide(a_global_view, (BLOCK_M, BLOCK_K))
+        b_tiled_view = fx.flat_divide(b_global_view, (BLOCK_K, BLOCK_N))
+        c_tiled_view = fx.flat_divide(c_global_view, (BLOCK_M, BLOCK_N))
+        c_block_view = fx.slice(c_tiled_view, (None, None, block_row, block_col))
 
         # 3. Keep one padded A tile and one packed B tile in LDS.
         lds = fx.SharedAllocator().allocate(SharedStorage).peek()
-        left_lds_view = lds.left.view(
+        a_lds_view = lds.a.view(
             fx.make_layout((BLOCK_M, BLOCK_K), (BLOCK_K + 8, 1))
         )
-        right_lds_view = lds.right.view(
+        b_lds_view = lds.b.view(
             fx.make_layout((BLOCK_K, BLOCK_N), (BLOCK_N, 1))
         )
 
         # Each independent group has disjoint LDS storage for its own tile.
-        left_lds_view = fx.make_view(
-            fx.get_iter(left_lds_view) + wave_group * BLOCK_M * (BLOCK_K + 8),
-            left_lds_view.layout,
+        a_lds_view = fx.make_view(
+            fx.get_iter(a_lds_view) + wave_group * BLOCK_M * (BLOCK_K + 8),
+            a_lds_view.layout,
         )
-        right_lds_view = fx.make_view(
-            fx.get_iter(right_lds_view) + wave_group * BLOCK_K * BLOCK_N,
-            right_lds_view.layout,
+        b_lds_view = fx.make_view(
+            fx.get_iter(b_lds_view) + wave_group * BLOCK_K * BLOCK_N,
+            b_lds_view.layout,
         )
 
         # 4. Derive each operand's staging geometry from its contiguous extent.
-        left_store_atom = fx.make_copy_atom(
+        a_store_atom = fx.make_copy_atom(
             fx.UniversalCopy(16 * LEFT_VALUES), fx.BFloat16
         )
-        right_store_atom = fx.make_copy_atom(
+        b_store_atom = fx.make_copy_atom(
             fx.UniversalCopy(16 * RIGHT_VALUES), fx.BFloat16
         )
-        gmem_left_load = fx.make_copy_atom(
+        a_gmem_load = fx.make_copy_atom(
             fx.rocdl.BufferCopy(16 * LEFT_VALUES), fx.BFloat16
         )
-        gmem_right_load = fx.make_copy_atom(
+        b_gmem_load = fx.make_copy_atom(
             fx.rocdl.BufferCopy(16 * RIGHT_VALUES, RIGHT_CACHE_MODIFIER), fx.BFloat16
         )
-        left_copy_threads = fx.make_ordered_layout(
+        a_copy_threads = fx.make_ordered_layout(
             (THREADS_PER_GROUP // (BLOCK_K // LEFT_VALUES), BLOCK_K // LEFT_VALUES),
             (1, 0),
         )
-        right_copy_threads = fx.make_ordered_layout(
+        b_copy_threads = fx.make_ordered_layout(
             (THREADS_PER_GROUP // (BLOCK_N // RIGHT_VALUES), BLOCK_N // RIGHT_VALUES),
             (1, 0),
         )
-        left_copy_tile, left_copy_tv = fx.make_layout_tv(
-            left_copy_threads, fx.make_ordered_layout((1, LEFT_VALUES), (1, 0))
+        a_copy_tile, a_copy_tv = fx.make_layout_tv(
+            a_copy_threads, fx.make_ordered_layout((1, LEFT_VALUES), (1, 0))
         )
-        right_copy_tile, right_copy_tv = fx.make_layout_tv(
-            right_copy_threads, fx.make_ordered_layout((1, RIGHT_VALUES), (1, 0))
+        b_copy_tile, b_copy_tv = fx.make_layout_tv(
+            b_copy_threads, fx.make_ordered_layout((1, RIGHT_VALUES), (1, 0))
         )
-        left_thread_copy = fx.make_tiled_copy(
-            left_store_atom, left_copy_tv, left_copy_tile
+        a_thread_copy = fx.make_tiled_copy(
+            a_store_atom, a_copy_tv, a_copy_tile
         ).get_slice(compute_thread_id)
-        right_thread_copy = fx.make_tiled_copy(
-            right_store_atom, right_copy_tv, right_copy_tile
+        b_thread_copy = fx.make_tiled_copy(
+            b_store_atom, b_copy_tv, b_copy_tile
         ).get_slice(compute_thread_id)
-        gmem2lds_left_destination = left_thread_copy.partition_D(left_lds_view)
-        gmem2lds_right_destination = right_thread_copy.partition_D(right_lds_view)
-        left_fragment = fx.make_fragment_like(gmem2lds_left_destination)
-        right_fragment = fx.make_fragment_like(gmem2lds_right_destination)
+        a_gmem2lds_destination = a_thread_copy.partition_D(a_lds_view)
+        b_gmem2lds_destination = b_thread_copy.partition_D(b_lds_view)
+        a_fragment = fx.make_fragment_like(a_gmem2lds_destination)
+        b_fragment = fx.make_fragment_like(b_gmem2lds_destination)
 
         # create tiled view ready for mma to consume
-        left_lds_tiled = fx.flat_divide(left_lds_view, (BLOCK_M, MMA_K))
-        right_lds_tranposed_view = fx.make_view(
-            fx.get_iter(right_lds_view),
+        a_lds_tiled = fx.flat_divide(a_lds_view, (BLOCK_M, MMA_K))
+        b_lds_tranposed_view = fx.make_view(
+            fx.get_iter(b_lds_view),
             fx.make_layout((BLOCK_N, BLOCK_K), (1, BLOCK_N)),
         )
-        right_lds_transposed_tiled = fx.flat_divide(
-            right_lds_tranposed_view, (BLOCK_N, MMA_K)
+        b_lds_transposed_tiled = fx.flat_divide(
+            b_lds_tranposed_view, (BLOCK_N, MMA_K)
         )
 
         # setup initial views
-        left_lds_initial_view = fx.slice(left_lds_tiled, (None, None, 0, 0))
-        right_lds_transposed_initial_view = fx.slice(
-            right_lds_transposed_tiled, (None, None, 0, 0)
+        a_lds_initial_view = fx.slice(a_lds_tiled, (None, None, 0, 0))
+        b_lds_transposed_initial_view = fx.slice(
+            b_lds_transposed_tiled, (None, None, 0, 0)
         )
         # setup mma
         mma_atom = fx.make_mma_atom(
@@ -310,92 +310,92 @@ def build(config):
         )
 
         thread_mma = mma.thr_slice(compute_thread_id)
-        accumulator = thread_mma.make_fragment_C(out_block_view)
-        accumulator.fill(0)
+        c_accum = thread_mma.make_fragment_C(c_block_view)
+        c_accum.fill(0)
 
         # lds to register copies using mma compatible plans
         copy_16b = fx.make_copy_atom(fx.UniversalCopy16b(), fx.BFloat16)
-        lds2reg_left_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
-        lds2reg_right_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+        a_lds2reg_copy_plan = fx.make_tiled_copy_A(copy_16b, mma)
+        b_lds2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-        lds2reg_left_thread_copy = lds2reg_left_copy_plan.get_slice(compute_thread_id)
-        lds2reg_right_thread_copy = lds2reg_right_copy_plan.get_slice(compute_thread_id)
+        a_lds2reg_thread_copy = a_lds2reg_copy_plan.get_slice(compute_thread_id)
+        b_lds2reg_thread_copy = b_lds2reg_copy_plan.get_slice(compute_thread_id)
 
-        left_r_tile = thread_mma.make_fragment_A(left_lds_initial_view)
-        right_r_tile = thread_mma.make_fragment_B(right_lds_transposed_initial_view)
+        a_r_tile = thread_mma.make_fragment_A(a_lds_initial_view)
+        b_r_tile = thread_mma.make_fragment_B(b_lds_transposed_initial_view)
 
-        left_r_destination = lds2reg_left_thread_copy.retile(left_r_tile)
-        right_r_destination = lds2reg_right_thread_copy.retile(right_r_tile)
+        a_r_destination = a_lds2reg_thread_copy.retile(a_r_tile)
+        b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
 
-        def create_gmem2lds_sources(left_block_view, right_block_view):
+        def create_gmem2lds_sources(a_block_view, b_block_view):
             return (
-                left_thread_copy.partition_S(left_block_view),
-                right_thread_copy.partition_S(right_block_view),
+                a_thread_copy.partition_S(a_block_view),
+                b_thread_copy.partition_S(b_block_view),
             )
 
         def gmem2reg_load_tile(tile_k):
-            left_block_view = fx.slice(left_tiled_view, (None, None, block_row, tile_k))
-            right_block_view = fx.slice(
-                right_tiled_view, (None, None, tile_k, block_col)
+            a_block_view = fx.slice(a_tiled_view, (None, None, block_row, tile_k))
+            b_block_view = fx.slice(
+                b_tiled_view, (None, None, tile_k, block_col)
             )
-            left_lds_source, right_lds_source = create_gmem2lds_sources(
-                left_block_view, right_block_view
+            a_lds_source, b_lds_source = create_gmem2lds_sources(
+                a_block_view, b_block_view
             )
-            fx.copy(gmem_left_load, left_lds_source, left_fragment)
-            fx.copy(gmem_right_load, right_lds_source, right_fragment)
+            fx.copy(a_gmem_load, a_lds_source, a_fragment)
+            fx.copy(b_gmem_load, b_lds_source, b_fragment)
 
         def reg2lds_copy_tile():
-            fx.copy(left_store_atom, left_fragment, gmem2lds_left_destination)
-            fx.copy(right_store_atom, right_fragment, gmem2lds_right_destination)
+            fx.copy(a_store_atom, a_fragment, a_gmem2lds_destination)
+            fx.copy(b_store_atom, b_fragment, b_gmem2lds_destination)
             lds_barrier()
 
         def compute_lds():
             for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-                left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
-                right_mma_view = fx.slice(
-                    right_lds_transposed_tiled, (None, None, 0, inner_k)
+                a_mma_view = fx.slice(a_lds_tiled, (None, None, 0, inner_k))
+                b_mma_view = fx.slice(
+                    b_lds_transposed_tiled, (None, None, 0, inner_k)
                 )
-                left_r_source = lds2reg_left_thread_copy.partition_S(left_mma_view)
-                right_r_source = lds2reg_right_thread_copy.partition_S(right_mma_view)
-                fx.copy(copy_16b, left_r_source, left_r_destination)
-                fx.copy(copy_16b, right_r_source, right_r_destination)
-                fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+                a_r_source = a_lds2reg_thread_copy.partition_S(a_mma_view)
+                b_r_source = b_lds2reg_thread_copy.partition_S(b_mma_view)
+                fx.copy(copy_16b, a_r_source, a_r_destination)
+                fx.copy(copy_16b, b_r_source, b_r_destination)
+                fx.gemm(mma_atom, c_accum, a_r_tile, b_r_tile, c_accum)
 
         def compute_interleaved(next_tile_k, has_next):
             if has_next and GLOBAL_ISSUE == "front":
                 gmem2reg_load_tile(next_tile_k)
             # Group a native partition into complete copy vectors, preserving its layout.
-            left_block_view = fx.slice(
-                left_tiled_view, (None, None, block_row, next_tile_k)
+            a_block_view = fx.slice(
+                a_tiled_view, (None, None, block_row, next_tile_k)
             )
-            right_block_view = fx.slice(
-                right_tiled_view, (None, None, next_tile_k, block_col)
+            b_block_view = fx.slice(
+                b_tiled_view, (None, None, next_tile_k, block_col)
             )
-            left_source = left_thread_copy.partition_S(left_block_view)
-            right_source = right_thread_copy.partition_S(right_block_view)
-            left_vectors = fx.flat_divide(
-                fx.group(left_source, 0, fx.rank(left_source)), (LEFT_VALUES,)
+            a_source = a_thread_copy.partition_S(a_block_view)
+            b_source = b_thread_copy.partition_S(b_block_view)
+            a_vectors = fx.flat_divide(
+                fx.group(a_source, 0, fx.rank(a_source)), (LEFT_VALUES,)
             )
-            right_vectors = fx.flat_divide(
-                fx.group(right_source, 0, fx.rank(right_source)), (RIGHT_VALUES,)
+            b_vectors = fx.flat_divide(
+                fx.group(b_source, 0, fx.rank(b_source)), (RIGHT_VALUES,)
             )
-            left_targets = fx.flat_divide(
-                fx.group(left_fragment, 0, fx.rank(left_fragment)), (LEFT_VALUES,)
+            a_targets = fx.flat_divide(
+                fx.group(a_fragment, 0, fx.rank(a_fragment)), (LEFT_VALUES,)
             )
-            right_targets = fx.flat_divide(
-                fx.group(right_fragment, 0, fx.rank(right_fragment)),
+            b_targets = fx.flat_divide(
+                fx.group(b_fragment, 0, fx.rank(b_fragment)),
                 (RIGHT_VALUES,),
             )
             for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-                left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
-                right_mma_view = fx.slice(
-                    right_lds_transposed_tiled, (None, None, 0, inner_k)
+                a_mma_view = fx.slice(a_lds_tiled, (None, None, 0, inner_k))
+                b_mma_view = fx.slice(
+                    b_lds_transposed_tiled, (None, None, 0, inner_k)
                 )
-                left_operand_source = lds2reg_left_thread_copy.partition_S(
-                    left_mma_view
+                a_operand_source = a_lds2reg_thread_copy.partition_S(
+                    a_mma_view
                 )
-                right_operand_source = lds2reg_right_thread_copy.partition_S(
-                    right_mma_view
+                b_operand_source = b_lds2reg_thread_copy.partition_S(
+                    b_mma_view
                 )
                 # N-major traversal loads each A/B fragment once and retains its reuse.
                 for nt in fx.range_constexpr(REPEATS_N):
@@ -424,18 +424,18 @@ def build(config):
                             for chunk in fx.range_constexpr(first, last):
                                 if chunk < LEFT_CHUNKS:
                                     fx.copy(
-                                        gmem_left_load,
-                                        fx.slice(left_vectors, (None, chunk)),
-                                        fx.slice(left_targets, (None, chunk)),
+                                        a_gmem_load,
+                                        fx.slice(a_vectors, (None, chunk)),
+                                        fx.slice(a_targets, (None, chunk)),
                                     )
                                 else:
                                     fx.copy(
-                                        gmem_right_load,
+                                        b_gmem_load,
                                         fx.slice(
-                                            right_vectors, (None, chunk - LEFT_CHUNKS)
+                                            b_vectors, (None, chunk - LEFT_CHUNKS)
                                         ),
                                         fx.slice(
-                                            right_targets, (None, chunk - LEFT_CHUNKS)
+                                            b_targets, (None, chunk - LEFT_CHUNKS)
                                         ),
                                     )
                             if FENCE:
@@ -443,23 +443,23 @@ def build(config):
                         if nt == 0:
                             fx.copy(
                                 copy_16b,
-                                fx.slice(left_operand_source, (None, mt, 0)),
-                                fx.slice(left_r_destination, (None, mt, 0)),
+                                fx.slice(a_operand_source, (None, mt, 0)),
+                                fx.slice(a_r_destination, (None, mt, 0)),
                             )
                         if mt == 0:
                             fx.copy(
                                 copy_16b,
-                                fx.slice(right_operand_source, (None, nt, 0)),
-                                fx.slice(right_r_destination, (None, nt, 0)),
+                                fx.slice(b_operand_source, (None, nt, 0)),
+                                fx.slice(b_r_destination, (None, nt, 0)),
                             )
                         if FENCE:
                             fx.rocdl.sched_barrier(0)
-                        atom_accumulator = fx.slice(accumulator, (None, mt, nt))
+                        atom_accumulator = fx.slice(c_accum, (None, mt, nt))
                         fx.gemm(
                             mma_atom,
                             atom_accumulator,
-                            fx.slice(left_r_tile, (None, mt, 0)),
-                            fx.slice(right_r_tile, (None, nt, 0)),
+                            fx.slice(a_r_tile, (None, mt, 0)),
+                            fx.slice(b_r_tile, (None, nt, 0)),
                             atom_accumulator,
                         )
                         if FENCE:
@@ -506,15 +506,15 @@ def build(config):
         lds_barrier()
 
         def store_output():
-            out_registers = fx.make_rmem_tensor(accumulator.layout, fx.BFloat16)
+            c_registers = fx.make_rmem_tensor(c_accum.layout, fx.BFloat16)
             for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
-                out_registers[slot] = accumulator[slot].to(fx.BFloat16)
+                c_registers[slot] = c_accum[slot].to(fx.BFloat16)
             # Replace stage 04's one-thread output plan with the collective C plan.
             gmem_store_16b = fx.make_copy_atom(fx.rocdl.BufferCopy16b(), fx.BFloat16)
             reg2gmem_copy_plan = fx.make_tiled_copy_C(gmem_store_16b, mma)
             reg2gmem_thread_copy = reg2gmem_copy_plan.get_slice(compute_thread_id)
-            reg2gmem_source = reg2gmem_thread_copy.retile(out_registers)
-            reg2gmem_dest = reg2gmem_thread_copy.partition_D(out_block_view)
+            reg2gmem_source = reg2gmem_thread_copy.retile(c_registers)
+            reg2gmem_dest = reg2gmem_thread_copy.partition_D(c_block_view)
             fx.copy(gmem_store_16b, reg2gmem_source, reg2gmem_dest)
 
         if SPLIT_K == 1:
@@ -527,10 +527,10 @@ def build(config):
                 flat_block_id * SPLIT_K + split_id
             ) * tile_values + thread_offset
             partial_view = fx.make_view(
-                fx.get_iter(partials) + partial_offset, accumulator.layout
+                fx.get_iter(partials) + partial_offset, c_accum.layout
             )
             copy_128b_f32 = fx.make_copy_atom(fx.UniversalCopy128b(), fx.Float32)
-            fx.copy(copy_128b_f32, accumulator, partial_view)
+            fx.copy(copy_128b_f32, c_accum, partial_view)
 
             # One counter per (output tile, thread), shared by its split-K peers.
             # AcqRel publishes this thread's stores and acquires all earlier arrivals.
@@ -549,18 +549,18 @@ def build(config):
             finalizer = scf.IfOp(last_arrival.ir_value(), [], has_else=False)
             with ir.InsertionPoint(finalizer.then_block):
                 # No polling: only the last thread for these output slots reduces.
-                accumulator.fill(0)
-                partial_registers = fx.make_fragment_like(accumulator)
+                c_accum.fill(0)
+                partial_registers = fx.make_fragment_like(c_accum)
                 for part in fx.range_constexpr(SPLIT_K):
                     source_offset = (
                         flat_block_id * SPLIT_K + part
                     ) * tile_values + thread_offset
                     partial_source = fx.make_view(
-                        fx.get_iter(partials) + source_offset, accumulator.layout
+                        fx.get_iter(partials) + source_offset, c_accum.layout
                     )
                     fx.copy(copy_128b_f32, partial_source, partial_registers)
                     for slot in fx.range_constexpr(ACCUMULATOR_VALUES):
-                        accumulator[slot] = accumulator[slot] + partial_registers[slot]
+                        c_accum[slot] = c_accum[slot] + partial_registers[slot]
                 store_output()
                 # Same-stream launches can reuse the workspace without a clear kernel.
                 fx.generic_store(
@@ -573,8 +573,8 @@ def build(config):
 
     @flyc.jit
     def run(
-        left: fx.Tensor,
-        right: fx.Tensor,
+        a: fx.Tensor,
+        b: fx.Tensor,
         out: fx.Tensor,
         partials: fx.Tensor,
         counters: fx.Tensor,
@@ -583,7 +583,7 @@ def build(config):
         k: fx.Constexpr,
         stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
     ):
-        exercise_kernel(left, right, out, partials, counters, m, n, k).launch(
+        exercise_kernel(a, b, out, partials, counters, m, n, k).launch(
             grid=((m // BLOCK_M) * (n // BLOCK_N) * SPLIT_K // WAVE_GROUPS, 1, 1),
             block=(THREADS_PER_BLOCK, 1, 1),
             stream=stream,
@@ -666,12 +666,12 @@ def launch_for(config, shape):
     run = build(config)
     partial_storage, counter_storage = make_workspace(config, shape)
 
-    def launch(left, right, out, stream=None):
+    def launch(a, b, c, stream=None):
         stream_arg = fx.Stream(None) if stream is None else fx.Stream(stream)
         run(
-            left,
-            right,
-            out,
+            a,
+            b,
+            c,
             partial_storage[:-16],
             counter_storage[:-16],
             *shape,
@@ -703,17 +703,17 @@ def check_boundaries(config):
         a = tags.to(torch.bfloat16).expand(m, k).contiguous().cuda()
         b = torch.ones((k, n), dtype=torch.bfloat16, device="cuda")
         storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
-        out = storage[:-16].view(m, n)
-        out.fill_(float("nan"))
+        c = storage[:-16].view(m, n)
+        c.fill_(float("nan"))
         launch = launch_for(config, (m, n, k))
-        launch(a, b, out)
+        launch(a, b, c)
         torch.cuda.synchronize()
         partials = [
             config.block_k * (part + 1) * (2**tiles_per_split - 1)
             for part in range(config.split_k)
         ]
         expected = torch.full((m, n), sum(partials), dtype=torch.bfloat16)
-        torch.testing.assert_close(out.cpu(), expected, rtol=0, atol=0)
+        torch.testing.assert_close(c.cpu(), expected, rtol=0, atol=0)
         if config.split_k > 1:
             actual_partials = (
                 launch.workspace[0][:-16]
@@ -762,16 +762,16 @@ def solve(config=None, shape=SHAPES[1], seed=13):
             b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)
         a, b = a_cpu.cuda(), b_cpu.cuda()
         storage = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
-        out = storage[:-16].view(m, n)
+        c = storage[:-16].view(m, n)
         expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
         for sign in (1, -1, 1):
             # Change inputs and poison output between reuses of the SAME workspace.
             a.copy_(a_cpu * sign)
-            out.fill_(float("nan"))
-            launch(a, b, out)
+            c.fill_(float("nan"))
+            launch(a, b, c)
             torch.cuda.synchronize()
             torch.testing.assert_close(
-                out.cpu(),
+                c.cpu(),
                 expected * sign,
                 rtol=0 if pattern == "trace" else 0.016,
                 atol=0.001 if pattern == "trace" else 0.03125,
@@ -779,7 +779,7 @@ def solve(config=None, shape=SHAPES[1], seed=13):
             assert torch.all(storage[-16:] == -99).item(), "Output sentinel changed"
             check_workspace(launch)
         if pattern == "trace":
-            first_four = out[0, :4].cpu().tolist()
+            first_four = c[0, :4].cpu().tolist()
     return {
         "shape_MNK": shape,
         "config": config.name,

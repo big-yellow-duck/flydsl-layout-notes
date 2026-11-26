@@ -13,7 +13,7 @@ The course begins with small mappings that can be traced by hand, then builds to
 
 Start with layout algebra; lessons 06 and 07 still develop the coordinate and ownership fundamentals. Actual copy plans begin in lesson 08.
 
-Each lesson contains an illustrated walkthrough, a scaffolded `practice.py`, and a commented `solution.py`. Both programs use native FlyDSL APIs inside GPU kernels. There is no Python layout implementation: PyTorch allocates GPU buffers and the host checks the returned results.
+Hands-on lessons pair an illustrated walkthrough with a scaffolded `practice.py` and a commented `solution.py`. Both programs use native FlyDSL APIs inside GPU kernels. PyTorch allocates GPU buffers and the host checks the returned results.
 
 ## How to study each lesson
 
@@ -78,7 +78,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all 40 native programs, including thirteen foundational lessons, four focused divide tutorials, twenty-one BF16 matmul stages, and two quantized matmul lessons.
+Run all 42 native programs, including thirteen foundational lessons, four focused divide tutorials, twenty-one BF16 matmul stages, and four quantized matmul programs.
 
 ```bash
 pixi run lessons-check
@@ -90,7 +90,7 @@ Run the lessons plus the additional examples from the notes:
 pixi run gpu-check
 ```
 
-Lesson 14 adds fused MXFP4 W4A16 and MXFP8 block-scale matmul to `gpu-check`. The kernels decode each quantized tile into BF16 LDS as WMMA consumes it. Both comparisons time Torch's compiled decode and BF16 matmul from the same quantized inputs.
+Lesson 14 adds scalar MXFP4 decode followed by stage 15 BF16 matmul, as well as fused MXFP4 W4A16 and MXFP8 block-scale matmul. The fused kernels decode each quantized tile into BF16 LDS for WMMA. The fused benchmarks time Torch's compiled decode and BF16 matmul from the same quantized inputs.
 
 The GPU check covers padding, aliasing, scalar and nested coordinates, full and subset composition, coalescing (including size-1 and unmergeable cases), every position across all four 2-D divide groupings, and actual loads through sliced 1-D and 2-D tensor views. The selected matrix tile returns values from offsets `20,21,22,23,28,29,30,31`.
 
@@ -104,7 +104,7 @@ On the gfx1151 setup, GPU event durations reported zero, including for a standal
 
 After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions → LDS bank-conflict measurement → interleaved loads and compute → buffer access → separate A/B staging plans → grouped block traversal → parameter tuning → skinny split-K → independent wave tiles → synchronization scope → B cache policy → K-loop unrolling → operand-specific memory paths → edge safety → targeted M/N/K guards → mixed-width edge loads. Stages 00–08 use **M=N=K=1024**; stages 09–12 target three skinny K=8192 workloads. [Stage 13](lessons/01-gpu-programming/13-matmul/13-edge-safety/README.md) adds predicates for arbitrary positive M,N,K, with a tiny trace and measured edge examples. [Stage 14](lessons/01-gpu-programming/13-matmul/14-targeted-guards/README.md) targets the guards that still need coordinate or stage checks and measures their cost against stage 13 and Torch. [Stage 15](lessons/01-gpu-programming/13-matmul/15-edge-load-widths/README.md) keeps wide loads for complete chunks and uses smaller atoms for the suffix. All retain BF16 inputs/output and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. The stages include diagrams, practice programs, commented solutions, and full-output checkers.
 
-Then continue to [14 · Quantized matmul](lessons/01-gpu-programming/14-quantized-matmul/README.md). Trace packed MXFP4 weights first, then block-scaled FP8 values on both operands. Both lessons use the mixed-width staging and split-K schedule from the end of the BF16 sequence.
+Then continue to [14 · Quantized matmul](lessons/01-gpu-programming/14-quantized-matmul/README.md). Read the MXFP4 format, then decode one weight per GPU thread and feed the dense result to stage 15. Fuse the same arithmetic into staging, then replace the magnitude arithmetic with a register lookup. The fused MXFP4 and block-scaled FP8 kernels use the mixed-width staging and split-K schedule from the end of the BF16 sequence.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py

@@ -1,5 +1,53 @@
 # MXFP4 W4A16 results
 
+## LUT-only schedule sweep
+
+The follow-up sweep tested 388 candidates against the LUT defaults from the three-path sweep. On Radeon 8060S `gfx1151` with FlyDSL 0.4.1, 363 candidates passed geometry validation and were timed. The search varied output tiles, wave geometry, A staging, K depth, split-K, grouping, unroll, and cache policies. It tested up to eight K splits for long reductions and refined unroll and B cache policy together on the leading geometries. [Raw candidates, configurations, and replay samples](lut-sweep-gfx1151.json)
+
+Each changed default beat its incumbent on all three held-out seeds using matched packed inputs and paired graph replays. The timings are medians of GPU-event round medians. The graphs check the CPU result, output sentinels, and changed-weight replay.
+
+| M × N × K | Timed candidates | Incumbent µs | Selected µs | Latency reduction |
+| --- | ---: | ---: | ---: | ---: |
+| 16 × 1024 × 8192 | 56 | 30.674 | 29.754 | 3.0% |
+| 32 × 1024 × 8192 | 56 | 42.333 | 42.333 | 0.0% |
+| 16 × 4096 × 8192 | 62 | 84.392 | 84.392 | 0.0% |
+| 17 × 77 × 46 | 34 | 2.516 | 2.516 | 0.0% |
+| 17 × 1046 × 8214 | 58 | 47.692 | 46.913 | 1.6% |
+| 31 × 1025 × 8193 | 48 | 55.046 | 54.835 | 0.4% |
+| 1030 × 1046 × 1022 | 49 | 90.206 | 90.206 | 0.0% |
+
+The three installed changes use a narrower output tile for `16 × 1024 × 8192` and different B cache or traversal settings for the two long odd workloads.
+
+```bash
+pixi run python lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/tune.py \
+  --lut-sweep --output /tmp/mxfp4-lut-sweep.json
+```
+
+## Scalar, fused arithmetic, and fused LUT sweep
+
+All three paths start with BF16 A, packed B, and E8M0 scales. Separate decode writes B to a full BF16 matrix on each call, then stage 15 reads it. Both fused paths publish BF16 B tiles in LDS. Times are GPU-event microseconds per matmul on Radeon 8060S `gfx1151` with the pinned FlyDSL 0.4.1 and ROCm environment. [Raw candidates, configs, and replay samples](lesson-sweep-gfx1151.json)
+
+| M × N × K | Separate µs | Fused arithmetic µs | Fused LUT µs | LUT reduction at matched geometry |
+| --- | ---: | ---: | ---: | ---: |
+| 16 × 1024 × 8192 | 136.326 | 47.479 | 29.997 | 49.8% |
+| 32 × 1024 × 8192 | 140.801 | 55.611 | 36.587 | 56.0% |
+| 16 × 4096 × 8192 | 1021.483 | 140.654 | 83.522 | 40.8% |
+| 17 × 77 × 46 | 4.934 | 2.913 | 2.546 | 13.6% |
+| 17 × 1046 × 8214 | 148.495 | 78.067 | 47.681 | 67.8% |
+| 31 × 1025 × 8193 | 151.939 | 78.751 | 55.944 | 38.8% |
+| 1030 × 1046 × 1022 | 90.785 | 100.194 | 88.974 | 11.4% |
+
+The three timing columns use the best verified settings for each path. The last column compares the LUT with arithmetic decode at the LUT's selected geometry, K schedule, and cache policy. At the large near-square shape, separate decode beat fused arithmetic and came within about 2% of fused LUT.
+
+The sweep considered 398 configurations and timed the 396 that passed geometry validation and the CPU/replay checks. It varied the separate decoder's workgroup size over 32–512 threads and searched the stage 15 matmul schedule independently. For both fused modes it varied K depth, split-K, A staging, wave grouping, K unroll, traversal, and cache policy around the published geometries. Each candidate replayed with changed packed weights and a poisoned output. A new configuration replaced its incumbent only when it won each of three held-out rounds. Each round uses seven shuffled batches, ten graph replays per batch, and 24 matmuls per replay.
+
+The verified scalar pipeline improved on all seven shapes by 0.9–9.6%. Its decoder selected 32 threads on all seven. Fused arithmetic improved on six shapes by 0.3–19.0%, and fused LUT improved on five by 3.7–12.1%. The fused launchers select their schedule by shape. The LUT-only sweep above records the subsequent step 04 defaults. The scalar launcher selects its tuned block size by `(K,N)`, and the tuned stage 15 configurations for the two-launch path are in `selected.separate.config` in the raw data.
+
+```bash
+pixi run python lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/tune.py \
+  --lesson-sweep --output /tmp/mxfp4-lesson-sweep.json
+```
+
 ## Register lookup decode
 
 Two `perm_b32` lookups produce eight doubled E2M1 magnitudes. The fused stage applies the corresponding E8M0 power with `ldexp` and restores the sign from each nibble. The decoder matches the CPU BF16 result for all 4,096 code-and-scale pairs in every slot of an eight-value chunk. [Comparison and raw samples](lookup-decode.json)

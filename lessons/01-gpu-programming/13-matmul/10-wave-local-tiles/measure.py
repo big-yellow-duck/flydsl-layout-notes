@@ -98,9 +98,9 @@ def compare(
         operations = 32
     else:
         a, b, storage, _ = data
-        out = storage[:-16].view(shape[:2])
+        c = storage[:-16].view(shape[:2])
         callbacks = {
-            name: (lambda fn=fn: fn(a, b, out=out)) for name, fn in launches.items()
+            name: (lambda fn=fn: fn(a, b, out=c)) for name, fn in launches.items()
         }
         operations = 1
     for callback in callbacks.values():

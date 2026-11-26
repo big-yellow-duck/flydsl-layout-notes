@@ -60,7 +60,11 @@ def verify(
         callbacks["torch_mxfp8_emulation"] = lambda: torch.matmul(
             *torch_decode(*quantized), out=output
         )
-        bf16 = lesson._MXFP4["_EDGE_LOADS"]["matmul_bf16"]
+        stage_15 = (
+            Path(__file__).resolve().parents[2]
+            / "13-matmul/15-edge-load-widths/solution.py"
+        )
+        bf16 = runpy.run_path(str(stage_15))["matmul_bf16"]
         callbacks["lesson_15_bf16"] = lambda: bf16(a, b, out=output)
 
     graphs = {

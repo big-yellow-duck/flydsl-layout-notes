@@ -186,10 +186,16 @@ def public_api_checks():
                 b = b.T.contiguous().T
             args = (a, b)
             reference = (a_cpu.float() @ b_cpu.float()).bfloat16()
+        elif operation == "dequantize_mxfp4":
+            # K=1, N=3. The unused high nibble of the second byte is nonzero.
+            packed = torch.tensor([0x31, 0xF9], dtype=torch.uint8, device="cuda")
+            scales = torch.tensor([[128, 127, 126]], dtype=torch.uint8, device="cuda")
+            args = (packed, scales, 1)
+            reference = torch.tensor([[1.0, 1.5, -0.25]], dtype=torch.bfloat16)
         elif operation == "matmul_mxfp4_w4a16":
             shape = (32, 1024, 8192)
             m, n, k = shape
-            kwargs["config"] = module["CONFIGS_BY_SHAPE"][shape]
+            kwargs["config"] = module["default_config"](shape)
             a_cpu = ((torch.arange(m * k).reshape(m, k) % 5) - 2).bfloat16()
             b_cpu = ((torch.arange(k * n).reshape(k, n) % 7) - 3).bfloat16()
             packed_cpu, scales_cpu, dense_cpu = module["quantize_mxfp4"](b_cpu)
@@ -222,13 +228,13 @@ def public_api_checks():
         else:
             args, reference = (), None
         result = launch(*args, **kwargs)
-        out = torch.full_like(result, -99)
-        assert launch(*args, out=out, **kwargs) is out, path
+        c = torch.full_like(result, -99)
+        assert launch(*args, out=c, **kwargs) is c, path
         torch.cuda.synchronize()
-        torch.testing.assert_close(result, out, rtol=0, atol=0)
+        torch.testing.assert_close(result, c, rtol=0, atol=0)
         if reference is not None:
             torch.testing.assert_close(result.cpu(), reference, rtol=0, atol=0.001)
-        wrong = torch.empty_like(out, dtype=torch.float64)
+        wrong = torch.empty_like(c, dtype=torch.float64)
         try:
             launch(*args, out=wrong, **kwargs)
         except (TypeError, ValueError):

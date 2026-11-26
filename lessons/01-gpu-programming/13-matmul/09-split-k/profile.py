@@ -116,17 +116,17 @@ def worker(args):
             )
         )
     a, b, storage, _ = data
-    out = storage[:-16].view(shape[0], shape[1])
+    c = storage[:-16].view(shape[0], shape[1])
     for _ in range(20):
         for launch in launches.values():
-            launch(a, b, out=out)
+            launch(a, b, out=c)
     torch.cuda.synchronize()
     sequence = []
     profiling_control(True)
     for pair in range(args.pairs):
         order = ("native", "torch") if pair % 2 == 0 else ("torch", "native")
         for name in order:
-            launches[name](a, b, out=out)
+            launches[name](a, b, out=c)
             torch.cuda.synchronize()
             sequence.append(name)
     profiling_control(False)

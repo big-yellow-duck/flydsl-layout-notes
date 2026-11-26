@@ -49,7 +49,7 @@ def _measure(callback, *, batches, replays, graph_gemms, seed):
 
 
 def run(shape, *, batches=7, replays=20, graph_gemms=8):
-    module = runpy.run_path(str(LESSON / "solution.py"))
+    module = runpy.run_path(str(LESSON / "04-lut-decode/solution.py"))
     fused = runpy.run_path(
         str(Path(__file__).resolve().with_name("fused_matmul.py"))
     )
@@ -61,15 +61,15 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
     generator = torch.Generator().manual_seed(seed)
     a_cpu = torch.randn((m, k), generator=generator).to(torch.bfloat16)
     b_cpu = torch.randn((k, n), generator=generator).to(torch.bfloat16)
-    packed_cpu, scales_cpu, dense_cpu = module["quantize_mxfp4"](b_cpu)
+    b_packed_cpu, b_scales_cpu, b_bf16_cpu = module["quantize_mxfp4"](b_cpu)
     a = a_cpu.cuda()
-    packed = packed_cpu.cuda()
-    scales = scales_cpu.cuda()
-    expected_dense = dense_cpu.cuda()
+    b_packed = b_packed_cpu.cuda()
+    b_scales = b_scales_cpu.cuda()
+    expected_dense = b_bf16_cpu.cuda()
     dense_baseline = torch.empty_like(expected_dense)
     dense_direct = torch.empty_like(expected_dense)
     output = torch.empty((m, n), dtype=torch.bfloat16, device="cuda")
-    expected = a_cpu.float() @ dense_cpu.float()
+    expected = a_cpu.float() @ b_bf16_cpu.float()
 
     if FUSED_TUNING.exists():
         records = json.loads(FUSED_TUNING.read_text())["shapes"]
@@ -85,8 +85,8 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
 
     def baseline_unpack():
         module["_launch_matmul_mxfp4_w4a16"](
-            packed.view(torch.int32),
-            scales.view(torch.int64),
+            b_packed.view(torch.int32),
+            b_scales.view(torch.int64),
             dense_baseline,
             k,
             n,
@@ -96,18 +96,18 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
 
     def direct_unpack():
         launch_direct_unpack(
-            packed.view(torch.int32),
-            scales.view(torch.int64),
+            b_packed.view(torch.int32),
+            b_scales.view(torch.int64),
             dense_direct,
             k,
             n,
             stream=module["fx"].Stream(torch.cuda.current_stream()),
         )
 
-    def matmul(right):
+    def matmul(b):
         operand_paths["matmul_bf16"](
             a,
-            right.view(k, n),
+            b.view(k, n),
             out=output,
             config=config,
             stream=torch.cuda.current_stream(),
@@ -126,7 +126,7 @@ def run(shape, *, batches=7, replays=20, graph_gemms=8):
 
     def fused_pipeline():
         fused["matmul_mxfp4_fused"](
-            a, packed, scales, out=output, config=fused["Config"].from_dict(config.__dict__)
+            a, b_packed, b_scales, out=output, config=fused["Config"].from_dict(config.__dict__)
         )
 
     baseline_unpack()

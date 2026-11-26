@@ -1,6 +1,6 @@
 # 14.2 · Fuse block-scaled FP8 matmul
 
-Give both A and B E4M3FN values and E8M0 block scales. A scale follows one row along K. B's scale follows one column along K. The kernel loads the two compact operands, decodes each tile into BF16 LDS, and accumulates the product in FP32 with the same gfx11 WMMA path as [MXFP4 W4A16](../01-mxfp4-w4a16/README.md). Both input tensors remain compact in global memory.
+Give both A and B E4M3FN values and E8M0 block scales. A scale follows one row along K. B's scale follows one column along K. The kernel loads the two compact operands, decodes each tile into BF16 LDS, and accumulates the product in FP32 with the same gfx11 WMMA path as [fused MXFP4 W4A16](../01-mxfp4-w4a16/04-lut-decode/README.md). Both input tensors remain compact in global memory.
 
 ## Trace one pair of scales
 
@@ -15,9 +15,9 @@ Follow `K=44` for `C[16,76]`. Both operands use MX block `44 // 32 = 1`. A's dat
 A lane owns eight neighboring K bytes from one row. It shares one A scale across those values because each chunk starts at a multiple of eight. A B lane owns eight neighboring N bytes in one K row. It has a separate scale for each column and reuses the scale word for rows in the same MX block. Separate byte offsets keep the two lookups independent.
 
 ```python
-left_scale_offset = row * SCALE_ROWS + column // MX_BLOCK_K
-right_scale_row = right_k // MX_BLOCK_K
-right_scale_offset = right_scale_row * n + global_n_col
+a_scale_offset = row * SCALE_ROWS + column // MX_BLOCK_K
+b_scale_row = b_k // MX_BLOCK_K
+b_scale_offset = b_scale_row * n + global_n_col
 ```
 
 Complete chunks use eight-byte reads. The last A K chunk uses smaller reads and zeros missing K slots before WMMA. B data and scale loads use the wide word while their physical buffer has room for it. Each allocation narrows its final partial word as needed. The C-store predicate from [lesson 15](../../13-matmul/15-edge-load-widths/README.md) masks extra output columns. After prefetch, each lane converts its E4M3FN values to BF16 with its E8M0 scale. Eight BF16 values become one 128-bit LDS store. WMMA consumes one K=16 slice of each tile while the next stage is prefetched.
@@ -28,8 +28,8 @@ The decoder maps E4M3 normals into FP16 bits with an exponent bias adjustment. F
 
 Fill two expressions in [practice.py](practice.py).
 
-1. `scale_offset` in `load_left_stage` locates the one A scale shared by the lane's eight K values.
-2. `scale_row` in `load_right_stage` locates the B scale row for the first K value assigned to that scale slot.
+1. `scale_offset` in `load_a_stage` locates the one A scale shared by the lane's eight K values.
+2. `scale_row` in `load_b_stage` locates the B scale row for the first K value assigned to that scale slot.
 
 The first four outputs are **`[-1.1796875, 4.53125, 9.625, 5.09375]`** and `C[16,76]` rounds to `2.40625`. The checker decodes the byte tensors on the CPU with PyTorch's E4M3FN type and verifies every output and the split-K sentinels. `--edge-checks` adds all seven suffix widths, short rows, poisoned padding, and NaN cases. [Worked solution](solution.py)
 
@@ -53,4 +53,4 @@ A reads along K within one output row and a single 32-element MX block. B reads 
 
 </details>
 
-[Previous · Fused MXFP4 W4A16](../01-mxfp4-w4a16/README.md) · [Quantized matmul](../README.md) · [Course overview](../../../../README.md)
+[Previous · Fused MXFP4 W4A16](../01-mxfp4-w4a16/04-lut-decode/README.md) · [Quantized matmul](../README.md) · [Course overview](../../../../README.md)

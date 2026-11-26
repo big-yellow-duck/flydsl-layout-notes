@@ -73,25 +73,25 @@ def comparison(
     generator = torch.Generator().manual_seed(13)
     a_cpu = torch.randn(m, k, generator=generator).to(torch.bfloat16)
     b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)
-    left, right = a_cpu.cuda(), b_cpu.cuda()
+    a, b = a_cpu.cuda(), b_cpu.cuda()
     if right_layout == "column-major":
-        right = right.t().contiguous().t()
+        b = b.t().contiguous().t()
     elif right_layout != "row-major":
         raise ValueError(f"Unknown B layout: {right_layout}")
     expected_stride = (1, k) if right_layout == "column-major" else (n, 1)
-    assert right.stride() == expected_stride
-    out = torch.empty((m, n), dtype=torch.bfloat16, device="cuda")
+    assert b.stride() == expected_stride
+    c = torch.empty((m, n), dtype=torch.bfloat16, device="cuda")
     expected = (a_cpu.float() @ b_cpu.float()).to(torch.bfloat16)
     launches = {
-        name: partial(kernel, left, right, out=out)
+        name: partial(kernel, a, b, out=c)
         for name, kernel in kernel_map.items()
     }
-    launches["torch.matmul"] = partial(torch.matmul, left, right, out=out)
+    launches["torch.matmul"] = partial(torch.matmul, a, b, out=c)
     for launch in launches.values():
-        out.fill_(float("nan"))
+        c.fill_(float("nan"))
         launch()
         torch.cuda.synchronize()
-        torch.testing.assert_close(out.cpu(), expected, rtol=0.016, atol=0.03125)
+        torch.testing.assert_close(c.cpu(), expected, rtol=0.016, atol=0.03125)
     method = "gpu-event" if timing == "auto" else timing
     times = {
         name: measure(launch, method, repeats) for name, launch in launches.items()
@@ -120,7 +120,7 @@ def comparison(
         "repeats": repeats,
         "shape_MNK": [m, n, k],
         "right_layout": right_layout,
-        "right_stride": list(right.stride()),
+        "right_stride": list(b.stride()),
         "packing": "input packing excluded from timing",
         "timing_note": "host includes dispatch and synchronization"
         if method == "host"
@@ -132,7 +132,7 @@ def comparison(
             "kernel": name,
             "shape_MNK": [m, n, k],
             "right_layout": right_layout,
-            "right_stride": list(right.stride()),
+            "right_stride": list(b.stride()),
             "ms": milliseconds,
             "effective_TFLOP_s": 2 * m * n * k / (milliseconds * 1e9)
             if milliseconds is not None

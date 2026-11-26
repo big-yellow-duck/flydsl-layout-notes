@@ -53,9 +53,9 @@ def measure(launches, data, shape, timing, seed, batches, repeats, graph_gemms=3
         }
     else:
         a, b, storage, _ = data
-        out = storage[:-16].view(shape[0], shape[1])
+        c = storage[:-16].view(shape[0], shape[1])
         replay = {
-            name: partial(launch, a, b, out=out) for name, launch in launches.items()
+            name: partial(launch, a, b, out=c) for name, launch in launches.items()
         }
         operations = dict.fromkeys(launches, 1)
     for launch in replay.values():

@@ -9,34 +9,34 @@ BLOCK_THREADS = 256
 
 @flyc.kernel
 def _unpack_direct_bits(
-    packed_weights: fx.Tensor,
-    scales: fx.Tensor,
-    dense_weights: fx.Tensor,
+    b_packed: fx.Tensor,
+    b_scales: fx.Tensor,
+    b: fx.Tensor,
     K: fx.Constexpr,
     N: fx.Constexpr,
 ):
     """Unpack E2M1 nibbles and build scaled BF16 bits without an FP8 mapping."""
     element_count = K * N
-    packed_count = element_count // 2
-    packed_words = fx.make_view(
-        fx.recast_iter(fx.Uint32, fx.get_iter(packed_weights)),
-        fx.make_layout(packed_count // 4, 1),
+    b_packed_count = element_count // 2
+    b_packed_words = fx.make_view(
+        fx.recast_iter(fx.Uint32, fx.get_iter(b_packed)),
+        fx.make_layout(b_packed_count // 4, 1),
     )
-    packed_words = fx.rocdl.make_buffer_tensor(
-        packed_words, num_records_bytes=packed_count
+    b_packed_words = fx.rocdl.make_buffer_tensor(
+        b_packed_words, num_records_bytes=b_packed_count
     )
-    scale_words = fx.make_view(
-        fx.recast_iter(fx.Uint64, fx.get_iter(scales)),
+    b_scale_words = fx.make_view(
+        fx.recast_iter(fx.Uint64, fx.get_iter(b_scales)),
         fx.make_layout((K // 32) * (N // 8), 1),
     )
-    scale_words = fx.rocdl.make_buffer_tensor(
-        scale_words, num_records_bytes=(K // 32) * N
+    b_scale_words = fx.rocdl.make_buffer_tensor(
+        b_scale_words, num_records_bytes=(K // 32) * N
     )
 
     word_id = fx.block_idx.x * BLOCK_THREADS + fx.thread_idx.x
-    packed_word = fx.Uint32(fx.get_scalar(packed_words[word_id]))
-    even_nibbles = packed_word & 0x0F0F0F0F
-    odd_nibbles = packed_word.shrui(fx.Uint32(4)) & 0x0F0F0F0F
+    b_packed_word = fx.Uint32(fx.get_scalar(b_packed_words[word_id]))
+    even_nibbles = b_packed_word & 0x0F0F0F0F
+    odd_nibbles = b_packed_word.shrui(fx.Uint32(4)) & 0x0F0F0F0F
     code_words = Vec.from_elements(
         [
             fx.Uint32(
@@ -58,18 +58,18 @@ def _unpack_direct_bits(
     first_index = word_id * 8
     row = first_index // N
     col = first_index % N
-    scale_id = (row // 32) * (N // 8) + col // 8
-    scale_word = fx.Uint64(fx.get_scalar(scale_words[scale_id]))
+    b_scale_id = (row // 32) * (N // 8) + col // 8
+    b_scale_word = fx.Uint64(fx.get_scalar(b_scale_words[b_scale_id]))
     output = fx.make_rmem_tensor(8, fx.BFloat16)
     for value_id in fx.range_constexpr(8):
         code = fx.Uint32(codes[value_id])
         magnitude = code & 7
-        scale_byte = (
-            (scale_word >> fx.Uint64(value_id * 8)) & fx.Uint64(255)
+        b_scale_byte = (
+            (b_scale_word >> fx.Uint64(value_id * 8)) & fx.Uint64(255)
         ).to(fx.Int32)
 
         # E2M1 exponents relative to its normalized significand are -1,0,1,2.
-        exponent = scale_byte + (magnitude >> 1).to(fx.Int32) - 1
+        exponent = b_scale_byte + (magnitude >> 1).to(fx.Int32) - 1
         is_zero = magnitude == 0
         is_subnormal = exponent <= 0
         is_overflow = exponent >= 255
@@ -90,7 +90,7 @@ def _unpack_direct_bits(
         output[value_id] = bf16_bits.bitcast(fx.BFloat16)
 
     output_view = fx.make_view(
-        fx.get_iter(dense_weights) + first_index, fx.make_layout(8, 1)
+        fx.get_iter(b) + first_index, fx.make_layout(8, 1)
     )
     fx.copy(
         fx.make_copy_atom(fx.UniversalCopy128b(), fx.BFloat16), output, output_view
@@ -99,14 +99,14 @@ def _unpack_direct_bits(
 
 @flyc.jit
 def launch_direct_unpack(
-    packed_weights: fx.Tensor,
-    scales: fx.Tensor,
-    dense_weights: fx.Tensor,
+    b_packed: fx.Tensor,
+    b_scales: fx.Tensor,
+    b: fx.Tensor,
     K: fx.Constexpr,
     N: fx.Constexpr,
     stream: fx.Stream = fx.Stream(None),  # noqa: B008 -- native stream default
 ):
-    _unpack_direct_bits(packed_weights, scales, dense_weights, K, N).launch(
+    _unpack_direct_bits(b_packed, b_scales, b, K, N).launch(
         grid=((K * N // 8) // BLOCK_THREADS, 1, 1),
         block=(BLOCK_THREADS, 1, 1),
         stream=stream,

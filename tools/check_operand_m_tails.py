@@ -55,16 +55,16 @@ def main():
             c_storage = torch.full(
                 ((padded_m + 16) * n,), -99, dtype=torch.bfloat16, device="cuda"
             )
-            out = c_storage[: m * n].view(m, n)
+            c = c_storage[: m * n].view(m, n)
             expected = (torch.arange(1, m + 1)[:, None].expand(m, n) * k).to(
                 torch.bfloat16
             )
             for sign in (1, -1, 1):
                 b.fill_(sign)
-                out.fill_(float("nan"))
-                module["matmul_bf16"](a, b, out=out, config=config)
+                c.fill_(float("nan"))
+                module["matmul_bf16"](a, b, out=c, config=config)
                 torch.cuda.synchronize()
-                torch.testing.assert_close(out.cpu(), expected * sign, rtol=0, atol=0)
+                torch.testing.assert_close(c.cpu(), expected * sign, rtol=0, atol=0)
                 assert torch.all(c_storage[m * n :] == -99).item()
                 assert torch.all(a_storage[m * k :] == 77).item()
             record["tails"].append({"m": m, "config": config.name, "reuses": 3})

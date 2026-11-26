@@ -32,7 +32,7 @@ The overall strategy is the same as 07c: grouped output-block traversal, buffer 
 | Group M | 2 | 8 |
 | LDS bytes per block | 17408 | 18432 |
 
-Changing M/N increases output reuse and accumulator storage; changing K adjusts staging granularity. Wave arrangement redistributes the repeated output tiles, and group size adjusts cache locality. Copy ownership and padded LDS strides follow those dimensions. The `matmul_bf16(left, right, config=...)` launcher, shape selection, optional launch stream, and tuning/profiling tools support these experiments; they do not introduce another compute pipeline.
+Changing M/N increases output reuse and accumulator storage; changing K adjusts staging granularity. Wave arrangement redistributes the repeated output tiles, and group size adjusts cache locality. Copy ownership and padded LDS strides follow those dimensions. The `matmul_bf16(a, b, config=...)` launcher, shape selection, optional launch stream, and tuning/profiling tools support these experiments; they do not introduce another compute pipeline.
 
 ## Watch the full strategy
 
@@ -121,17 +121,17 @@ current K tile    → LDS → 16-wide operand registers → WMMA → accumulator
 
 Trace stage 0. First, copy K=0–15 from LDS into operand registers and update the accumulator. Then reuse those registers for K=16–31 and update the same accumulator again. The prefetched next global tile waits in separate staging registers until the LDS handoff.
 
-The solution allocates MMA operand fragments for K=16 and slices each LDS stage into matching subviews. As in 07c, `left_lds_tiled` and `right_lds_transposed_tiled` name those tiled views. The helpers `gmem2reg_load_tile`, `reg2lds_copy_tile`, and `compute_lds` handle global prefetch, LDS publication, and compute respectively. This API fragment shows the compute step:
+The solution allocates MMA operand fragments for K=16 and slices each LDS stage into matching subviews. As in 07c, `a_lds_tiled` and `b_lds_transposed_tiled` name those tiled views. The helpers `gmem2reg_load_tile`, `reg2lds_copy_tile`, and `compute_lds` handle global prefetch, LDS publication, and compute respectively. This API fragment shows the compute step:
 
 ```python
 for inner_k in fx.range_constexpr(BLOCK_K // MMA_K):
-    left_mma_view = fx.slice(left_lds_tiled, (None, None, 0, inner_k))
-    right_mma_view = fx.slice(right_lds_transposed_tiled, (None, None, 0, inner_k))
-    left_r_source = left_lds2reg_thread_copy.partition_S(left_mma_view)
-    right_r_source = right_lds2reg_thread_copy.partition_S(right_mma_view)
-    fx.copy(copy_16b, left_r_source, left_r_destination)
-    fx.copy(copy_16b, right_r_source, right_r_destination)
-    fx.gemm(mma_atom, accumulator, left_r_tile, right_r_tile, accumulator)
+    a_mma_view = fx.slice(a_lds_tiled, (None, None, 0, inner_k))
+    b_mma_view = fx.slice(b_lds_transposed_tiled, (None, None, 0, inner_k))
+    a_r_source = a_lds2reg_thread_copy.partition_S(a_mma_view)
+    b_r_source = b_lds2reg_thread_copy.partition_S(b_mma_view)
+    fx.copy(copy_16b, a_r_source, a_r_destination)
+    fx.copy(copy_16b, b_r_source, b_r_destination)
+    fx.gemm(mma_atom, c_accum, a_r_tile, b_r_tile, c_accum)
 ```
 
 A 32-wide LDS stage amortizes global staging and barriers across two WMMA K updates. Smaller operand fragments limit the register storage needed for each update while all 128 output accumulators remain live.
@@ -141,10 +141,10 @@ A 32-wide LDS stage amortizes global staging and barriers across two WMMA K upda
 Each staging chunk contains eight BF16 values, or 128 bits. A is contiguous along K; B is contiguous along N. Their thread layouts therefore use different extents:
 
 ```python
-left_staging_thread_layout = fx.make_ordered_layout(
+a_staging_thread_layout = fx.make_ordered_layout(
     (THREADS_PER_BLOCK // (BLOCK_K // 8), BLOCK_K // 8), (1, 0)
 )
-right_staging_thread_layout = fx.make_ordered_layout(
+b_staging_thread_layout = fx.make_ordered_layout(
     (THREADS_PER_BLOCK // (BLOCK_N // 8), BLOCK_N // 8), (1, 0)
 )
 staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
@@ -282,7 +282,7 @@ pixi run python lessons/01-gpu-programming/13-matmul/08-parameter-tuning/tune.py
 
 ## Practice and run commands
 
-[practice.py](practice.py) supplies the selected family. TODO 1 derives `right_staging_thread_layout` from N's extent. TODO 2 derives `ACCUMULATOR_VALUES` inside the kernel from `accumulator.shape`, using `fx.size(accumulator.shape).to_py_value()`. This gives the conversion loop its compile-time bound directly from the fragment. Compare with the [worked solution](solution.py).
+[practice.py](practice.py) supplies the selected family. TODO 1 derives `b_staging_thread_layout` from N's extent. TODO 2 derives `ACCUMULATOR_VALUES` inside the kernel from `c_accum.shape`, using `fx.size(c_accum.shape).to_py_value()`. This gives the conversion loop its compile-time bound directly from the fragment. Compare with the [worked solution](solution.py).
 
 Run from the repository root:
 

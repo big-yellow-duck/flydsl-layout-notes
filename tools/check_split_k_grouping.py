@@ -113,7 +113,7 @@ def check(module, config):
     counters = torch.zeros(counter_count + 16, dtype=torch.int32, device="cuda")
     counters[-16:] = -123
     output = torch.full((m * n + 16,), -99, dtype=torch.bfloat16, device="cuda")
-    out = output[:-16].view(m, n)
+    c = output[:-16].view(m, n)
     generator = torch.Generator().manual_seed(20261112)
     a_cpu = torch.randn(m, k, generator=generator).to(torch.bfloat16)
     b_cpu = torch.randn(k, n, generator=generator).to(torch.bfloat16)
@@ -141,11 +141,11 @@ def check(module, config):
     assert len(set(map(tuple, expected[:, :3].tolist()))) == logical_blocks
     for sign in (1, -1, 1):
         a.copy_(a_cpu * sign)
-        out.fill_(float("nan"))
-        run(a, b, out, partials, counters[:-16], *shape, **tuning)
+        c.fill_(float("nan"))
+        run(a, b, c, partials, counters[:-16], *shape, **tuning)
         torch.cuda.synchronize()
         torch.testing.assert_close(
-            out.cpu(), reference * sign, rtol=0.016, atol=0.03125
+            c.cpu(), reference * sign, rtol=0.016, atol=0.03125
         )
         actual = partials[partial_count:].view(logical_blocks, 4).cpu()
         torch.testing.assert_close(actual, expected, rtol=0, atol=0)

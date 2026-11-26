@@ -50,9 +50,9 @@ The [solution](solution.py) retains `gmem2reg_load_tile`, `reg2lds_copy_tile`, a
 Inside `reg2lds_copy_tile(stage)`, advance the pointer by one **whole padded slot**, then retain its within-slot layout:
 
 ```python
-left_destination_ptr = left_lds_base + stage * LEFT_STAGE_VALUES
-left_destination = fx.make_view(
-    left_destination_ptr, left_loader_lds_view.layout
+a_destination_ptr = a_lds_base + stage * LEFT_STAGE_VALUES
+a_destination = fx.make_view(
+    a_destination_ptr, a_loader_lds_view.layout
 )
 ```
 
@@ -141,7 +141,7 @@ Compared with retuned prefetch at the same tile/wave/split/cache geometry, the p
 [practice.py](practice.py) supplies both protocols, input views, copy plans, finalization, launch, and checker. Fill two expressions in this order:
 
 1. `compute_thread_id`: translate the physical ID into the compute domain.
-2. `left_destination_ptr`: select the padded A slot in `reg2lds_copy_tile`.
+2. `a_destination_ptr`: select the padded A slot in `reg2lds_copy_tile`.
 
 Both protocols execute these expressions. The default checkpoint is **`[7,4,1,-2]`**, the first four completed BF16 outputs in row 0 for the full-size trace input. The wide selector has checkpoint `[8,5,2,-1]`.
 

@@ -21,10 +21,10 @@ Read the green A/B cells first. For trace inputs `A[i]=(i%5)-2` and `B[i]=(i%7)-
 The solution describes the actual matrix dimensions and divides those views directly:
 
 ```python
-left_global_view = fx.make_view(
-    fx.get_iter(left_buffer), fx.make_layout((M, K), (K, 1))
+a_global_view = fx.make_view(
+    fx.get_iter(a_buffer), fx.make_layout((M, K), (K, 1))
 )
-left_block_tiles = fx.flat_divide(left_global_view, (BLOCK_M, STAGE_K))
+a_block_tiles = fx.flat_divide(a_global_view, (BLOCK_M, STAGE_K))
 ```
 
 `flat_divide` provides full-sized windows covering the domain, including the edge windows. It does not allocate data or guard accesses. Output tile counts come from the divided view's rest modes. The launch uses `fx.ceildiv(m, BLOCK_M)` and `fx.ceildiv(n, BLOCK_N)` to include partial output tiles in the grid.
@@ -38,20 +38,20 @@ Split-K workspace follows the launch grid. Each physical block can contain sever
 An identity layout maps a coordinate to the same coordinate tuple. Its view is index-only:
 
 ```python
-left_coordinates = fx.make_view(
+a_coordinates = fx.make_view(
     fx.make_int_tuple((0, 0)), fx.make_identity_layout((M, K))
 )
-left_coordinate_tiles = fx.flat_divide(left_coordinates, (BLOCK_M, STAGE_K))
+a_coordinate_tiles = fx.flat_divide(a_coordinates, (BLOCK_M, STAGE_K))
 ```
 
 Select the same block and group from data and coordinate views. Then apply the same thread-copy plan to both:
 
 ```python
-left_global_source = left_global_thread_copy.partition_S(left_group_view)
-left_thread_coordinates = left_global_thread_copy.partition_S(left_group_coordinates)
+a_global_source = a_global_thread_copy.partition_S(a_group_view)
+a_thread_coordinates = a_global_thread_copy.partition_S(a_group_coordinates)
 ```
 
-The coordinate partition describes exactly the positions owned by that thread’s A copy. With direct A, `left_global_thread_copy` comes from `make_tiled_copy_A`, which loads each lane’s WMMA values. With LDS staging, it follows the cooperative K-chunk plan. B follows its cooperative N-chunk plan, and C follows the WMMA C store plan.
+The coordinate partition describes exactly the positions owned by that thread’s A copy. With direct A, `a_global_thread_copy` comes from `make_tiled_copy_A`, which loads each lane’s WMMA values. With LDS staging, it follows the cooperative K-chunk plan. B follows its cooperative N-chunk plan, and C follows the WMMA C store plan.
 
 For a copy atom transferring `width` adjacent BF16 values, the helper derives:
 
@@ -70,11 +70,11 @@ FlyDSL 0.4.1 expects **one scalar boolean per copy atom**. For a partition with 
 A false load predicate preserves the old destination. Clear the destination fragment before every masked load, including prefetched stages:
 
 ```python
-left_global_destination.fill(0)
+a_global_destination.fill(0)
 # Predicated loads replace only valid positions in this zeroed fragment.
 ```
 
-Each global-load path clears its retiled destination before calling the helper. From there, the copy setup follows [operand paths](../12-operand-paths/README.md#advance-a-privately-while-protecting-b): staging copies for A and B, then the one-step MMA copies for A and B. With direct A, `publish_stage()` moves the full prefetched fragment into `left_compute_fragment`. `compute_stage()` selects `inner_k` and copies that chunk into `left_r_tile` within each lane. With LDS staging, the MMA copy plans read each lane’s current chunk from LDS.
+Each global-load path clears its retiled destination before calling the helper. From there, the copy setup follows [operand paths](../12-operand-paths/README.md#advance-a-privately-while-protecting-b): staging copies for A and B, then the one-step MMA copies for A and B. With direct A, `publish_stage()` moves the full prefetched fragment into `a_compute_fragment`. `compute_stage()` selects `inner_k` and copies that chunk into `a_r_tile` within each lane. With LDS staging, the MMA copy plans read each lane’s current chunk from LDS.
 
 A false C predicate skips the store. Split-K partials retain full FP32 tiles so every participant still publishes its slots and resets its arrival counters.
 

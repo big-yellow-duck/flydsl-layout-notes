@@ -11,11 +11,11 @@ Follow the global-to-register boundary first. The buffer representation changes 
 The [solution](solution.py) creates buffer-backed views:
 
 ```python
-left_buffer = fx.rocdl.make_buffer_tensor(left)
-right_buffer = fx.rocdl.make_buffer_tensor(right)
-out_buffer = fx.rocdl.make_buffer_tensor(out)
-left_global_view = fx.make_view(
-    fx.get_iter(left_buffer), fx.make_layout((m, k), (k, 1))
+a_buffer = fx.rocdl.make_buffer_tensor(a)
+b_buffer = fx.rocdl.make_buffer_tensor(b)
+c_buffer = fx.rocdl.make_buffer_tensor(c)
+a_global_view = fx.make_view(
+    fx.get_iter(a_buffer), fx.make_layout((m, k), (k, 1))
 )
 ```
 
@@ -45,12 +45,12 @@ Ownership is supplied by the existing copy plan; the equal-width buffer atom sel
 
 ```python
 # Inside gmem2reg_load_tile: buffer global -> private staging registers.
-fx.copy(gmem_load_128b, left_global_source, left_staging_fragment)
-fx.copy(gmem_load_128b, right_global_source, right_staging_fragment)
+fx.copy(gmem_load_128b, a_global_source, a_staging_fragment)
+fx.copy(gmem_load_128b, b_global_source, b_staging_fragment)
 
 # Inside reg2lds_copy_tile: ordinary staging registers -> LDS.
-fx.copy(copy_128b, left_staging_fragment, left_lds_destination)
-fx.copy(copy_128b, right_staging_fragment, right_lds_destination)
+fx.copy(copy_128b, a_staging_fragment, a_lds_destination)
+fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
 fx.barrier()
 ```
 
@@ -71,7 +71,7 @@ All 32 BF16 output slots per thread are stored. The prologue, four K=16 steps in
 
 Fill two expressions in [practice.py](practice.py):
 
-1. `left_buffer`: wrap A like the supplied B/C resources.
+1. `a_buffer`: wrap A like the supplied B/C resources.
 2. `gmem_load_128b`: construct the BF16 buffer global-load atom.
 
 The shared staging plan, output atom, LDS mapping, compute, prefetch schedule, and checker are supplied. Compare with the [solution](solution.py).

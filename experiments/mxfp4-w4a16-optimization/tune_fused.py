@@ -67,15 +67,15 @@ def _configs(module, shape, base):
 
 
 def tune_shape(shape, *, batches, replays, graph_gemms):
-    lesson = runpy.run_path(str(LESSON / "solution.py"))
+    lesson = runpy.run_path(str(LESSON / "04-lut-decode/solution.py"))
     fused = runpy.run_path(str(FUSED))
     m, n, k = shape
     generator = torch.Generator().manual_seed(13)
     a_cpu = torch.randn((m, k), generator=generator).to(torch.bfloat16)
     b_cpu = torch.randn((k, n), generator=generator).to(torch.bfloat16)
-    packed_cpu, scales_cpu, dense_cpu = lesson["quantize_mxfp4"](b_cpu)
-    a, packed, scales = a_cpu.cuda(), packed_cpu.cuda(), scales_cpu.cuda()
-    expected = a_cpu.float() @ dense_cpu.float()
+    b_packed_cpu, b_scales_cpu, b_bf16_cpu = lesson["quantize_mxfp4"](b_cpu)
+    a, b_packed, b_scales = a_cpu.cuda(), b_packed_cpu.cuda(), b_scales_cpu.cuda()
+    expected = a_cpu.float() @ b_bf16_cpu.float()
     output = torch.empty((m, n), dtype=torch.bfloat16, device="cuda")
     old = json.loads(RESULTS.read_text())
     row = next(item for item in old["shapes"] if tuple(item["shape_MNK"]) == shape)
@@ -86,8 +86,8 @@ def tune_shape(shape, *, batches, replays, graph_gemms):
         def callback(candidate=config):
             fused["matmul_mxfp4_fused"](
                 a,
-                packed,
-                scales,
+                b_packed,
+                b_scales,
                 out=output,
                 config=fused["Config"](**candidate.__dict__),
             )

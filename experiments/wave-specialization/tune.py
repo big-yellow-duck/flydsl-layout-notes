@@ -87,9 +87,9 @@ def measure(launches, data, batches=3, repeats=3, order_seed=0, timing="graph-ho
     else:
         a, b, storage, _ = data
         m, n, _ = CONTEXT["SHAPE"]
-        out = storage[:-16].view(m, n)
+        c = storage[:-16].view(m, n)
         callbacks = {
-            name: (lambda launch=launch: launch(a, b, out))
+            name: (lambda launch=launch: launch(a, b, c))
             for name, launch in launches.items()
         }
         operations = 1

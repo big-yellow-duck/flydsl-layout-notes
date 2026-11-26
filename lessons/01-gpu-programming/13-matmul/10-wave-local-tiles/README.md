@@ -70,15 +70,15 @@ group's **16×64** view. These expressions describe addresses without loading
 or copying values:
 
 ```python
-out_block_tiles = fx.flat_divide(out_global_view, (BLOCK_M, BLOCK_N))
-out_block_view = fx.slice(out_block_tiles, (None, None, block_row, block_col))
-out_group_tiles = fx.flat_divide(out_block_view, (GROUP_TILE_M, GROUP_TILE_N))
-out_group_view = fx.slice(out_group_tiles, (None, None, group_row, group_col))
+c_block_tiles = fx.flat_divide(c_global_view, (BLOCK_M, BLOCK_N))
+c_block_view = fx.slice(c_block_tiles, (None, None, block_row, block_col))
+c_group_tiles = fx.flat_divide(c_block_view, (GROUP_TILE_M, GROUP_TILE_N))
+c_group_view = fx.slice(c_group_tiles, (None, None, group_row, group_col))
 ```
 
 Block 2 owns C rows 0–15, columns 256–383. Group 0 slices columns 256–319;
 group 1 slices columns 320–383. Copy/MMA plans use `thread_id_in_wave_group`,
-and the accumulator/output plans consume `out_group_view`. Each group has a
+and the accumulator/output plans consume `c_group_view`. Each group has a
 separate accumulator.
 
 ## Select global operands through the same hierarchy
@@ -87,16 +87,16 @@ At `tile_k=0`, block 2 needs A rows 0–15, K=0–15, and B rows 0–15,
 columns 256–383. Expose block tiles for one K stage:
 
 ```python
-left_block_tiles = fx.flat_divide(left_global_view, (BLOCK_M, STAGE_K))
-right_block_tiles = fx.flat_divide(right_global_view, (STAGE_K, BLOCK_N))
+a_block_tiles = fx.flat_divide(a_global_view, (BLOCK_M, STAGE_K))
+b_block_tiles = fx.flat_divide(b_global_view, (STAGE_K, BLOCK_N))
 
 # Inside gmem2reg_load_tile(tile_k):
-left_block_view = fx.slice(left_block_tiles, (None, None, block_row, tile_k))
-right_block_view = fx.slice(right_block_tiles, (None, None, tile_k, block_col))
-left_group_tiles = fx.flat_divide(left_block_view, (GROUP_TILE_M, STAGE_K))
-right_group_tiles = fx.flat_divide(right_block_view, (STAGE_K, GROUP_TILE_N))
-left_group_view = fx.slice(left_group_tiles, (None, None, group_row, 0))
-right_group_view = fx.slice(right_group_tiles, (None, None, 0, group_col))
+a_block_view = fx.slice(a_block_tiles, (None, None, block_row, tile_k))
+b_block_view = fx.slice(b_block_tiles, (None, None, tile_k, block_col))
+a_group_tiles = fx.flat_divide(a_block_view, (GROUP_TILE_M, STAGE_K))
+b_group_tiles = fx.flat_divide(b_block_view, (STAGE_K, GROUP_TILE_N))
+a_group_view = fx.slice(a_group_tiles, (None, None, group_row, 0))
+b_group_view = fx.slice(b_group_tiles, (None, None, 0, group_col))
 ```
 
 A's group windows have shape `(16,16,1,1)`; B's have shape `(16,64,1,2)`.
@@ -170,21 +170,21 @@ traversal controls and separately tuned configurations.
 The allocator reserves one A tile and one B tile per group. Describe the full allocation with two leading group dimensions, then slice those dimensions to select each group's tile:
 
 ```python
-left_lds_all = lds.left.view(
+a_lds_all = lds.a.view(
     fx.make_layout(
         (WAVE_GROUPS_M, WAVE_GROUPS_N, GROUP_TILE_M, STAGE_K),
         (WAVE_GROUPS_N * GROUP_TILE_M * (STAGE_K + 8),
          GROUP_TILE_M * (STAGE_K + 8), STAGE_K + 8, 1),
     )
 )
-right_lds_all = lds.right.view(
+b_lds_all = lds.b.view(
     fx.make_layout(
         (WAVE_GROUPS_M, WAVE_GROUPS_N, STAGE_K, GROUP_TILE_N),
         (WAVE_GROUPS_N * STAGE_K * GROUP_TILE_N, STAGE_K * GROUP_TILE_N, GROUP_TILE_N, 1),
     )
 )
-left_group_lds_view = fx.slice(left_lds_all, (group_row, group_col, None, None))
-right_group_lds_view = fx.slice(right_lds_all, (group_row, group_col, None, None))
+a_group_lds_view = fx.slice(a_lds_all, (group_row, group_col, None, None))
+b_group_lds_view = fx.slice(b_lds_all, (group_row, group_col, None, None))
 ```
 
 A's full view has coordinates `(group_row,group_col,row,k)`; B's has
@@ -209,7 +209,7 @@ The two narrow workload configurations use two cooperating waves per tile and a 
 [practice.py](practice.py) supplies the global views, copy/MMA ownership, prefetch pipeline, single-kernel split-K finalizer, launch, and independent host checker. Fill only these two expressions:
 
 1. `group_coords`: decode `wave_group` using the two-dimensional `group_layout`.
-2. `right_group_lds_view`: slice B's full LDS view at `(group_row,group_col)`, keeping both tile axes.
+2. `b_group_lds_view`: slice B's full LDS view at `(group_row,group_col)`, keeping both tile axes.
 
 The default full-size checkpoint is **`[8,5,2,-1]`**, the first four BF16 output values in row 0 of the wide workload. Both narrow shape selectors return `[7,4,1,-2]`. The tile-tag traces above use different inputs to isolate pipeline boundaries.
 
