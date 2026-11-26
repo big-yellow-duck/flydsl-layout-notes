@@ -4,6 +4,8 @@
 
 The new distinction is between a **global block view**, which addresses existing matrix storage, and a **shared view**, which addresses a separate LDS allocation. Native views select coordinates; assignments transfer the data.
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.6741 ms**, 19.7% lower than the 0.8400 ms for [private register tile](../02-register-tiling/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Divide both inputs along K as well
 
 Global layouts are still `(M,K):(K,1)`, `(K,N):(N,1)`, and `(M,N):(N,1)`. The tilers now use `(16,16)` for every matrix:

@@ -2,6 +2,7 @@
 
 from draw_divide_comparison import COLORS, Figure
 from draw_lesson_visuals import Diagram
+from draw_wave_tiles import describe
 
 BASE = "01-gpu-programming/13-matmul"
 BLUE, TEAL, GOLD, PURPLE = COLORS
@@ -961,6 +962,28 @@ def parameter_tuning():
     d.save(f"{BASE}/08-parameter-tuning/fragment-lifetime")
 
 
+def right_register_staging():
+    d = Diagram(360, "WMMA lanes 1 and 17 gather a column of B")
+    describe(
+        d,
+        "Both lanes gather column 1 from row-major B. The first K stage reads "
+        "offsets 1 through 106 in steps of seven. The second reads 113 and adds zeros.",
+    )
+    d.text(32, 72, "B has 17 rows and 7 columns. Each cell shows a flat B offset.", 21)
+    d.text(32, 129, "Stage 0", 23)
+    d.text(32, 226, "Stage 1", 23)
+    for i, (value, label) in enumerate(((1, "K=0"), (8, "K=1"), (15, "K=2"), (106, "K=15"))):
+        x = 210 + i * 177
+        d.cell(x, 104, value, BLUE, 142)
+        d.text(x + 4, 170, label, 19)
+    for i, (value, label) in enumerate(((113, "K=16"), ("zero", "K=17"), ("zero", "K=18"), ("zero", "K=31"))):
+        x = 210 + i * 177
+        d.cell(x, 201, value, GOLD if i == 0 else "#e2e8f0", 142)
+        d.text(x + 4, 267, label, 19)
+    d.text(32, 324, "Registers hold each lane's K values in WMMA input order.", 21)
+    d.save(f"{BASE}/16-right-register-staging/b-column-registers")
+
+
 def main():
     naive()
     naive_views()
@@ -983,6 +1006,7 @@ def main():
     buffer_access()
     operand_staging()
     parameter_tuning()
+    right_register_staging()
 
 
 if __name__ == "__main__":

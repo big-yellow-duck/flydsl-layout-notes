@@ -8,6 +8,8 @@ The fixed problem remains **M=N=K=1024**, row-major BF16 A/B/C, with FP32 accumu
 
 Follow the gold chunk: the numbers inside cells are local column coordinates, not values or byte offsets. One 128-bit copy carries eight BF16 elements. Thread 9 handles columns 8–15 in rows 1 and 33 of each input tile.
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.4003 ms**, 40.6% lower than the 0.6741 ms for [scalar shared-memory copies](../03-shared-memory/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## Declare copy ownership separately from compute ownership
 
 A and B both use row-major LDS layouts: `(M,K):(64,1)` and `(K,N):(64,1)`. The logical coordinates still mean `(M,K)` and `(K,N)` respectively. Each field uses 16-byte alignment (`fx.Array[fx.BFloat16, 4096, 16]`) and occupies 8192 bytes; both together use 16 KiB. Global input windows retain row stride 1024. Copy partitioning respects those different strides.

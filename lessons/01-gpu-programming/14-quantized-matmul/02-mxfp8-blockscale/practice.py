@@ -29,18 +29,29 @@ _capture_id = _MXFP4["_capture_id"]
 check_workspace = _MXFP4["check_workspace"]
 
 TRACE_SHAPE = (17, 77, 46)
-# Selected by the gfx1151 MXFP8 sweep. See results/README.md.
+# The poisoned-edge checker keeps the same geometry across tuning runs.
+EDGE_CHECK_CONFIG = Config(
+    group_tile_m=16, group_tile_n=64, stage_k=64, waves_per_group_n=2,
+    split_k=1, k_unroll=2, right_cache_modifier=1, left_in_registers=False,
+)
+
+# Validated by the gfx1151 route sweep. See the format tuning report.
 CONFIGS_BY_SHAPE = {
     (17, 77, 46): Config(
         group_tile_m=16,
-        group_tile_n=64,
-        stage_k=64,
+        group_tile_n=16,
+        stage_k=16,
         waves_per_group_m=1,
-        waves_per_group_n=2,
+        waves_per_group_n=1,
+        traversal_group_m=1,
         split_k=1,
+        wave_groups_m=1,
+        wave_groups_n=1,
         k_unroll=2,
-        right_cache_modifier=1,
+        right_cache_modifier=0,
+        left_cache_modifier=0,
         left_in_registers=False,
+        right_in_registers=False,
     ),
     (32, 1024, 8192): Config(
         group_tile_m=32,
@@ -48,9 +59,15 @@ CONFIGS_BY_SHAPE = {
         stage_k=32,
         waves_per_group_m=1,
         waves_per_group_n=4,
+        traversal_group_m=1,
         split_k=4,
+        wave_groups_m=1,
+        wave_groups_n=1,
         k_unroll=2,
+        right_cache_modifier=2,
+        left_cache_modifier=0,
         left_in_registers=False,
+        right_in_registers=False,
     ),
     (31, 1025, 8193): Config(
         group_tile_m=32,
@@ -58,9 +75,15 @@ CONFIGS_BY_SHAPE = {
         stage_k=32,
         waves_per_group_m=1,
         waves_per_group_n=4,
+        traversal_group_m=1,
         split_k=4,
-        k_unroll=2,
+        wave_groups_m=1,
+        wave_groups_n=1,
+        k_unroll=1,
+        right_cache_modifier=2,
+        left_cache_modifier=0,
         left_in_registers=False,
+        right_in_registers=False,
     ),
     (512, 512, 512): Config(
         group_tile_m=64,
@@ -68,31 +91,81 @@ CONFIGS_BY_SHAPE = {
         stage_k=32,
         waves_per_group_m=2,
         waves_per_group_n=2,
+        traversal_group_m=1,
         split_k=2,
+        wave_groups_m=1,
+        wave_groups_n=1,
         k_unroll=1,
+        right_cache_modifier=2,
+        left_cache_modifier=0,
         left_in_registers=False,
+        right_in_registers=False,
+    ),
+    (16, 1, 4096): Config(
+        group_tile_m=16,
+        group_tile_n=16,
+        stage_k=64,
+        waves_per_group_m=1,
+        waves_per_group_n=1,
+        traversal_group_m=1,
+        split_k=4,
+        wave_groups_m=1,
+        wave_groups_n=1,
+        k_unroll=1,
+        right_cache_modifier=0,
+        left_cache_modifier=0,
+        left_in_registers=False,
+        right_in_registers=False,
+    ),
+    (16, 7, 4097): Config(
+        group_tile_m=32,
+        group_tile_n=16,
+        stage_k=32,
+        waves_per_group_m=2,
+        waves_per_group_n=1,
+        traversal_group_m=1,
+        split_k=4,
+        wave_groups_m=1,
+        wave_groups_n=1,
+        k_unroll=1,
+        right_cache_modifier=2,
+        left_cache_modifier=0,
+        left_in_registers=False,
+        right_in_registers=False,
+    ),
+    (128, 16, 4096): Config(
+        group_tile_m=16,
+        group_tile_n=16,
+        stage_k=64,
+        waves_per_group_m=1,
+        waves_per_group_n=1,
+        traversal_group_m=1,
+        split_k=4,
+        wave_groups_m=1,
+        wave_groups_n=1,
+        k_unroll=1,
+        right_cache_modifier=0,
+        left_cache_modifier=0,
+        left_in_registers=False,
+        right_in_registers=False,
     ),
 }
 SHAPES = tuple(CONFIGS_BY_SHAPE)
 
 
-def default_config(shape):
-    return CONFIGS_BY_SHAPE.get(
-        shape,
-        Config(
-            stage_k=32,
-            waves_per_group_n=1,
-            split_k=1,
-            k_unroll=2,
-            left_in_registers=False,
-        ),
+def default_config(shape, *, arch="gfx1151"):
+    if arch == "gfx1151" and tuple(shape) in CONFIGS_BY_SHAPE:
+        return CONFIGS_BY_SHAPE[tuple(shape)]
+    return Config(
+        stage_k=32, waves_per_group_n=1, split_k=1, k_unroll=2,
+        left_in_registers=False,
     )
 
 
 def validate_config(config, shape):
     _MXFP4["validate_config"](config, shape)
     if config.left_in_registers:
-        raise ValueError("MXFP8 decodes both operands cooperatively into LDS")
+        raise ValueError("MXFP8 requires cooperative LDS staging for A")
 
 
 def _lookup_e4m3_subnormals(word):
@@ -172,6 +245,7 @@ def _matmul_mxfp8(
     K_UNROLL: fx.Constexpr,
     RIGHT_CACHE_MODIFIER: fx.Constexpr,
     LEFT_CACHE_MODIFIER: fx.Constexpr,
+    RIGHT_IN_REGISTERS: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
 ):
@@ -297,6 +371,7 @@ def _matmul_mxfp8(
         WAVE_GROUPS_N,
         group_row,
         group_col,
+        RIGHT_IN_REGISTERS,
     )
 
     thread_mma = mma.thr_slice(thread_id_in_wave_group)
@@ -313,21 +388,22 @@ def _matmul_mxfp8(
     a_codes = fx.make_rmem_tensor(LEFT_ROWS_PER_THREAD, fx.Uint64)
     a_scale_bytes = fx.make_rmem_tensor(LEFT_ROWS_PER_THREAD, fx.Uint8)
 
-    RIGHT_N_THREADS = GROUP_TILE_N // 8
-    RIGHT_K_THREADS = THREADS_PER_GROUP // RIGHT_N_THREADS
-    RIGHT_ROWS_PER_THREAD = STAGE_K // RIGHT_K_THREADS
-    b_k_lane = thread_id_in_wave_group // RIGHT_N_THREADS
-    b_n_col = thread_id_in_wave_group % RIGHT_N_THREADS * 8
-    global_n_col = output_group_col * GROUP_TILE_N + b_n_col
-    if fx.const_expr(STAGE_K in (16, 32)):
-        ROW_SLOTS_PER_SCALE = RIGHT_ROWS_PER_THREAD
-    elif fx.const_expr(STAGE_K % MX_BLOCK_K == 0 and MX_BLOCK_K % RIGHT_K_THREADS == 0):
-        ROW_SLOTS_PER_SCALE = MX_BLOCK_K // RIGHT_K_THREADS
-    else:
-        ROW_SLOTS_PER_SCALE = 1
-    RIGHT_SCALE_SLOTS = RIGHT_ROWS_PER_THREAD // ROW_SLOTS_PER_SCALE
-    b_codes = fx.make_rmem_tensor(RIGHT_ROWS_PER_THREAD, fx.Uint64)
-    b_scale_words = fx.make_rmem_tensor(RIGHT_SCALE_SLOTS, fx.Uint64)
+    if fx.const_expr(not RIGHT_IN_REGISTERS):
+        RIGHT_N_THREADS = GROUP_TILE_N // 8
+        RIGHT_K_THREADS = THREADS_PER_GROUP // RIGHT_N_THREADS
+        RIGHT_ROWS_PER_THREAD = STAGE_K // RIGHT_K_THREADS
+        b_k_lane = thread_id_in_wave_group // RIGHT_N_THREADS
+        b_n_col = thread_id_in_wave_group % RIGHT_N_THREADS * 8
+        global_n_col = output_group_col * GROUP_TILE_N + b_n_col
+        if fx.const_expr(STAGE_K in (16, 32)):
+            ROW_SLOTS_PER_SCALE = RIGHT_ROWS_PER_THREAD
+        elif fx.const_expr(STAGE_K % MX_BLOCK_K == 0 and MX_BLOCK_K % RIGHT_K_THREADS == 0):
+            ROW_SLOTS_PER_SCALE = MX_BLOCK_K // RIGHT_K_THREADS
+        else:
+            ROW_SLOTS_PER_SCALE = 1
+        RIGHT_SCALE_SLOTS = RIGHT_ROWS_PER_THREAD // ROW_SLOTS_PER_SCALE
+        b_codes = fx.make_rmem_tensor(RIGHT_ROWS_PER_THREAD, fx.Uint64)
+        b_scale_words = fx.make_rmem_tensor(RIGHT_SCALE_SLOTS, fx.Uint64)
 
     # MMA copies for A and B.
     a_group_staging_tiled = fx.flat_divide(
@@ -343,31 +419,61 @@ def _matmul_mxfp8(
     )
     a_r_destination = a_lds2reg_thread_copy.retile(a_r_tile)
 
-    # Reinterpret B as (N,K) for WMMA without moving its physical data.
-    b_group_staging_transposed_view = fx.make_view(
-        fx.get_iter(b_group_staging_view),
-        fx.make_layout((GROUP_TILE_N, STAGE_K), (1, GROUP_TILE_N)),
-    )
-    b_group_staging_transposed_tiled = fx.flat_divide(
-        b_group_staging_transposed_view, (GROUP_TILE_N, MMA_K)
-    )
+    if fx.const_expr(RIGHT_IN_REGISTERS):
+        # A typed shape model gives the WMMA register layout of (N,K).
+        b_group_model = fx.make_view(
+            fx.get_iter(a_group_staging_view),
+            fx.make_layout((GROUP_TILE_N, STAGE_K), (1, GROUP_TILE_N)),
+        )
+        b_stage_model = fx.flat_divide(b_group_model, (GROUP_TILE_N, MMA_K))
+        b_r_tile = thread_mma.make_fragment_B(
+            fx.slice(b_stage_model, (None, None, 0, 0))
+        )
+        b_r_destination = b_r_tile
+        b_compute_fragment = thread_mma.make_fragment_B(b_group_model)
+        B_COLUMNS_PER_THREAD = GROUP_TILE_N // (MMA_N * WAVES_N)
+        # Use 16-row slots when a stage starts between two scale boundaries.
+        B_REGISTER_ROWS_PER_SCALE = MX_BLOCK_K if STAGE_K % MX_BLOCK_K == 0 else MMA_K
+        B_REGISTER_SCALE_SLOTS = STAGE_K // B_REGISTER_ROWS_PER_SCALE
+        b_register_codes = fx.make_rmem_tensor(
+            (STAGE_K // 8) * B_COLUMNS_PER_THREAD, fx.Uint64
+        )
+        b_register_scale_bytes = fx.make_rmem_tensor(
+            B_REGISTER_SCALE_SLOTS * B_COLUMNS_PER_THREAD, fx.Uint8
+        )
+        b_compute_tiled = fx.flat_divide(
+            b_compute_fragment, (MMA_K, B_COLUMNS_PER_THREAD, 1)
+        )
+        # gfx11 WMMA duplicates each lane's B column in the other half-wave.
+        wave_n = (thread_id_in_wave_group // 32) // WAVES_M
+        b_first_column = output_group_col * GROUP_TILE_N + wave_n * MMA_N
+        b_first_column = b_first_column + thread_id_in_wave_group % MMA_N
+    else:
+        # Reinterpret B as (N,K) for WMMA without moving its physical data.
+        b_group_staging_transposed_view = fx.make_view(
+            fx.get_iter(b_group_staging_view),
+            fx.make_layout((GROUP_TILE_N, STAGE_K), (1, GROUP_TILE_N)),
+        )
+        b_group_staging_transposed_tiled = fx.flat_divide(
+            b_group_staging_transposed_view, (GROUP_TILE_N, MMA_K)
+        )
 
-    # One K=16 slice of B determines the operand register shape.
-    b_group_staging_transposed_initial_view = fx.slice(
-        b_group_staging_transposed_tiled, (None, None, 0, 0)
-    )
+        # One K=16 slice of B determines the operand register shape.
+        b_group_staging_transposed_initial_view = fx.slice(
+            b_group_staging_transposed_tiled, (None, None, 0, 0)
+        )
 
-    b_group_staging2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+        b_group_staging2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
 
-    b_lds2reg_thread_copy = b_group_staging2reg_copy_plan.get_slice(
-        thread_id_in_wave_group
-    )
+        b_lds2reg_thread_copy = b_group_staging2reg_copy_plan.get_slice(
+            thread_id_in_wave_group
+        )
 
-    b_r_tile = thread_mma.make_fragment_B(
-        b_group_staging_transposed_initial_view
-    )
+        b_r_tile = thread_mma.make_fragment_B(
+            b_group_staging_transposed_initial_view
+        )
 
-    b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
+        b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
 
     def load_a_stage(tile_k, is_tail):
         column = tile_k * STAGE_K + a_k_col
@@ -390,6 +496,44 @@ def _matmul_mxfp8(
             a_scale_bytes[row_slot] = _load_buffer_word(
                 a_scale_resource, scale_offset, fx.Uint8, LEFT_CACHE_MODIFIER
             )
+
+    def load_b_registers(tile_k):
+        # Gather each owning lane's column into chunks of eight K codes.
+        for column_slot in fx.range_constexpr(B_COLUMNS_PER_THREAD):
+            if fx.const_expr(n == 1 and k % 8 == 0):
+                # All padded N columns may reuse column zero. Only C[:, 0] is stored.
+                b_column = fx.Int32(0)
+            else:
+                b_column = b_first_column + column_slot * MMA_N * WAVES_N
+            if fx.const_expr(HAS_N_TAIL):
+                valid_n = b_column < n
+            for scale_slot in fx.range_constexpr(B_REGISTER_SCALE_SLOTS):
+                first_k = tile_k * STAGE_K + scale_slot * B_REGISTER_ROWS_PER_SCALE
+                scale_offset_b = (first_k // MX_BLOCK_K) * n + b_column
+                if fx.const_expr(HAS_N_TAIL):
+                    scale_offset_b = valid_n.select(scale_offset_b, SCALE_ROWS * n)
+                b_register_scale_bytes[column_slot * B_REGISTER_SCALE_SLOTS + scale_slot] = _load_buffer_word(
+                    b_scale_resource, scale_offset_b, fx.Uint8, RIGHT_CACHE_MODIFIER
+                )
+            for chunk in fx.range_constexpr(STAGE_K // 8):
+                if fx.const_expr(n == 1 and k % 8 == 0):
+                    # Eight consecutive K values form one complete packed word.
+                    first_k = tile_k * STAGE_K + chunk * 8
+                    word = _load_buffer_word(
+                        b_resource, first_k, fx.Uint64, RIGHT_CACHE_MODIFIER
+                    )
+                else:
+                    word = fx.Uint64(0)
+                    for value_id in fx.range_constexpr(8):
+                        b_row = tile_k * STAGE_K + chunk * 8 + value_id
+                        b_byte_offset = b_row * n + b_column
+                        if fx.const_expr(HAS_N_TAIL):
+                            b_byte_offset = valid_n.select(b_byte_offset, k * n)
+                        code = _load_buffer_word(
+                            b_resource, b_byte_offset, fx.Uint8, RIGHT_CACHE_MODIFIER
+                        )
+                        word = word | (code.to(fx.Uint64) << (value_id * 8))
+                b_register_codes[column_slot * (STAGE_K // 8) + chunk] = word
 
     def load_b_stage(tile_k, check_boundary):
         first_row = tile_k * STAGE_K + b_k_lane
@@ -432,34 +576,60 @@ def _matmul_mxfp8(
         else:
             load_a_stage(tile_k, False)
 
-        # A complete N group can stay wide. In an earlier MX block,
-        # the next rows of packed values and scales are still allocated.
-        if fx.const_expr(n >= 8 and n % 8 != 0):
-            full_group = (output_group_col + 1) * GROUP_TILE_N <= n
-            before_final_scale = (tile_k + 1) * STAGE_K <= (SCALE_ROWS - 1) * MX_BLOCK_K
-            edge = scf.IfOp(
-                (full_group | before_final_scale).ir_value(), [], has_else=True
-            )
-            with ir.InsertionPoint(edge.then_block):
-                load_b_stage(tile_k, False)
-                scf.yield_([])
-            with ir.InsertionPoint(edge.else_block):
-                load_b_stage(tile_k, True)
-                scf.yield_([])
+        if fx.const_expr(RIGHT_IN_REGISTERS):
+            load_b_registers(tile_k)
         else:
-            load_b_stage(tile_k, True)
+            # A complete N group can stay wide. In an earlier MX block,
+            # the next rows of packed values and scales are still allocated.
+            if fx.const_expr(n >= 8 and n % 8 != 0):
+                full_group = (output_group_col + 1) * GROUP_TILE_N <= n
+                before_final_scale = (tile_k + 1) * STAGE_K <= (SCALE_ROWS - 1) * MX_BLOCK_K
+                edge = scf.IfOp(
+                    (full_group | before_final_scale).ir_value(), [], has_else=True
+                )
+                with ir.InsertionPoint(edge.then_block):
+                    load_b_stage(tile_k, False)
+                    scf.yield_([])
+                with ir.InsertionPoint(edge.else_block):
+                    load_b_stage(tile_k, True)
+                    scf.yield_([])
+            else:
+                load_b_stage(tile_k, True)
 
     def load_stage(tile_k):
         if fx.const_expr(HAS_EMPTY_K_STAGES):
             stage_exists = tile_k < REAL_K_STAGES
             a_codes.fill(0)
             a_scale_bytes.fill(0)
-            b_codes.fill(0)
-            b_scale_words.fill(0)
+            if fx.const_expr(RIGHT_IN_REGISTERS):
+                b_register_codes.fill(0)
+                b_register_scale_bytes.fill(0)
+            else:
+                b_codes.fill(0)
+                b_scale_words.fill(0)
             if stage_exists:
                 load_nonempty_stage(tile_k)
         else:
             load_nonempty_stage(tile_k)
+
+    def publish_b_registers(tile_k):
+        for column_slot in fx.range_constexpr(B_COLUMNS_PER_THREAD):
+            for scale_slot in fx.range_constexpr(B_REGISTER_SCALE_SLOTS):
+                scale_byte = fx.Uint8(b_register_scale_bytes[column_slot * B_REGISTER_SCALE_SLOTS + scale_slot]).to(fx.Int32)
+                for chunk_in_scale in fx.range_constexpr(B_REGISTER_ROWS_PER_SCALE // 8):
+                    chunk = scale_slot * (B_REGISTER_ROWS_PER_SCALE // 8) + chunk_in_scale
+                    word = fx.Uint64(b_register_codes[column_slot * (STAGE_K // 8) + chunk])
+                    subnormals = _lookup_e4m3_subnormals(word)
+                    for value_id in fx.range_constexpr(8):
+                        local_k = chunk * 8 + value_id
+                        code = (word >> (value_id * 8)).to(fx.Uint8)
+                        value = _decode_scaled_e4m3(
+                            code, scale_byte, _subnormal_byte(subnormals, value_id)
+                        )
+                        if fx.const_expr(HAS_K_TAIL or HAS_EMPTY_K_STAGES):
+                            valid_k = tile_k * STAGE_K + local_k < k
+                            value = valid_k.select(value, fx.BFloat16(0.0))
+                        b_compute_fragment[(local_k % MMA_K, column_slot, local_k // MMA_K)] = value
 
     def publish_stage(tile_k):
         # Eight A bytes share one scale along K. Each B byte has its own
@@ -487,39 +657,45 @@ def _matmul_mxfp8(
             )
             fx.copy(copy_128b, a_staging_fragment, a_lds_destination)
 
-        for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
-            local_row = b_k_lane + row_slot * RIGHT_K_THREADS
-            word = fx.Uint64(b_codes[row_slot])
-            scale_word = fx.Uint64(b_scale_words[row_slot // ROW_SLOTS_PER_SCALE])
-            if fx.const_expr(HAS_K_TAIL):
-                valid_k = tile_k * STAGE_K + local_row < k
-                word = valid_k.select(word, fx.Uint64(0))
-                scale_word = valid_k.select(scale_word, fx.Uint64(0))
-            subnormals = _lookup_e4m3_subnormals(word)
-            b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
-            for value_id in fx.range_constexpr(8):
-                code = (word >> (8 * value_id)).to(fx.Uint8)
-                scale_byte = (scale_word >> (8 * value_id)).to(fx.Uint8).to(fx.Int32)
-                b_staging_fragment[value_id] = _decode_scaled_e4m3(
-                    code, scale_byte, _subnormal_byte(subnormals, value_id)
+        if fx.const_expr(RIGHT_IN_REGISTERS):
+            publish_b_registers(tile_k)
+        else:
+            for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
+                local_row = b_k_lane + row_slot * RIGHT_K_THREADS
+                word = fx.Uint64(b_codes[row_slot])
+                scale_word = fx.Uint64(b_scale_words[row_slot // ROW_SLOTS_PER_SCALE])
+                if fx.const_expr(HAS_K_TAIL):
+                    valid_k = tile_k * STAGE_K + local_row < k
+                    word = valid_k.select(word, fx.Uint64(0))
+                    scale_word = valid_k.select(scale_word, fx.Uint64(0))
+                subnormals = _lookup_e4m3_subnormals(word)
+                b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
+                for value_id in fx.range_constexpr(8):
+                    code = (word >> (8 * value_id)).to(fx.Uint8)
+                    scale_byte = (scale_word >> (8 * value_id)).to(fx.Uint8).to(fx.Int32)
+                    b_staging_fragment[value_id] = _decode_scaled_e4m3(
+                        code, scale_byte, _subnormal_byte(subnormals, value_id)
+                    )
+                b_lds_destination = fx.make_view(
+                    fx.get_iter(b_group_staging_view)
+                    + local_row * GROUP_TILE_N
+                    + b_n_col,
+                    fx.make_layout(8, 1),
                 )
-            b_lds_destination = fx.make_view(
-                fx.get_iter(b_group_staging_view)
-                + local_row * GROUP_TILE_N
-                + b_n_col,
-                fx.make_layout(8, 1),
-            )
-            fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
+                fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
         lds_barrier()
 
     def compute_stage():
         for inner_k in fx.range_constexpr(STAGE_K // MMA_K):
             a_mma_view = fx.slice(a_group_staging_tiled, (None, None, 0, inner_k))
-            b_mma_view = fx.slice(
-                b_group_staging_transposed_tiled, (None, None, 0, inner_k)
-            )
             a_source = a_lds2reg_thread_copy.partition_S(a_mma_view)
-            b_source = b_lds2reg_thread_copy.partition_S(b_mma_view)
+            if fx.const_expr(RIGHT_IN_REGISTERS):
+                b_source = fx.slice(b_compute_tiled, (None, None, None, 0, 0, inner_k))
+            else:
+                b_mma_view = fx.slice(
+                    b_group_staging_transposed_tiled, (None, None, 0, inner_k)
+                )
+                b_source = b_lds2reg_thread_copy.partition_S(b_mma_view)
             fx.copy(copy_16b, a_source, a_r_destination)
             fx.copy(copy_16b, b_source, b_r_destination)
             fx.gemm(mma_atom, c_accum, a_r_tile, b_r_tile, c_accum)
@@ -671,6 +847,7 @@ def _launch_matmul_mxfp8(
     K_UNROLL: fx.Constexpr,
     RIGHT_CACHE_MODIFIER: fx.Constexpr,
     LEFT_CACHE_MODIFIER: fx.Constexpr,
+    RIGHT_IN_REGISTERS: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
 ):
@@ -700,6 +877,7 @@ def _launch_matmul_mxfp8(
         K_UNROLL=K_UNROLL,
         RIGHT_CACHE_MODIFIER=RIGHT_CACHE_MODIFIER,
         LEFT_CACHE_MODIFIER=LEFT_CACHE_MODIFIER,
+        RIGHT_IN_REGISTERS=RIGHT_IN_REGISTERS,
         GROUP_M=GROUP_M,
         SPLIT_K=SPLIT_K,
     ).launch(
@@ -761,7 +939,7 @@ def matmul_mxfp8(
         raise RuntimeError(f"This lesson requires gfx1151/gfx1152; detected {arch}")
     shape = (m, n, k)
     if config is None:
-        config = default_config(shape)
+        config = default_config(shape, arch=arch)
     if not isinstance(config, Config):
         raise TypeError("config must be a Config")
     validate_config(config, shape)
@@ -824,6 +1002,7 @@ def matmul_mxfp8(
             K_UNROLL=config.k_unroll,
             RIGHT_CACHE_MODIFIER=config.right_cache_modifier,
             LEFT_CACHE_MODIFIER=config.left_cache_modifier,
+            RIGHT_IN_REGISTERS=config.right_in_registers,
             GROUP_M=config.traversal_group_m,
             SPLIT_K=config.split_k,
         )
@@ -917,7 +1096,7 @@ def solve(shape=TRACE_SHAPE, seed=13, config=None, *, poison=False):
 
 
 def check_edges():
-    config = CONFIGS_BY_SHAPE[TRACE_SHAPE]
+    config = EDGE_CHECK_CONFIG
     for suffix in range(1, 8):
         for n in (suffix, 64 + suffix):
             solve((3, n, 32 + suffix), config=config, poison=True)

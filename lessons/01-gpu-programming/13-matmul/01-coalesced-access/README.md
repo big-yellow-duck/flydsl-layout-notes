@@ -8,6 +8,8 @@ This lesson lives in `01-coalesced-access`, but distinguishes two different prop
 
 Read down the gold column in each grid. The logical B coordinates stay the same; their storage offsets change. The first four cells along K are adjacent only in the right-hand representation.
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.8190 ms**, with Torch at 0.0615 ms on the same column-major B. [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Pack a real column-major B on the GPU
 
 The host creates the same logical BF16 matrix as before, then packs it before launching:

@@ -4,6 +4,8 @@ The [vectorized-copy lesson](../04-vectorized-copy/README.md) stages inputs thro
 
 The problem is **M=N=K=1024**, with row-major BF16 inputs, FP32 accumulation, and BF16 output. Each block has **128 threads** and computes **64×64 outputs**, staging **64 K positions** at a time. The WMMA atom remains **16×16×16**. An explicit inner loop consumes four K=16 slices before the next outer iteration replaces LDS.
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.2383 ms**, 40.5% lower than the 0.4003 ms for [vectorized staging](../04-vectorized-copy/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Select global windows and stage them in LDS
 
 The global views use `(M,K):(K,1)`, `(K,N):(N,1)`, and `(M,N):(N,1)` layouts. Divide them into block windows:

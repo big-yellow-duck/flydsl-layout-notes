@@ -6,6 +6,10 @@ Build on [stage 07](../07-interleaved-loads/README.md) by changing the global ac
 
 Follow the global-to-register boundary first. The buffer representation changes there; staging ownership and the rest of the pipeline retain the preceding lesson's structure.
 
+Buffer descriptors give the global transfer a base and byte bound, so the staging kernel can use buffer-addressed loads and stores. The rest of the staging schedule is inherited from stage 07. The fixed `1024³` course benchmark measures the complete change. [Stage comparison](../README.md#compare-the-stages)
+
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.0886 ms**, 3.7% lower than the 0.0920 ms for [interleaved prefetch](../07-interleaved-loads/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Keep layouts while wrapping global resources
 
 The [solution](solution.py) creates buffer-backed views:

@@ -8,6 +8,10 @@ Keep **M=N=K=1024**, row-major BF16 inputs/output, FP32 accumulation, **64×64×
 
 The diagram labels the scalar physical ID as `pid`; the code names it `flat_block_id`. Read each cell as a physical block ID assigned to that logical output tile. All sixteen tile rows and the first four tile columns are shown; the other twelve columns are omitted. Follow gold IDs 0 and 1: they move across columns in 07b and down rows in 07c. These are ID mappings, not a measured execution timeline.
 
+Grouping changes which tiles are issued near one another, giving nearby blocks a chance to reuse B from cache. The amount of arithmetic and the per-block copy plan are fixed. The `1024³` course benchmark measures whole-kernel time with warm buffers. [Stage comparison](../README.md#compare-the-stages)
+
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.0894 ms**, 0.3% lower than the 0.0897 ms for [separate A and B copy plans](../07b-operand-staging/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Launch a one-dimensional block grid
 
 The [solution](solution.py) launches `(tiles_m * tiles_n, 1, 1)`, or `(256,1,1)` for this workload. Each block already has a scalar physical ID:

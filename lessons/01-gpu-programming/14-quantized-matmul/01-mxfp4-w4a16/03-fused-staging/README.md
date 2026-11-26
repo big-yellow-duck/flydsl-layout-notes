@@ -22,6 +22,10 @@ In `publish_stage`, each lane already owns the bytes for eight adjacent B column
 
 `compute_stage` slices that tile into K=16 WMMA operands. A either uses the same padded LDS staging as lesson 15 or goes straight into WMMA-owned registers. A's partial K stage uses the mixed-width BF16 copies. Missing split-K stages load zeros, and C's store masks columns past N. FP32 partials are reduced inside the kernel before BF16 output.
 
+## Where fusion pays off
+
+On Radeon 8060S, the independently tuned `16×1024×8192` product takes 136.33 µs with scalar decode plus BF16 matmul and 47.48 µs with fused arithmetic. Fusion avoids the separate launch and the global BF16 B round trip. The tiny `17×77×46` case has a much smaller absolute saving. [Three-path timings](../results/README.md#scalar-fused-arithmetic-and-fused-lut-sweep)
+
 ## Practice
 
 Each file defines its own `Config`, launch defaults, staging helpers, and split-K workspace.

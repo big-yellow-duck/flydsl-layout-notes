@@ -4,6 +4,8 @@ Loop unrolling exposes several consecutive K iterations to the compiler. It can 
 
 The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `traversal_group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
+On Radeon 8060S at `16×4096×8192`, four-way unrolling reduced the median from 280.57 µs at unroll 1 to 273.74 µs. Unroll 8 took 278.56 µs. The sweet spot depends on the scheduling and live-register costs of the expanded loop. [Controlled measurements](results/README.md#controlled-wide-shape-comparisons)
+
 ## Count pipeline steps before unrolling
 
 The default workload is `(16,4096,8192)` with `STAGE_K=16`, two independent waves per block, and `split_k=1`. For a small trace of exactly the same tile path, reduce K to 96. Each wave then consumes six K tiles. Set A's tile tags to `[1,2,4,8,16,32]` and B to 1. Every output must be `16*(1+2+4+8+16+32)=1008`.

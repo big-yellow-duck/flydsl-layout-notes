@@ -35,6 +35,12 @@ Use natural teaching prose: “Follow thread 2. Its local coordinate is `(1,2)`,
 
 A diagram caption should explain how to read it: “Read the gold window first. The cells show original storage offsets; selecting the window preserves the row stride of 8.” Repeating the image title adds little guidance.
 
+## Explain where the gains come from
+
+Connect the changed code path to the work it removes or the resource it saves. Name the resulting cost, such as extra live registers or wider traffic. Separate instruction or resource evidence from timing and identify a proposed explanation as an inference when the measurements do not isolate it.
+
+Put a compact result in the teaching README and link the full report. Give exact shapes and the tested device. When both measurements exist, show the matched comparison that isolates the change and the separately tuned comparison that informs defaults. Include a case where the change loses or ties when available. Describe the verified winner for each workload and keep experimental settings tunable.
+
 ## Program contract
 
 Adapt a nearby working lesson rather than inventing a new FlyDSL harness. The common structure is:

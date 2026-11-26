@@ -35,6 +35,8 @@ Follow block `(block_x,block_y)=(1,2)` and thread 17 through the figure. Shape l
 
 </details>
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **1.7297 ms**, with Torch at 0.0708 ms on the same row-major B. [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Describe the global matrices
 
 Start with the three full matrices. In this picture each small square represents a 16×16 region, not a scalar element. The stars mark the regions our block needs. Only the first four tile rows and columns are drawn; the full matrices have 64 of each.

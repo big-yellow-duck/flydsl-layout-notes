@@ -8,6 +8,10 @@ Keep **M=N=K=1024**, row-major BF16 inputs/output, FP32 accumulation, **64×64×
 
 Read the transfer path first, then compare the A/B formulas. Both resolve to the same ownership for this tile. Separate derivations become useful when K and N differ in the tuning lesson. Next, [stage 07c](../07c-grouped-traversal/README.md) keeps these dimensions fixed and changes block traversal for cache reuse.
 
+Separate copy plans keep A's transfers contiguous along K and B's transfers contiguous along N. Their lane maps can adapt to different M, N, and K tile extents while retaining the eight-element transfer. The fixed `1024³` course benchmark times the full kernel with these plans. [Stage comparison](../README.md#compare-the-stages)
+
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.0897 ms**, 1.3% higher than the 0.0886 ms for [buffer access](../07a-buffer-access/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Retain the buffer access path
 
 Global A/B/C views remain backed by `fx.rocdl.make_buffer_tensor`. Global loads use `BufferCopy128b`, output uses `BufferCopy16b`, and ordinary LDS copies use universal atoms. View layouts, block placement, padded A, and prefetch timing match stage 07a. Only the staging plans are split in the [solution](solution.py).

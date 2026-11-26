@@ -2,7 +2,7 @@
 
 Every stage exposes `matmul_bf16(a, b, out=None, ...)`, with optional arguments passed by keyword. The launcher infers M,N,K, validates that stage's supported shapes and layout, allocates output if omitted, and returns it. Configurable stages accept `config=Config(...)`. Their `_matmul_bf16` kernels are defined at module scope with explicit constexpr parameters, and `_launch_matmul_bf16` is the thin FlyDSL bridge. Unsupported calls raise a specific error. Split-K scratch is cached per config, shape, device, stream, and graph capture and is absent when `split_k=1`.
 
-Build one GPU matrix product in twenty-one steps: a naive dot product, a column-major B storage experiment, native four-row thread windows, LDS staging, vectorized copies, a matrix instruction, measured LDS bank-conflict reduction, interleaved loads with compute, buffer global access, separate operand staging plans, grouped block traversal, measured parameter tuning, single-kernel split-K for skinny outputs, independent wave tiles, synchronization scope, B cache policy, K-loop unrolling, operand-specific memory paths, predicated tile edges, targeted M/N/K guards, and mixed-width edge loads. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has illustrated notes, a practice program, a worked solution, and a checker. Stage 12 asks you to complete two expressions in the direct A copy path.
+Build one GPU matrix product in twenty-two steps: a naive dot product, a column-major B storage experiment, native four-row thread windows, LDS staging, vectorized copies, a matrix instruction, measured LDS bank-conflict reduction, interleaved loads with compute, buffer global access, separate operand staging plans, grouped block traversal, measured parameter tuning, single-kernel split-K for skinny outputs, independent wave tiles, synchronization scope, B cache policy, K-loop unrolling, operand-specific memory paths, predicated tile edges, targeted M/N/K guards, mixed-width edge loads, and direct B register staging. Complete [lesson 12](../12-inspect-and-tune/README.md) first. Each stage has illustrated notes, a practice program, a worked solution, and a checker. Stage 12 asks you to complete two expressions in the direct A copy path.
 
 Stages 00–08 retain the **M = N = K = 1024** comparison; stages 09–12 target declared skinny workloads with K=8192. Stage 13 extends the native view/copy path to arbitrary positive M,N,K with explicit predicates. A is row-major BF16. Stage 01 supplies a column-major BF16 B to make each thread's K walk contiguous; other stages supply row-major BF16 B. All tensors are on the GPU. Kernels accumulate in FP32 and write a BF16 matrix C implementing `C = A @ B`. There is no bias, activation, or alpha/beta scaling. Stage-01 B packing and all allocations are outside timing. Diagrams zoom into block tiles and thread fragments within this same workload; each stage states its tile dimensions.
 
@@ -31,6 +31,7 @@ From stage 04 onward, `staging_*` names describe the ownership shared by global-
 | [13 · Edge safety](13-edge-safety/README.md) | Partition coordinate views with copy plans; predicate A/B/C, zero invalid inputs, and cover partial/empty split-K tiles | Any positive M,N,K; measured edge examples |
 | [14 · Targeted M/N/K guards](14-targeted-guards/README.md) | Use buffer bounds for whole rows and guard A’s K tail, C’s N tail, and empty split-K stages | Matched edge comparison against stage 13 and Torch |
 | [15 · Mixed-width edge loads](15-edge-load-widths/README.md) | Use 128-bit atoms for full chunks and 64/32/16-bit atoms for the suffix | Matched edge comparison against stage 14 and Torch |
+| [16 · B register staging](16-right-register-staging/README.md) | Gather B columns into WMMA registers | Matched and tuned small-N comparison for BF16 and quantized operands |
 
 Start with the [naive walkthrough](00-naive/README.md). Read each diagram's labels carefully: input values, storage offsets, thread IDs, and accumulator slots describe different things. Keep the same arithmetic and shape while changing one part of the implementation at a time. All stages use named `*_global_view`, `*_tiled_view`, `*_block_view`, and thread/fragment views instead of handwritten global storage offsets. Stages 00–02 select full-K input windows; stage 03 selects 16-wide K windows (64 in its 4×4 variant), stage 04 selects 64-wide windows, stages 05–07c select 64-wide windows. Changes in block size and instruction ownership are stated explicitly; they also affect resource usage.
 
@@ -53,6 +54,10 @@ groups together. `split_k` sets the number of K partitions. For example,
 `10_tile16x64_stagek16_waves1x1_groups1x2_traversalm1_splitk1` describes
 two independent one-wave groups covering a 16×128 physical block.
 Each lesson defines its shape defaults in its Python source.
+
+`left_in_registers` and `right_in_registers` choose the operand staging routes
+in stage 16. A config name ending in `_br1` selects B registers. Check
+`config.lds_bytes` to see the size of the remaining operand tiles.
 
 ## Practice workflow
 
@@ -89,6 +94,33 @@ Explicit `--timing gpu-event` uses GPU events on the current/default stream with
 Explicit `host` timing uses a monotonic CPU clock around GPU launches, with GPU synchronization before and after each batch. **Computation still runs on the GPU.** This measurement includes Python dispatch, launch gaps, and batch synchronization, so it measures host-observed execution cost rather than isolated device time. Compare rows only under the same timing method and rerun to assess variation. The output records the GPU, architecture, versions, method, and scope; it prints no automatic winner.
 
 The fixed 1024³ harness has not identified Torch's selected library solution. The separate [skinny-shape investigation](../../../experiments/torch-strategy/README.md) identifies hipBLASLt for the three skinny calls; those results do not identify the 1024³ backend. Match dtype, accumulation, layout, output, and timing policy before making a library comparison.
+
+
+## Measured 1024 cubed progression
+
+The Radeon 8060S run uses warm repeated BF16 buffers and preallocated outputs.
+It reports the median of five synchronized host batches of 20 launches.
+Host timing includes dispatch and synchronization. Packing stays outside timing.
+Compare implementations with the same B layout. Each row times the whole stage,
+which can include several changes to tile geometry and instruction scheduling.
+[Raw timings and environment](results/gfx1151-1024-series.json)
+
+| Stage | B layout | Median ms | Effective TFLOP/s |
+| --- | --- | ---: | ---: |
+| [00-naive](00-naive/README.md) | row-major | 1.7297 | 1.242 |
+| [02-register-tiling](02-register-tiling/README.md) | row-major | 0.8400 | 2.557 |
+| [03-shared-memory](03-shared-memory/README.md) | row-major | 0.6741 | 3.186 |
+| [04-vectorized-copy](04-vectorized-copy/README.md) | row-major | 0.4003 | 5.364 |
+| [05-matrix-instructions](05-matrix-instructions/README.md) | row-major | 0.2383 | 9.013 |
+| [06-lds-swizzle](06-lds-swizzle/README.md) | row-major | 0.1290 | 16.645 |
+| [07-interleaved-loads](07-interleaved-loads/README.md) | row-major | 0.0920 | 23.340 |
+| [07a-buffer-access](07a-buffer-access/README.md) | row-major | 0.0886 | 24.237 |
+| [07b-operand-staging](07b-operand-staging/README.md) | row-major | 0.0897 | 23.938 |
+| [07c-grouped-traversal](07c-grouped-traversal/README.md) | row-major | 0.0894 | 24.021 |
+| [08-parameter-tuning](08-parameter-tuning/README.md) | row-major | 0.0676 | 31.760 |
+| torch.matmul | row-major | 0.0708 | 30.311 |
+| [01-coalesced-access](01-coalesced-access/README.md) | column-major | 0.8190 | 2.622 |
+| torch.matmul | column-major | 0.0615 | 34.923 |
 
 ## Measure LDS layout changes
 
@@ -128,11 +160,11 @@ The [2D wave-group sweep](10-wave-local-tiles/results/20261116-2d-wave-groups/RE
 
 [Stage 14](14-targeted-guards/README.md) uses bounded copies for whole-row tails, masks A’s partial K columns and C’s partial N columns, and rejects empty K stage slots before selecting a view. Its matched graph comparison tests isolated M, N, and K tails as well as mixed and fully odd shapes.
 
-[Stage 15](15-edge-load-widths/README.md) keeps the wide atom for full chunks and traces a six-value suffix as 64- plus 32-bit loads. B uses the guarded suffix near the physical end of the buffer. The largest measured gains are on odd row pitches.
+[Stage 15](15-edge-load-widths/README.md) keeps the wide atom for full chunks and traces a six-value suffix as 64- plus 32-bit loads. B uses the guarded suffix near the physical end of the buffer. The largest measured gains are on odd row pitches. [Stage 16](16-right-register-staging/README.md) adds a direct B route and tests its cost on small-N shapes.
 
 ## Scope and next experiments
 
-These twenty-one stages execute on Radeon 8060S (`gfx1151`) with FlyDSL 0.4.1 and the shared Pixi environment. WMMA uses the gfx11 wave32 convention intended for gfx1151/gfx1152; hardware validation on gfx1152 remains pending. Main-path skinny kernels keep one LDS stage per operand per independent group, with A bypassing LDS where selected in 12. Agent-scope split-K arrival counters still finalize partials in the same kernel.
+These twenty-two stages execute on Radeon 8060S (`gfx1151`) with FlyDSL 0.4.1 and the shared Pixi environment. WMMA uses the gfx11 wave32 convention intended for gfx1151/gfx1152; hardware validation on gfx1152 remains pending. Main-path skinny kernels keep one LDS stage per operand per independent group, with A bypassing LDS where selected in 12. Agent-scope split-K arrival counters still finalize partials in the same kernel.
 
 The [roadmap](../../../ROADMAP.md#matmul-continuation-planned) continues with deeper prefetch pipelines, shape/resource tuning, and a named-library challenge. Those stages are planned. Preserve the fixed 1024³ comparison while testing new optimizations; do not infer a general GPU result from one shape.
 

@@ -15,6 +15,8 @@ The host fields `group_tile_m`, `group_tile_n`, and `stage_k` supply
 `GROUP_TILE_M`, `GROUP_TILE_N`, and `STAGE_K`. The four tuning
 arrangements are `(1,1)`, `(1,2)`, `(2,1)`, and `(2,2)`.
 
+For the historical `16×4096×8192` comparison on Radeon 8060S, two independent waves with the full-workgroup barrier took 350.91 µs versus 293.30 µs for one wave per block. The full-block rendezvous still couples the waves. The next stage changes that synchronization scope. [Controlled measurements](../10c-k-unrolling/results/README.md#controlled-wide-shape-comparisons)
+
 ## Follow physical block 2
 
 Use `(M,N,K)=(16,4096,8192)`, row-major BF16 A/B/C, and FP32 accumulation. Each wave32 computes a 16×64 output tile using 16-wide K chunks. `(wave_groups_m,wave_groups_n)=(1,2)` puts two such waves in each physical block. With `split_k=1`, 64 logical output tiles fit into 32 physical blocks of 64 threads.

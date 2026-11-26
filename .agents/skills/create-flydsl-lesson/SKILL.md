@@ -69,6 +69,8 @@ Write for a public reader who has not seen the conversation. Introduce the conce
 
 Use the sequence in the reference as a guide, adapting headings to the topic. Introduce data and coordinate meanings before ownership and accesses. Place diagrams near the explanation they support; follow each with a short instruction about what to trace. Explain one likely confusion through the example rather than accumulating warnings.
 
+For a performance lesson, explain the work or resource the change saves and where that saving pays off. Put the measured gain and its shape, hardware, and baseline in the lesson README. Include measured ties or regressions that constrain the tuning decision. Use the [performance walkthrough guidance](references/authoring-patterns.md#explain-where-the-gains-come-from).
+
 Include the native API expressions being taught, the expected practice checkpoint and what it represents, root-relative run commands, a linked worked solution, one revision question with a collapsible answer, and previous/next navigation. Distinguish API fragments and conceptual pseudocode from complete runnable programs. Link relevant authoritative sources and state any version-specific limits.
 
 ## Draw reproducible illustrations

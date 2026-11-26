@@ -64,6 +64,10 @@ For the [1024³ matmul series](lessons/01-gpu-programming/13-matmul/README.md), 
 
 [Lesson 14.1](lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/README.md) stores two E2M1 values per byte, with the even flat value in the low nibble. The fused kernel decodes B tiles to BF16 in LDS for gfx11 WMMA. E8M0 uses `2^(b_scale_byte - 127)` for finite scales. Byte `255` supplies a NaN scale. For `B[k,n]` with row width `N`, set `i = k * N + n`, then extract the nibble from `b_packed[i // 2]` with shift `4 * (i % 2)` and use `b_scales[k // 32,n]`. [Scalar decode and stage 15](lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/02-scalar-dequant/README.md) · [Eight-value register lookup](lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/04-lut-decode/README.md)
 
+### NVFP4 W4A16 weights
+
+Keep the E2M1 nibble address and use `b_scales[k // 16, n]` for the E4M3FN block scale. Multiply the decoded E2M1 value by the decoded block scale and `b_tensor_scale[0]` in FP32 before converting B to BF16. [Step 05](lessons/01-gpu-programming/14-quantized-matmul/03-nvfp4-w4a16/05-scale-reuse/README.md) reuses the decoded scale values across the K slots in a lane’s scale group. [NVFP4 W4A16](lessons/01-gpu-programming/14-quantized-matmul/03-nvfp4-w4a16/README.md)
+
 ### MXFP8 block scales
 
 Both A and B use one E4M3FN code per byte. With `Q = ceil(K/32)`, A's scale tensor is `(M,Q)` and B's is `(Q,N)`. For K coordinate `k`, read `a_scales[m,k//32]` and `b_scales[k//32,n]`. [Lesson 14.2](lessons/01-gpu-programming/14-quantized-matmul/02-mxfp8-blockscale/README.md)
@@ -123,5 +127,7 @@ Stage 08 selects locked configurations with `CONFIGS_BY_SHAPE[(M,N,K)]`: the 102
 [Stage 14](lessons/01-gpu-programming/13-matmul/14-targeted-guards/README.md) uses exact byte bounds for extra M rows and B’s extra K rows. Mask A’s K columns only on the last partial stage and C’s N columns only on incomplete output groups. Check `tile_k < REAL_K_STAGES` before slicing either input when split-K schedules empty slots.
 
 [Stage 15](lessons/01-gpu-programming/13-matmul/15-edge-load-widths/README.md) uses a 128-bit atom for full groups of eight BF16 elements, then selects 64/32/16-bit atoms from the remainder. Match the narrow plans to the same lane ownership and restrict each atom to its own interval. B uses the guarded suffix near the end of the physical buffer.
+
+In [BF16 matmul stage 16](lessons/01-gpu-programming/13-matmul/16-right-register-staging/README.md), `right_in_registers=True` gathers one B column per WMMA lane with bounded 16-bit loads. Each lane keeps the K values in a fragment shaped by `thread_mma.make_fragment_B`.
 
 [Wave specialization and semaphore handoffs](experiments/wave-specialization/README.md) remain archived research. The main path retains all-wave prefetch; [12 explains the measured choice](lessons/01-gpu-programming/13-matmul/12-operand-paths/README.md#why-the-course-keeps-prefetch).

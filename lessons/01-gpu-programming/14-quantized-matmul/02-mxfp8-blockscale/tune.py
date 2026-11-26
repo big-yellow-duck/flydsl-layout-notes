@@ -5,7 +5,7 @@ import hashlib
 import inspect
 import json
 import runpy
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from importlib.metadata import version
 from math import prod
 from pathlib import Path
@@ -16,7 +16,7 @@ import torch
 _BENCHMARK = runpy.run_path(str(Path(__file__).resolve().parents[1] / "benchmark.py"))
 capture = _BENCHMARK["capture"]
 measure = _BENCHMARK["measure"]
-wins_each_round = _BENCHMARK["wins_each_round"]
+_TUNING = runpy.run_path(str(Path(__file__).resolve().parents[1] / "tuning.py"))
 VERIFY_SEEDS = (5101, 5202, 5303)
 TORCH_EMULATION = (
     "TorchInductor MXFP8 decode of A and B to BF16, followed by torch.matmul"
@@ -127,114 +127,28 @@ def verify_rounds(shape, configs):
     ]
 
 
-def tune_shape(shape):
-    base = lesson.default_config(shape)
-    data = inputs(shape, 17)
-    trials = {}
-
-    def evaluate(cfg):
-        if cfg in trials:
-            return
-        row = trials[cfg] = {"config": asdict(cfg), "name": cfg.name}
-        try:
-            lesson.validate_config(cfg, shape)
-        except ValueError as error:
-            row["excluded"] = str(error)
-            return
-        timing = verify(
-            shape,
-            {"fused_mxfp8": cfg},
-            data,
-            seed=17,
-            graph_gemms=4,
-            batches=3,
-            replays=5,
-        )
-        row["ms"] = timing["median_ms"]["fused_mxfp8"]
-        row["samples_ms"] = timing["samples_ms"]["fused_mxfp8"]
-
-    def ranked():
-        return sorted(
-            (cfg for cfg in trials if "ms" in trials[cfg]),
-            key=lambda cfg: trials[cfg]["ms"],
-        )
-
-    evaluate(base)
-    # A and B are both cooperatively decoded, so tune the work per lane.
-    geometries = (
-        (
-            (16, 32, 1, 1),
-            (16, 64, 1, 1),
-            (16, 64, 1, 2),
-            (16, 128, 1, 2),
-            (32, 64, 1, 2),
-            (32, 128, 1, 2),
-            (32, 128, 1, 4),
-        )
-        if shape[0] < 128
-        else (
-            (32, 64, 1, 1),
-            (32, 64, 1, 2),
-            (64, 64, 1, 2),
-            (64, 64, 2, 2),
-            (64, 128, 1, 2),
-            (64, 128, 2, 2),
-            (128, 128, 2, 2),
-            (128, 128, 1, 4),
-        )
+def make_tuning_case(shape, seed):
+    quantized, _, _, expected = lesson.make_inputs(shape, seed)
+    return _TUNING["cuda_case"](
+        quantized, expected, lesson.matmul_mxfp8, flip_operand=seed % 2, sign_mask=128
     )
-    for bm, bn, wm, wn in geometries:
-        evaluate(
-            replace(
-                base,
-                group_tile_m=bm,
-                group_tile_n=bn,
-                stage_k=32,
-                waves_per_group_m=wm,
-                waves_per_group_n=wn,
-                k_unroll=2,
-                wave_groups_m=1,
-                wave_groups_n=1,
-            )
-        )
-    for cfg in ranked()[:2]:
-        for depth in (16, 32, 64):
-            for splits in (1, 2, 4):
-                evaluate(replace(cfg, stage_k=depth, split_k=splits))
-    best = ranked()[0]
-    for unroll in (1, 2, 4):
-        evaluate(replace(best, k_unroll=unroll))
-    for cache in (0, 1, 2):
-        evaluate(replace(best, right_cache_modifier=cache))
 
-    finalists = {cfg.name: cfg for cfg in dict.fromkeys([base, *ranked()[:4]])}
-    rerank = verify(
+
+def tune_shape(shape, beam=1):
+    warm_start = (
+        _TUNING["small_n_configs"](lesson.Config, shape, "mxfp8", allow_direct_a=False)
+        if shape in _TUNING["SMALL_N_SHAPES"]
+        else ()
+    )
+    return _TUNING["tune"](
         shape,
-        finalists,
-        inputs(shape, 37),
-        seed=37,
-        graph_gemms=16,
-        batches=5,
-        replays=7,
+        lesson.default_config(shape),
+        lesson.validate_config,
+        lambda seed: make_tuning_case(shape, seed),
+        allow_direct_a=False,
+        beam=beam,
+        warm_start=warm_start,
     )
-    winner = finalists[min(finalists, key=rerank["median_ms"].__getitem__)]
-    candidates = {"fused_mxfp8": winner}
-    if winner != base:
-        candidates["initial_config"] = base
-    rounds = verify_rounds(shape, candidates)
-    chosen = "fused_mxfp8"
-    if winner != base and not wins_each_round(rounds, "fused_mxfp8", "initial_config"):
-        chosen = "initial_config"
-        winner = base
-    return {
-        "shape_MNK": shape,
-        "selected_config": asdict(winner),
-        "selected_config_name": winner.name,
-        "selected_lane": chosen,
-        "trials": list(trials.values()),
-        "finalist_ranking": rerank,
-        "verification": rounds,
-    }
 
 
 def main():
@@ -242,11 +156,21 @@ def main():
     parser.add_argument("--shape", type=int, nargs=3, action="append")
     parser.add_argument("--output", type=Path)
     parser.add_argument(
+        "--beam", type=int, default=1, help="Seeds per B route per refinement"
+    )
+    parser.add_argument(
+        "--small-n", action="store_true", help="Include the Stage 16 small-N shapes"
+    )
+    parser.add_argument(
         "--verify-only", action="store_true", help="Time the installed shape defaults"
     )
     args = parser.parse_args()
+    if args.beam < 1:
+        parser.error("--beam must be positive")
     torch.set_num_threads(1)
     shapes = [tuple(shape) for shape in args.shape] if args.shape else lesson.SHAPES
+    if args.small_n:
+        shapes = list(dict.fromkeys([*shapes, *_TUNING["SMALL_N_SHAPES"]]))
     result = {
         "device": torch.cuda.get_device_name(0),
         "arch": torch.cuda.get_device_properties(0).gcnArchName,
@@ -255,6 +179,7 @@ def main():
         "hip": torch.version.hip,
         "timing": "GPU event time per GEMM across shuffled graph replay batches",
         "torch_emulation": TORCH_EMULATION,
+        "beam": args.beam,
         "native_kernel_sha256": hashlib.sha256(
             inspect.getsource(lesson._matmul_mxfp8._original_func).encode()
         ).hexdigest(),
@@ -275,7 +200,7 @@ def main():
             }
         else:
             print(f"Tuning {shape}", flush=True)
-            report = tune_shape(shape)
+            report = tune_shape(shape, args.beam)
         result["shapes"].append(report)
         print(f"{shape} {report['selected_config_name']}", flush=True)
         for row in report["verification"]:

@@ -1,5 +1,34 @@
 # MXFP8 block-scale matmul results
 
+## Shape tuning with B registers
+
+Measured on AMD Radeon 8060S Graphics (`gfx1151`) with FlyDSL 0.4.1,
+PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. This sweep timed 326 configurations.
+MXFP8 uses cooperative A staging in every candidate.
+The tuner screens both B routes with the same packed inputs and preallocated output.
+It searches tile and wave geometry, 16/32/64-row K stages, split-K, unroll, cache policy,
+and eligible wave groups and traversal. NVFP4 also screens both A routes. Each trial
+checks the full output, output sentinels, and replay after a packed sign flip.
+The finalists include both B routes and the previous default. Their medians combine
+three fresh seeds with seven shuffled batches of seven replays, at 16 GEMMs per graph.
+A register default has to beat the best LDS finalist in every verification round.
+
+The largest selected gain is **94.7% lower latency** at `16×7×4097`.
+B registers were selected for 0 of 7 measured cases. The route
+columns show the lowest verified median within each route. A small difference in medians
+can leave the installed default unchanged when it fails the round-by-round comparison.
+[Full configurations and samples](gfx1151-route-tuning.json)
+
+| M × N × K | Previous µs | Selected µs | Selected B | Best LDS finalist µs | Best register finalist µs |
+| --- | ---: | ---: | --- | ---: | ---: |
+| 17 × 77 × 46 | 3.245 | 2.928 | LDS | 2.928 | 2.935 |
+| 32 × 1024 × 8192 | 76.620 | 76.620 | LDS | 76.620 | 110.532 |
+| 31 × 1025 × 8193 | 99.672 | 95.490 | LDS | 95.490 | 128.838 |
+| 512 × 512 × 512 | 26.611 | 26.611 | LDS | 26.611 | 44.178 |
+| 16 × 1 × 4096 | 156.426 | 17.769 | LDS | 17.769 | 25.311 |
+| 16 × 7 × 4097 | 355.749 | 18.766 | LDS | 18.766 | 32.267 |
+| 128 × 16 × 4096 | 209.746 | 14.440 | LDS | 14.440 | 17.882 |
+
 ## Subnormal lookup decode
 
 An eight-entry table supplies exact FP16 bits for the E4M3 subnormals. The decoder constructs normal values directly, applies E8M0 in FP32, and rounds to BF16. Every code-and-scale pair matched the CPU in each slot. [Comparison and raw samples](lookup-decode.json)

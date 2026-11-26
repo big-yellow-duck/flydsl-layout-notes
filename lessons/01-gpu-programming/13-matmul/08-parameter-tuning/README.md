@@ -17,6 +17,8 @@ SELECTED_CONFIG = Config(
 
 `traversal_group_m` is part of `Config`, so each specialization and its report record the traversal choice. This means a **128×128 output tile**, a **32-wide K stage**, **one group of 1×4 cooperating waves**, and **one LDS buffer per operand**. The strategy combines more output reuse with 16-wide operand fragments, vectorized global staging, and grouped block traversal.
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.0676 ms**, 24.4% lower than the 0.0894 ms for [grouped block traversal](../07c-grouped-traversal/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## How this relates to stage 07c
 
 The overall strategy is the same as 07c: grouped output-block traversal, buffer global transfers, separate A/B staging plans, register prefetch into a single LDS tile per operand, and instruction-derived WMMA copies. Both lessons consume K=16 operand fragments and keep FP32 accumulators across the full reduction. Stage 08 parameterizes this strategy and measures different configurations.

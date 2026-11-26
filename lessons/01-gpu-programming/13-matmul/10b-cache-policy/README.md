@@ -4,6 +4,8 @@ A buffer load can carry a cache-policy hint without changing its addresses or ow
 
 The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `traversal_group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
+On Radeon 8060S at `16×4096×8192`, policy 2 reduced the matched median from 288.27 to 280.51 µs. The two kernels request the same B addresses. The ISA shows eight static B load sites with SLC for policy 2, which records the hint without measuring which requests hit cache. [Controlled measurements](../10c-k-unrolling/results/README.md#controlled-wide-shape-comparisons)
+
 ## Keep the transfer the same
 
 Use `(16,4096,8192)` with two independent 16×64×16 wave tiles per block. Each wave has 32 threads. Its packed B tile contains `16*64=1024` BF16 values. Dividing those values across 32 staging threads gives **32 BF16 values per thread**.

@@ -1,0 +1,280 @@
+[
+  {
+    "gpu": "AMD Radeon 8060S Graphics",
+    "arch": "gfx1151",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385",
+    "flydsl": "0.4.1 (repository pin)",
+    "requested_timing": "host",
+    "timing": "host",
+    "fallback": null,
+    "scope": "warm repeated buffers; preallocated output; median of five batches",
+    "warmups": 3,
+    "cpu_reference_threads": 1,
+    "repeats": 20,
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "packing": "input packing excluded from timing",
+    "timing_note": "host includes dispatch and synchronization",
+    "baseline": "GPU torch.matmul; underlying BLAS backend not identified"
+  },
+  {
+    "kernel": "00-naive",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 1.7297254409641027,
+    "effective_TFLOP_s": 1.2415170622703278,
+    "status": "ok"
+  },
+  {
+    "kernel": "02-register-tiling",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.8399936952628195,
+    "effective_TFLOP_s": 2.556547340903659,
+    "status": "ok"
+  },
+  {
+    "kernel": "03-shared-memory",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.6741296034306288,
+    "effective_TFLOP_s": 3.1855649671391215,
+    "status": "ok"
+  },
+  {
+    "kernel": "04-vectorized-copy",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.4003261448815465,
+    "effective_TFLOP_s": 5.364335243793343,
+    "status": "ok"
+  },
+  {
+    "kernel": "05-matrix-instructions",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.2382650040090084,
+    "effective_TFLOP_s": 9.013004897348699,
+    "status": "ok"
+  },
+  {
+    "kernel": "06-lds-swizzle",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.12901619775220752,
+    "effective_TFLOP_s": 16.645070040930236,
+    "status": "ok"
+  },
+  {
+    "kernel": "07-interleaved-loads",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.09201029315590858,
+    "effective_TFLOP_s": 23.339602280813903,
+    "status": "ok"
+  },
+  {
+    "kernel": "07a-buffer-access",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.08860239759087563,
+    "effective_TFLOP_s": 24.23730854232719,
+    "status": "ok"
+  },
+  {
+    "kernel": "07b-operand-staging",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.08971035713329911,
+    "effective_TFLOP_s": 23.937967884901965,
+    "status": "ok"
+  },
+  {
+    "kernel": "07c-grouped-traversal",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.08940185653045774,
+    "effective_TFLOP_s": 24.020571063514634,
+    "status": "ok"
+  },
+  {
+    "kernel": "08-parameter-tuning",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.06761550903320312,
+    "effective_TFLOP_s": 31.76022304210505,
+    "status": "ok"
+  },
+  {
+    "kernel": "torch.matmul",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "row-major",
+    "right_stride": [
+      1024,
+      1
+    ],
+    "ms": 0.07084845565259457,
+    "effective_TFLOP_s": 30.310945075926384,
+    "status": "ok"
+  },
+  {
+    "gpu": "AMD Radeon 8060S Graphics",
+    "arch": "gfx1151",
+    "torch": "2.13.0+rocm10.1.0",
+    "hip": "7.16.26385",
+    "flydsl": "0.4.1 (repository pin)",
+    "requested_timing": "host",
+    "timing": "host",
+    "fallback": null,
+    "scope": "warm repeated buffers; preallocated output; median of five batches",
+    "warmups": 3,
+    "cpu_reference_threads": 1,
+    "repeats": 20,
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "column-major",
+    "right_stride": [
+      1,
+      1024
+    ],
+    "packing": "input packing excluded from timing",
+    "timing_note": "host includes dispatch and synchronization",
+    "baseline": "GPU torch.matmul; underlying BLAS backend not identified"
+  },
+  {
+    "kernel": "01-coalesced-access",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "column-major",
+    "right_stride": [
+      1,
+      1024
+    ],
+    "ms": 0.8189943502657115,
+    "effective_TFLOP_s": 2.6220982443936007,
+    "status": "ok"
+  },
+  {
+    "kernel": "torch.matmul",
+    "shape_MNK": [
+      1024,
+      1024,
+      1024
+    ],
+    "right_layout": "column-major",
+    "right_stride": [
+      1,
+      1024
+    ],
+    "ms": 0.06149164400994778,
+    "effective_TFLOP_s": 34.923178304561056,
+    "status": "ok"
+  }
+]

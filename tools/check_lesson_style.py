@@ -201,6 +201,17 @@ def public_api_checks():
             packed_cpu, scales_cpu, dense_cpu = module["quantize_mxfp4"](b_cpu)
             args = (a_cpu.cuda(), packed_cpu.cuda(), scales_cpu.cuda())
             reference = (a_cpu.float() @ dense_cpu.float()).bfloat16()
+        elif operation in ("dequantize_nvfp4", "matmul_nvfp4_w4a16"):
+            a, b_packed, b_scales, b_tensor_scale = module["_trace_inputs"]()
+            k = a.shape[1]
+            operands = (b_packed, b_scales, b_tensor_scale)
+            b = module["_reference_b"](*operands, k)
+            gpu_operands = tuple(tensor.cuda() for tensor in operands)
+            if operation == "dequantize_nvfp4":
+                args, reference = (*gpu_operands, k), b
+            else:
+                args = (a.cuda(), *gpu_operands)
+                reference = (a.float() @ b.float()).bfloat16()
         elif operation == "matmul_mxfp8":
             shape = module["TRACE_SHAPE"]
             m, n, k = shape

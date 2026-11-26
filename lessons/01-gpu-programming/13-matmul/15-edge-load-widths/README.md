@@ -102,4 +102,4 @@ The 64-bit copy fills four BF16 slots, and the 32-bit copy fills the next two. A
 
 </details>
 
-[Previous: targeted M/N/K guards](../14-targeted-guards/README.md) · [Matmul series](../README.md) · [Next · Read an MXFP4 weight](../../14-quantized-matmul/01-mxfp4-w4a16/01-mxfp4-format/README.md)
+[Previous: targeted M/N/K guards](../14-targeted-guards/README.md) · [Matmul series](../README.md) · [Next · B register staging](../16-right-register-staging/README.md)

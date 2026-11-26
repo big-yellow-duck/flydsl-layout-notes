@@ -9,6 +9,8 @@ global views -> full-K tiled views -> block views
              -> four-row thread views -> scalar loads -> four accumulators -> stores
 ```
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.8400 ms**, 51.4% lower than the 1.7297 ms for [one output per thread](../00-naive/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Select the same block windows
 
 The native global layouts and `flat_divide` calls match lesson 01:

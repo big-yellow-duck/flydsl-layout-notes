@@ -24,6 +24,8 @@ Complete chunks use eight-byte reads. The last A K chunk uses smaller reads and 
 
 The decoder maps E4M3 normals into FP16 bits with an exponent bias adjustment. For exponent zero, an eight-entry register table supplies the high FP16 bytes for magnitudes `0` through `7 × 2⁻⁹`. Two `perm_b32` instructions look up the eight entries in each staging chunk. The lane converts the exact FP16 value to FP32, applies E8M0, then rounds to BF16.
 
+Both B staging routes are candidates in the tuner. A remains cooperative in LDS, so enabling B registers saves the B tile and its LDS transfers while preserving the A handoff. Use the validated shape default for the measured workloads. [Stage 16 small-N comparison](../../13-matmul/16-right-register-staging/README.md)
+
 ## Practice
 
 Fill two expressions in [practice.py](practice.py).
@@ -41,6 +43,10 @@ pixi run python lessons/01-gpu-programming/14-quantized-matmul/02-mxfp8-blocksca
 
 ## Compare GPU time
 
+The search compares both B routes while keeping A cooperative. It varies tile and wave geometry, K-stage depth, split count, unroll, cache policy, and eligible wave groups and traversal. Finalists replay changed inputs and compete again on three fresh seeds. Use `--small-n` for the Stage 16 workload set and `--beam 2` to widen the refinements. [Verified shape defaults](results/README.md#shape-tuning-with-b-registers)
+
+On Radeon 8060S, the `17×77×46` case fell from 3.24 to 2.93 µs with a smaller K and N tile. That geometry stages less padding on the short K extent and incomplete N groups. At `31×1025×8193`, tuning the unroll and B cache policy reduced latency from 99.67 to 95.49 µs. The aligned `32×1024×8192` case retained its previous setting. All three use B through LDS. On `16×7×4097`, the tuned LDS configuration took 18.77 µs versus 355.75 µs for the generic fallback.
+
 FlyDSL and Torch both start from the same two FP8 byte tensors and their E8M0 scales. TorchInductor compiles the conversions to BF16, and `torch.matmul` consumes both decoded matrices on every replay. Torch's timing includes both conversions and the multiply. Lesson 15 gives a separate predecoded BF16 reference. All benchmarks start with preallocated output and exclude offline encoding. [Timings and raw samples](results/README.md)
 
 ## Revision question
@@ -53,4 +59,4 @@ A reads along K within one output row and a single 32-element MX block. B reads 
 
 </details>
 
-[Previous · Fused MXFP4 W4A16](../01-mxfp4-w4a16/04-lut-decode/README.md) · [Quantized matmul](../README.md) · [Course overview](../../../../README.md)
+[Previous · Fused MXFP4 W4A16](../01-mxfp4-w4a16/04-lut-decode/README.md) · [Quantized matmul](../README.md) · [Course overview](../../../../README.md) · [Next · Read an NVFP4 weight](../03-nvfp4-w4a16/01-nvfp4-format/README.md)

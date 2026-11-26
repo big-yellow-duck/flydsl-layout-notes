@@ -8,6 +8,8 @@ The [solution](solution.py) supplies `schedule="serial"` and `schedule="prefetch
 
 Read the buffer contents as well as the arrows. During steady-state computation, **LDS holds tile t while private staging registers hold tile t+1**. These are different storage locations. The diagram describes program order, not measured clock cycles.
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.0920 ms**, 28.7% lower than the 0.1290 ms for [swizzled A LDS](../06-lds-swizzle/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Separate the storage roles
 
 The input path remains the one established in stages 04–06:

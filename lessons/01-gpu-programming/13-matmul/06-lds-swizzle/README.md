@@ -16,6 +16,8 @@ B remains packed row-major in all modes. The three modes share global storage, s
 
 Read row 2 first: the same logical A element `(row,k)=(2,2)` uses packed element offset 130, swizzled offset 146, or padded offset 146. These numbers are storage offsets, not matrix values. The drawing sketches bank placement; the measured instruction access pattern determines actual conflicts.
 
+On Radeon 8060S, the fixed `1024³` host-clock run includes dispatch and synchronization. This stage takes **0.1290 ms**, 45.9% lower than the 0.2383 ms for [first WMMA kernel](../05-matrix-instructions/README.md). [Full fixed-shape comparison](../README.md#measured-1024-cubed-progression)
+
 ## 1. Why row-major LDS can conflict
 
 For this target's 32 four-byte banks, a byte address maps to `bank = (byte_address // 4) % 32`. A BF16 occupies two bytes, so a relative element offset `e` maps to `(e // 2) % 32`, up to the buffer base's bank rotation. A 64-element row occupies 128 bytes: at fixed K, adjacent rows map to the same bank. By contrast, adjacent columns of packed B walk neighboring words.

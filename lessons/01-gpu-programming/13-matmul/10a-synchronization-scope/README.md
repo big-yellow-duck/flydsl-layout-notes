@@ -4,6 +4,8 @@ The two waves in [lesson 10](../10-wave-local-tiles/README.md) use disjoint LDS 
 
 The launch uses [10's two-dimensional wave-group layout](../10-wave-local-tiles/README.md#select-the-physical-block-before-the-wave). Each compute group owns `GROUP_TILE_M × GROUP_TILE_N` outputs and stages `STAGE_K` K values at a time. The physical block owns `BLOCK_M=GROUP_TILE_M*WAVE_GROUPS_M` rows and `BLOCK_N=GROUP_TILE_N*WAVE_GROUPS_N` columns. A/B/C views select that block first, then slice the group's operand/output regions before applying thread ownership. `traversal_group_m` orders **physical block rows**: row within the M group, then K split, physical tile column, and M group. Each wave slices its own output and private LDS region. All waves in a block use the same K split; workspace tile IDs remain row-major and independent of traversal order.
 
+On Radeon 8060S at `16×4096×8192`, changing the execution scope to subgroup reduced the median from 352.24 to 288.09 µs. LDS-only ordering at workgroup scope took 353.87 µs. In this comparison, the gain comes with letting each independent wave rendezvous on its own. [Controlled measurements](../10c-k-unrolling/results/README.md#controlled-wide-shape-comparisons)
+
 ## Two independent choices
 
 Use the same `(16,4096,8192)` workload: two independent wave32 groups in a physical block, each computing 16×64 outputs with 16-wide K chunks. Block 2 selects columns 256–319 and 320–383. Its two A/B regions occupy 5632 LDS bytes altogether.

@@ -1,5 +1,6 @@
 """Decode one MXFP4 weight per thread, then reuse stage 15 BF16 matmul."""
 
+import argparse
 import runpy
 from pathlib import Path
 
@@ -162,14 +163,14 @@ def dequantize_mxfp4(
     return b
 
 
-def solve():
-    """Check scalar decode and feed its output directly to the stage 15 matmul."""
+def solve(*, right_in_registers=False):
+    """Check scalar decode and feed its output directly to the BF16 matmul."""
     lesson = Path(__file__).resolve().parent
     reference_decode = runpy.run_path(str(lesson.parent / "04-lut-decode/solution.py"))[
         "torch_dequantize_mxfp4"
     ]
-    stage_15 = lesson.parents[2] / "13-matmul/15-edge-load-widths/solution.py"
-    matmul_bf16 = runpy.run_path(str(stage_15))["matmul_bf16"]
+    matmul_lesson = lesson.parents[2] / "13-matmul/16-right-register-staging/solution.py"
+    dense_matmul = runpy.run_path(str(matmul_lesson))
 
     k, n = 33, 3
     # Flat indices 0–98 cycle through the sixteen codes. The unused high
@@ -182,7 +183,11 @@ def solve():
     a[1, 31:33] = 1
 
     b_bf16 = dequantize_mxfp4(b_packed.cuda(), b_scales.cuda(), k)
-    c = matmul_bf16(a.cuda(), b_bf16)
+    config = dense_matmul["Config"](
+        group_tile_n=16, stage_k=16, waves_per_group_n=1, split_k=1,
+        k_unroll=1, right_in_registers=right_in_registers,
+    )
+    c = dense_matmul["matmul_bf16"](a.cuda(), b_bf16, config=config)
     torch.cuda.synchronize()
     expected_b = reference_decode(b_packed, b_scales, (k, n))
     torch.testing.assert_close(b_bf16.cpu(), expected_b, rtol=0, atol=0)
@@ -209,7 +214,10 @@ def solve():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--right-in-registers", action="store_true")
+    args = parser.parse_args([] if globals().get("_COURSE_CHECK_ONLY", False) else None)
     try:
-        print("Exercise passed:", solve())
+        print("Exercise passed:", solve(right_in_registers=args.right_in_registers))
     except NotImplementedError as error:
         raise SystemExit(f"Practice not finished: {error}") from None
