@@ -33,7 +33,9 @@ def capture(launch, data):
     finally:
         if enabled:
             gc.enable()
-    if (
+    callee = getattr(launch, "func", launch)
+    # Torch may use multiple kernels per GEMM; only lesson launchers promise one.
+    if callee.__name__ == "matmul_bf16" and (
         metadata["nodes"] != 32 + metadata.get("workspace_initialization_nodes", 0)
         or not 32 <= metadata["kernel_nodes"] <= metadata["nodes"]
     ):

@@ -25,13 +25,37 @@ pixi run python lessons/01-gpu-programming/13-matmul/16-right-register-staging/p
 pixi run python lessons/01-gpu-programming/13-matmul/16-right-register-staging/solution.py --edge-checks
 ```
 
-## Compare the two routes
+## Tune BF16 against PyTorch
 
-`tune.py` measures each format at matched settings and also searches the same geometry candidates for the two routes. The fused quantized register paths use the same B-column ownership. They prefetch packed codes and decode them into the current WMMA registers. At N=1 with K divisible by eight, the codes for a column are contiguous, so each packed load supplies eight consecutive K values. The scalar paths dequantize B first and time that decode together with the BF16 matmul. [Timing results](results/README.md) · [Quantized matmul](../../14-quantized-matmul/README.md)
+Run the BF16 sweep from the repository root to tune both B routes and time `torch.matmul` on the same contiguous BF16 inputs and preallocated BF16 output.
 
-On Radeon 8060S, at `16×1×4096`, a 32-row matched BF16 tile is effectively tied (8.13 µs with LDS, 8.23 µs with registers). With a 64-row K stage, both routes improve and registers take **6.40 µs versus 7.63 µs**. This 16.1% reduction is a result of the route and stage size together. For MXFP4 LUT at the same shape, the matched 32-row register path is already faster (8.63 µs versus 10.46 µs). Its tuned 16-row register path reaches **8.52 µs**, an 18.6% reduction versus tuned LDS. At N=1, the packed load can fetch eight adjacent K codes at once.
+```bash
+pixi run python lessons/01-gpu-programming/13-matmul/16-right-register-staging/tune.py \
+  --kernel bf16 --shape 16 1 4096 --shape 16 2 4096 --shape 16 4 4096 \
+  --shape 16 7 4097 --shape 128 16 4096 --output /tmp/right-register-bf16-torch.json
+```
 
-At `16×7×4097` and `128×16×4096`, tuned LDS wins for every tested kernel in the Stage 16 sweep. Row-major B lets each cooperative lane move up to eight adjacent values in one load. The direct gather can still coalesce requests across lanes, and each lane issues a small load for each K slot. Use the matched pair to see the effect of the route at fixed geometry. Choose a default from the separately tuned measurements. [Full small-N comparisons](results/README.md)
+The search varies K-stage depth, split-K, K unroll, A staging, and M tile and wave layout. It verifies the three fastest candidates from each route alongside the matched pair and PyTorch in three shuffled timing rounds. Every graph passes a full CPU FP32 reference check rounded to BF16 and replays with changed B. GPU event time is divided by the number of matmuls in the batch.
+
+On Radeon 8060S (`gfx1151`), the same BF16 graph-replay comparison gives these median times per matmul. Speedup is PyTorch time divided by the faster FlyDSL time.
+
+| M × N × K | Tuned B in LDS (µs) | Tuned B in registers (µs) | PyTorch (µs) | Speedup |
+| --- | ---: | ---: | ---: | ---: |
+| 16 × 1 × 4096 | 6.99 | **6.41** | 19.08 | 2.98× |
+| 16 × 2 × 4096 | **5.74** | 6.18 | 19.00 | 3.31× |
+| 16 × 4 × 4096 | **6.11** | 6.23 | 19.13 | 3.13× |
+| 16 × 7 × 4097 | **7.96** | 8.28 | 28.97 | 3.64× |
+| 128 × 16 × 4096 | **5.61** | 6.53 | 11.72 | 2.09× |
+
+On the single-column shape, the matched 32-row stage is effectively tied at 8.13 µs for LDS and 8.24 µs for registers. The winning configuration uses a 64-row K stage and keeps both operands in registers. With M and K fixed, the winner switches to LDS at N=2 and stays with LDS at N=4. The margin at N=4 is about 2%. LDS also wins at the two wider shapes. Each winner leads both the other route and PyTorch in all three verification rounds. [Exact configs, matched timings, and raw samples](results/README.md#tuned-bf16-versus-pytorch)
+
+## Compare staging routes for quantized B
+
+`tune.py` measures each format at matched settings and also searches the same geometry candidates for the two routes. The fused quantized register paths use the same B-column ownership. They prefetch packed codes and decode them into the current WMMA registers. At N=1 with K divisible by eight, the codes for a column are contiguous, so each packed load supplies eight consecutive K values. The scalar paths dequantize B first and time that decode together with the BF16 matmul. [Quantized matmul](../../14-quantized-matmul/README.md)
+
+On Radeon 8060S at `16×1×4096`, the matched 32-row MXFP4 LUT tile takes 8.63 µs with B in registers and 10.46 µs with B in LDS. Its tuned 16-row register path reaches **8.52 µs**, an 18.6% reduction versus tuned LDS.
+
+At `16×7×4097` and `128×16×4096`, tuned LDS wins for every quantized kernel in the original sweep. Row-major B lets each cooperative lane move up to eight adjacent values in one load. The direct gather can still coalesce requests across lanes, and each lane issues a small load for each K slot. Use the matched pair to see the effect of the route at fixed geometry. Choose a config from the separately tuned measurements. [Full small-N comparisons](results/README.md#original-staging-sweep)
 
 The broader NVFP4 sweep found B-register wins for LUT and scale reuse at `2×9×17` and `16×1×4096`. For scale reuse, tuned registers took 2.15 µs versus 2.30 µs for tuned LDS on the tiny case and 16.84 µs versus 17.30 µs on the single-column case. Each register choice beat its LDS finalist in all three verification rounds. MXFP8 selected LDS on all seven shapes in its separate sweep. [NVFP4 sweep](../../14-quantized-matmul/03-nvfp4-w4a16/results/README.md) · [MXFP8 sweep](../../14-quantized-matmul/02-mxfp8-blockscale/results/README.md#shape-tuning-with-b-registers)
 

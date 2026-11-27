@@ -1,5 +1,51 @@
 # Small-N B staging results
 
+## Tuned BF16 versus PyTorch
+
+The BF16 sweep uses the same contiguous A and B tensors for every candidate and for `torch.matmul(a, b, out=c)`. All calls write to the same preallocated BF16 C. GPU events measure warm replay of graphs with 16 matmuls each. Compilation, reference calculation, and per-matmul Python dispatch happen before timing.
+
+The screen uses five shuffled batches of five replays. For each route, the three fastest screen candidates and the original matched config advance to verification against PyTorch. Each of the three verification rounds uses seven shuffled batches of eight replays. The reported latency is the median of the three round medians. All 392 FlyDSL candidates and five PyTorch controls passed a full CPU-reference output comparison, output sentinel checks, and graph replay after flipping B's sign. Both runs used Radeon 8060S Graphics (`gfx1151`), FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. [Original three shapes](gfx1151-bf16-torch.json) · [N=2 and N=4 follow-up](gfx1151-bf16-torch-n2-n4.json)
+
+| M × N × K | Configs screened | Matched LDS (µs) | Matched registers (µs) | Tuned LDS (µs) | Tuned registers (µs) | PyTorch (µs) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 16 × 1 × 4096 | 74 | 8.128 | 8.236 | 6.986 | **6.409** | 19.077 |
+| 16 × 2 × 4096 | 74 | 6.667 | 8.100 | **5.737** | 6.182 | 18.998 |
+| 16 × 4 × 4096 | 74 | 7.239 | 9.630 | **6.106** | 6.228 | 19.126 |
+| 16 × 7 × 4097 | 74 | 10.540 | 12.531 | **7.964** | 8.276 | 28.970 |
+| 128 × 16 × 4096 | 96 | 6.672 | 6.965 | **5.609** | 6.532 | 11.722 |
+
+The matched runs use a `16×16×32` tile, one wave32, split-K 4, K unroll 2, and A in registers. Both route finalists for each shape also pass the solution checker with a fresh seed, poisoned input backing storage, and output and workspace guards.
+
+### Reuse a tuned configuration
+
+Use the fastest config for your shape. The winners use a `16×16` output tile, a 64-row K stage, one wave32, one wave group, M traversal grouping of 1, split-K 4, and cache modifiers of 0 for A and 2 for B. Set the two register flags and `k_unroll` using the table.
+
+| M × N × K | A staging | B staging | K unroll | Report key |
+| --- | --- | --- | ---: | --- |
+| 16 × 1 × 4096 | Registers | Registers | 1 | `registers-2` |
+| 16 × 2 × 4096 | LDS | LDS | 2 | `lds-36` |
+| 16 × 4 × 4096 | LDS | LDS | 2 | `lds-36` |
+| 16 × 7 × 4097 | Registers | LDS | 4 | `lds-35` |
+| 128 × 16 × 4096 | LDS | LDS | 2 | `lds-36` |
+
+For example, pass this single-column config to `matmul_bf16(a, b, out=c, config=config)` from [the lesson solution](../solution.py).
+
+```python
+config = Config(
+    group_tile_m=16,
+    group_tile_n=16,
+    stage_k=64,
+    waves_per_group_m=1,
+    waves_per_group_n=1,
+    split_k=4,
+    k_unroll=1,
+    left_in_registers=True,
+    right_in_registers=True,
+)
+```
+
+## Original staging sweep
+
 Measured on AMD Radeon 8060S Graphics with FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. The matched pair uses a `16×16×32` tile, one wave, split-K 4, and unroll 2. The search tests five settings per route, varying K-stage depth, split count, M tile size, and unroll. A is held in registers for BF16 and the FP4 paths. MXFP8 uses A through LDS.
 
 Each graph contains 16 matmuls with preallocated output. The scalar FP4 rows also include one dequantization into a preallocated BF16 B per matmul. Each candidate checks the full result, the output sentinel, and replay after flipping B's sign. The search chooses a finalist per route. The tables report medians from three verification rounds with seven shuffled batches of eight replays. Configuration fields, individual timings, and source hashes are in the raw archive. [Raw results](gfx1151-small-n.json)

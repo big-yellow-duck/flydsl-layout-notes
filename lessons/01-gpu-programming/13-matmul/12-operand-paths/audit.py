@@ -163,8 +163,13 @@ def main():
                 }
                 graph_wins += report["comparisons"]["torch"]["win_rounds"]
                 for sample in report["rounds"]:
-                    for graph in sample["graph_metadata"].values():
-                        assert graph["nodes"] == graph["kernel_nodes"] == 32
+                    for name, graph in sample["graph_metadata"].items():
+                        assert graph["kernel_nodes"] >= 32
+                        if name != "torch":
+                            expected_nodes = 32 + graph.get(
+                                "workspace_initialization_nodes", 0
+                            )
+                            assert graph["nodes"] == expected_nodes
                         assert graph["mutated_input_replay"] == "passed"
             else:
                 direct_wins += report["comparisons"]["torch"]["win_rounds"]

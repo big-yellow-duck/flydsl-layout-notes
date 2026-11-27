@@ -1,4 +1,4 @@
-"""Tune B LDS and B registers on identical small-N inputs."""
+"""Tune both B staging routes and compare BF16 with torch.matmul."""
 
 import argparse
 import hashlib
@@ -29,6 +29,7 @@ SHAPES = ((16, 1, 4096), (16, 7, 4097), (128, 16, 4096))
 GRAPH_GEMMS = 16
 VERIFY_SEEDS = (4101, 4202, 4303)
 ROUTES = ("lds", "registers")
+TORCH_BASELINE = "torch.matmul"
 
 
 def make_case(name, modules, shape):
@@ -109,6 +110,43 @@ def candidates(shape, *, left_in_registers):
         }
 
 
+def bf16_candidates(shape):
+    base = list(candidates(shape, left_in_registers=True))
+    yield from base
+    matched = base[0]
+    m, _, k = shape
+    splits = (1, 2, 4) if k >= 256 else (1,)
+    for stage_k in (16, 32, 64):
+        for split_k in splits:
+            for k_unroll in (1, 2, 4):
+                geometry = {
+                    **matched,
+                    "stage_k": stage_k,
+                    "split_k": split_k,
+                    "k_unroll": k_unroll,
+                }
+                if geometry not in base:
+                    yield geometry
+            yield {
+                **matched,
+                "stage_k": stage_k,
+                "split_k": split_k,
+                "left_in_registers": False,
+            }
+    if m >= 32:
+        # Compare a larger per-wave tile, cooperating M waves, and independent M groups.
+        for packing in (
+            {"group_tile_m": 32},
+            {"group_tile_m": 32, "waves_per_group_m": 2},
+            {"wave_groups_m": 2},
+        ):
+            for stage_k in (32, 64):
+                for split_k in (1, 4):
+                    geometry = {**matched, **packing, "stage_k": stage_k, "split_k": split_k}
+                    if geometry not in base:
+                        yield geometry
+
+
 def compare(name, modules, shared, shape):
     m, n, _ = shape
     inputs, expected, flip = make_case(name, modules, shape)
@@ -116,7 +154,12 @@ def compare(name, modules, shared, shape):
     c = storage[:-16].view(m, n)
     launch, config_module = launch_for(name, modules, inputs, shape, c)
     graphs, configs = {}, {}
-    for index, geometry in enumerate(candidates(shape, left_in_registers=name != "mxfp8")):
+    geometries = (
+        bf16_candidates(shape)
+        if name == "bf16"
+        else candidates(shape, left_in_registers=name != "mxfp8")
+    )
+    for index, geometry in enumerate(geometries):
         for route in ROUTES:
             config = config_module["Config"](**geometry, right_in_registers=route == "registers")
             config_module["validate_config"](config, shape)
@@ -126,13 +169,27 @@ def compare(name, modules, shared, shape):
             )
             configs[label] = {**asdict(config), "lds_bytes": config.lds_bytes}
 
-    prelim, _, _ = shared["measure"](graphs, GRAPH_GEMMS, 5, 5, 4404)
+    baseline = {}
+    if name == "bf16":
+        baseline[TORCH_BASELINE] = shared["capture"](
+            partial(torch.matmul, *inputs, out=c),
+            flip, c, storage[-16:], expected, GRAPH_GEMMS,
+        )
+    prelim, screen_samples, screen_orders = shared["measure"](
+        graphs, GRAPH_GEMMS, 5, 5, 4404
+    )
     matched = {route: f"{route}-0" for route in ROUTES}
-    finalists = {
-        route: min((label for label in graphs if label.startswith(f"{route}-")), key=prelim.get)
+    shortlist_size = 3 if baseline else 1
+    shortlisted = {
+        route: sorted(
+            (label for label in graphs if label.startswith(f"{route}-")), key=prelim.get
+        )[:shortlist_size]
         for route in ROUTES
     }
-    verification_graphs = {label: graphs[label] for label in dict.fromkeys((*matched.values(), *finalists.values()))}
+    verification_graphs = {label: graphs[label] for label in matched.values()}
+    for labels in shortlisted.values():
+        verification_graphs.update((label, graphs[label]) for label in labels)
+    verification_graphs.update(baseline)
     rounds = []
     for seed in VERIFY_SEEDS:
         medians, samples, orders = shared["measure"](verification_graphs, GRAPH_GEMMS, 7, 8, seed)
@@ -141,7 +198,11 @@ def compare(name, modules, shared, shape):
         label: statistics.median(row["median_ms"][label] for row in rounds)
         for label in verification_graphs
     }
-    return {
+    finalists = {
+        route: min((label for label in verified if label.startswith(f"{route}-")), key=verified.get)
+        for route in ROUTES
+    }
+    result = {
         "kernel": name,
         "shape_MNK": shape,
         "configs": configs,
@@ -151,6 +212,29 @@ def compare(name, modules, shared, shape):
         "verified_median_ms": verified,
         "verification_rounds": rounds,
     }
+    if baseline:
+        if any(
+            sample <= 0
+            for samples in (screen_samples, *(row["samples_ms"] for row in rounds))
+            for durations in samples.values()
+            for sample in durations
+        ):
+            raise RuntimeError("GPU event timing returned a nonpositive duration")
+        winner = min(finalists.values(), key=verified.get)
+        result.update(
+            torch_baseline=TORCH_BASELINE,
+            input_strides=[list(tensor.stride()) for tensor in inputs],
+            screen_samples_ms=screen_samples,
+            screen_batch_orders=screen_orders,
+            shortlisted=shortlisted,
+            flydsl_winner=winner,
+            fastest=min((*finalists.values(), TORCH_BASELINE), key=verified.get),
+            speedup_vs_torch={
+                route: verified[TORCH_BASELINE] / verified[label]
+                for route, label in finalists.items()
+            },
+        )
+    return result
 
 
 def main():
@@ -164,7 +248,12 @@ def main():
         parser.error("M, N, and K must be positive")
 
     torch.set_num_threads(1)
-    modules = {name: runpy.run_path(str(path)) for name, path in KERNELS.items()}
+    kernels = args.kernel or KERNELS
+    dependencies = set(kernels) | {"bf16", "mxfp4-lut", "nvfp4-reuse"}
+    modules = {
+        name: runpy.run_path(str(path)) for name, path in KERNELS.items()
+        if name in dependencies
+    }
     shared = runpy.run_path(str(QUANTIZED / "benchmark.py"))
     report = {
         "device": torch.cuda.get_device_name(0),
@@ -173,13 +262,20 @@ def main():
         "torch": torch.__version__,
         "hip": torch.version.hip,
         "graph_gemms": GRAPH_GEMMS,
+        "timing": "GPU events / graph replay with shared warm inputs and preallocated output",
+        "input_seed": 4404,
         "source_sha256": {
-            name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in KERNELS.items()
+            name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for name, path in {
+                **{name: KERNELS[name] for name in modules},
+                "tune": Path(__file__),
+                "graph_harness": QUANTIZED / "benchmark.py",
+            }.items()
         },
         "cases": [],
     }
     for shape in shapes:
-        for name in args.kernel or KERNELS:
+        for name in kernels:
             result = compare(name, modules, shared, shape)
             report["cases"].append(result)
             us = {label: round(ms * 1000, 3) for label, ms in result["verified_median_ms"].items()}

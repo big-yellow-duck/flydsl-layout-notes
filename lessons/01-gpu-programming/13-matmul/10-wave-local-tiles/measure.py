@@ -59,7 +59,11 @@ def capture(launch, data):
     finally:
         if enabled:
             gc.enable()
-    assert metadata["nodes"] == 32 + metadata.get("workspace_initialization_nodes", 0)
+    callee = getattr(launch, "func", launch)
+    # Torch may capture multiple kernels per GEMM for a particular shape.
+    # The one-kernel contract applies only to the lesson launcher.
+    if callee.__name__ == "matmul_bf16":
+        assert metadata["nodes"] == 32 + metadata.get("workspace_initialization_nodes", 0)
     assert 32 <= metadata["kernel_nodes"] <= metadata["nodes"]
     return graph, metadata
 

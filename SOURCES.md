@@ -637,6 +637,10 @@ Stage 16 derives B ownership from the gfx11 wave32 WMMA fragment order. Lanes 0�
 
 The Radeon 8060S sweep uses FlyDSL 0.4.1, PyTorch 2.13.0+rocm10.1.0, and HIP 7.16.26385. Nine kernels, three small-N shapes, and five geometries per route give 270 validated configurations. BF16 and MXFP4 LUT have 16.1% and 18.6% lower tuned latency with B registers at `16×1×4096`. B through LDS is faster for every kernel tested at `16×7×4097` and `128×16×4096`. [Timing tables and raw samples](lessons/01-gpu-programming/13-matmul/16-right-register-staging/results/README.md)
 
+The expanded BF16 sweep on the same platform validates 244 FlyDSL configs alongside PyTorch on identical contiguous inputs and a preallocated output. Across three shuffled graph verification rounds, the winning times are 6.409, 7.964, and 5.609 µs for `16×1×4096`, `16×7×4097`, and `128×16×4096`, compared with 19.077, 28.970, and 11.722 µs for PyTorch. The single-column case selects B registers and both wider cases select B LDS. [BF16 methods and winning configs](lessons/01-gpu-programming/13-matmul/16-right-register-staging/results/README.md#tuned-bf16-versus-pytorch)
+
+The N=2 and N=4 follow-up validates another 148 configs at M=16 and K=4096. Both shapes select A and B through LDS in all three verification rounds. The winning times are 5.737 and 6.106 µs, compared with 18.998 and 19.126 µs for PyTorch. [Follow-up samples and configurations](lessons/01-gpu-programming/13-matmul/16-right-register-staging/results/gfx1151-bf16-torch-n2-n4.json)
+
 All 47 native solutions and the extra GPU layout checks passed. The register route also passed 30 targeted fused-quantized cases across partial tiles, multiple waves, independent groups, and split-K. The stage 16 starter and its completed exercise produced the expected unfinished message and output checkpoint.
 
 ## Shape-selected quantized defaults and lesson measurements

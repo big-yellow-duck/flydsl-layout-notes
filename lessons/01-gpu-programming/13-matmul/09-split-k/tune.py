@@ -274,8 +274,8 @@ def paired_measure(kernel, baseline, data, batches, repeats, order_seed, timing)
     }
 
 
-def torch_launch(a, b, c, stream=None):
-    torch.matmul(a, b, out=c)
+def torch_launch(a, b, out=None, stream=None):
+    return torch.matmul(a, b, out=out)
 
 
 def raw_candidates(exhaustive=False):
