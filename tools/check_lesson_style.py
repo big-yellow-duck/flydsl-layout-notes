@@ -186,6 +186,10 @@ def public_api_checks():
                 b = b.T.contiguous().T
             args = (a, b)
             reference = (a_cpu.float() @ b_cpu.float()).bfloat16()
+        elif operation == "moe_bf16":
+            inputs = module["COMMON"]["trace_inputs"]()
+            args = tuple(tensor.cuda() for tensor in inputs)
+            reference = module["COMMON"]["reference"](*inputs)
         elif operation == "dequantize_mxfp4":
             # K=1, N=3. The unused high nibble of the second byte is nonzero.
             packed = torch.tensor([0x31, 0xF9], dtype=torch.uint8, device="cuda")

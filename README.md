@@ -78,7 +78,7 @@ Lessons 00–04 use first-mode-fastest thread ownership, so the thread ID also e
 - [Roadmap: vector addition and GPU thread layouts](ROADMAP.md)
 - [Sources and version scope](SOURCES.md)
 
-Run all 47 native programs, including thirteen foundational lessons, four focused divide tutorials, twenty-two BF16 matmul stages, and eight quantized matmul programs.
+Run all 50 native programs, including thirteen foundational lessons, four focused divide tutorials, twenty-two BF16 matmul stages, eight quantized matmul programs, and three BF16 MoE stages.
 
 ```bash
 pixi run lessons-check
@@ -105,6 +105,8 @@ On the gfx1151 setup, GPU event durations reported zero, including for a standal
 After lesson 12, follow [13 · BF16 matmul](lessons/01-gpu-programming/13-matmul/README.md): naive → contiguous K access → register tiling → LDS staging → vectorized copies → matrix instructions → LDS bank-conflict measurement → interleaved loads and compute → buffer access → separate A/B staging plans → grouped block traversal → parameter tuning → skinny split-K → independent wave tiles → synchronization scope → B cache policy → K-loop unrolling → operand-specific memory paths → edge safety → targeted M/N/K guards → mixed-width edge loads → B register staging. Stages 00–08 use **M=N=K=1024**; stages 09–12 target three skinny K=8192 workloads. [Stage 13](lessons/01-gpu-programming/13-matmul/13-edge-safety/README.md) adds predicates for arbitrary positive M,N,K, with a tiny trace and measured edge examples. [Stage 14](lessons/01-gpu-programming/13-matmul/14-targeted-guards/README.md) targets the guards that still need coordinate or stage checks and measures their cost against stage 13 and Torch. [Stage 15](lessons/01-gpu-programming/13-matmul/15-edge-load-widths/README.md) keeps wide loads for complete chunks and uses smaller atoms for the suffix. [Stage 16](lessons/01-gpu-programming/13-matmul/16-right-register-staging/README.md) stages B directly in WMMA registers. All retain BF16 inputs/output and FP32 accumulation. A and C are row-major; stage 01 uses column-major B and the remaining stages use row-major B. The stages include diagrams, practice programs, commented solutions, and full-output checkers.
 
 Then continue to [14 · Quantized matmul](lessons/01-gpu-programming/14-quantized-matmul/README.md). Read the MXFP4 format, then decode one weight per GPU thread and feed the dense result to stage 15. Fuse the same arithmetic into staging, then replace the magnitude arithmetic with a register lookup. The fused kernels use the mixed-width staging and split-K schedule from the end of the BF16 sequence. [NVFP4 W4A16](lessons/01-gpu-programming/14-quantized-matmul/03-nvfp4-w4a16/README.md) follows the same progression with E4M3 scales every 16 weights and an FP32 multiplier for the entire tensor.
+
+Continue to [15 · BF16 MoE](lessons/01-gpu-programming/15-bf16-moe/README.md) for per-route dot products, expert-grouped WMMA, and fused SwiGLU and routing epilogues.
 
 ```bash
 pixi run python lessons/01-gpu-programming/13-matmul/00-naive/practice.py

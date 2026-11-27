@@ -131,3 +131,9 @@ Stage 08 selects locked configurations with `CONFIGS_BY_SHAPE[(M,N,K)]`: the 102
 In [BF16 matmul stage 16](lessons/01-gpu-programming/13-matmul/16-right-register-staging/README.md), `right_in_registers=True` gathers one B column per WMMA lane with bounded 16-bit loads. Each lane keeps the K values in a fragment shaped by `thread_mma.make_fragment_B`.
 
 [Wave specialization and semaphore handoffs](experiments/wave-specialization/README.md) remain archived research. The main path retains all-wave prefetch; [12 explains the measured choice](lessons/01-gpu-programming/13-matmul/12-operand-paths/README.md#why-the-course-keeps-prefetch).
+
+### Routed expert tiles
+
+[BF16 MoE](lessons/01-gpu-programming/15-bf16-moe/README.md) uses the same tiled-copy plan to partition the LDS destination and its identity coordinate view. The coordinate selects a worklist row and K position. Look up the original route ID to find the token row to gather, then use `flat_divide` and `slice` to select the K chunk. B's expert view keeps its physical row stride when split into gate and up views.
+
+For direct GEMV, decode a thread with `idx2crd` on the `(wave, K lane, column)` layout. With four K lanes and eight columns per wave, `fx.shuffle_xor` with offsets 8 and 16 joins the four partial dots while preserving each lane's column.

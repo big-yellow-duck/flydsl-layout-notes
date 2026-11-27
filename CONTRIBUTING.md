@@ -46,6 +46,7 @@ python3 tools/draw_edge_load_widths.py
 python3 tools/draw_mxfp4_lesson.py
 python3 tools/draw_mxfp8_lesson.py
 python3 tools/draw_nvfp4_lesson.py
+python3 tools/draw_bf16_moe.py
 python3 tools/animate_matmul_tuning.py
 ```
 

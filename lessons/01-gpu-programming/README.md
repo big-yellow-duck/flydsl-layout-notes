@@ -13,6 +13,7 @@ Follow the lessons in order. Start with a full tile so the copy operation is eas
 | [12 · Inspect and measure](12-inspect-and-tune/README.md) | Compare copy widths using correctness checks, generated instructions, and GPU event timings. |
 | [13 · BF16 matmul](13-matmul/README.md) | Build BF16 matmul from naive dot products through WMMA, LDS tuning, prefetch, measured parameter tuning, skinny split-K, independent wave tiles, synchronization scope, cache policy, K-loop unrolling, measured operand paths, targeted M/N/K guards, mixed-width edge loads, and B register staging in twenty-two stages. |
 | [14 · Quantized matmul](14-quantized-matmul/README.md) | Read MXFP4 weights, decode them for stage 15, then fuse MXFP4, block-scaled FP8, and NVFP4 decode into WMMA staging. |
+| [15 · BF16 MoE](15-bf16-moe/README.md) | Trace token-to-expert assignments, group expert WMMA tiles, and fuse the SwiGLU and weighted down epilogues. |
 
 For each diagram, identify whether its cells contain offsets, candidate indices, or data values. Follow one thread through the example before tracing the full block. Complete `practice.py`, run the supplied checker, then compare the commented `solution.py`. Run commands from the repository root in the [configured GPU environment](../../README.md#set-up-and-start).
 

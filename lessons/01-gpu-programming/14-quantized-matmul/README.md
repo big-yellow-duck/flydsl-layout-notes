@@ -8,7 +8,7 @@ Start with the MXFP4 format and decode the weights into BF16 for the [stage 15 m
 | [02 · MXFP8 block-scale matmul](02-mxfp8-blockscale/README.md) | E4M3FN values on both operands. Follow the two E8M0 scale addresses for the same K coordinate. |
 | [03 · NVFP4 W4A16](03-nvfp4-w4a16/README.md) | Decode 16-weight E4M3 blocks with a tensor-wide FP32 multiplier, then stage the weights with arithmetic, register lookup, and decoded-scale reuse. |
 
-[Previous: BF16 matmul](../13-matmul/README.md) · [GPU programming](../README.md) · [Course overview](../../../README.md)
+[Previous: BF16 matmul](../13-matmul/README.md) · [Next · BF16 MoE](../15-bf16-moe/README.md) · [GPU programming](../README.md) · [Course overview](../../../README.md)
 
 The fused launchers select a configuration for each tuned shape. `right_in_registers`
 is one of the search dimensions alongside tile geometry, split-K, and cache policy.
