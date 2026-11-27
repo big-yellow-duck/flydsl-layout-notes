@@ -28,7 +28,7 @@ The even lookup uses bits 0–2 of each byte. The odd lookup shifts the word rig
 
 Each file defines its own `Config`, launch defaults, staging helpers, and split-K workspace.
 
-Fill `even_codes` in `_lookup_e2m1_magnitudes` in [practice.py](practice.py). The full kernel includes the nibble and scale expressions from step 03. Keep the low three bits of each low nibble so they form four byte selectors. The scaffold supplies the odd selectors, the two lookup instructions, and the final stores. [Worked solution](solution.py)
+Fill `even_codes` in `_lookup_e2m1_magnitudes` in [practice.py](practice.py). Keep the low three bits of each low nibble so they form four byte selectors. The scaffold supplies the odd selectors, the two lookup instructions, and the final stores. [Worked solution](solution.py)
 
 ```bash
 pixi run python lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/04-lut-decode/practice.py
@@ -37,7 +37,7 @@ pixi run python lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/04
 
 ## Measure the three paths
 
-The sweep times scalar decode plus stage 15, fused arithmetic decode, and fused LUT decode from the same packed inputs. On gfx1151, LUT decode reduced latency by 11.4–67.8% across the seven workloads at matched geometry. It tunes each path independently and also compares the fused decoders with the same tile, waves, and split count to isolate the LUT. Every timed graph is checked against a CPU reference and rerun after changing the packed weights. [Measurements and search scope](../results/README.md)
+The sweep times scalar decode plus stage 15, the fused arithmetic kernel from step 03, and the fused LUT kernel from this lesson using the same packed inputs. On gfx1151, LUT decode reduced latency by 11.4–67.8% across the seven workloads at matched geometry. It tunes each path independently and also compares the fused decoders with the same tile, waves, and split count to isolate the LUT. Every timed graph is checked against a CPU reference and rerun after changing the packed weights. [Measurements and search scope](../results/README.md)
 
 ```bash
 pixi run python lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/tune.py --lesson-sweep --output /tmp/mxfp4-lesson-sweep.json

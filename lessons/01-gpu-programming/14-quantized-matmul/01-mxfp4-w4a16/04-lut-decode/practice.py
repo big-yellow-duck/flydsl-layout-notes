@@ -3,7 +3,7 @@
 import argparse
 import ctypes
 import hashlib
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -189,50 +189,7 @@ CONFIGS_BY_SHAPE = {
     ),
 }
 
-# Arithmetic defaults from the three-path sweep.
-ARITHMETIC_CONFIGS_BY_SHAPE = {
-    (16, 1024, 8192): replace(
-        CONFIGS_BY_SHAPE[(16, 1024, 8192)],
-        group_tile_n=64,
-        stage_k=32,
-        waves_per_group_n=2,
-        right_cache_modifier=2,
-        left_cache_modifier=0,
-    ),
-    (32, 1024, 8192): replace(
-        CONFIGS_BY_SHAPE[(32, 1024, 8192)],
-        stage_k=32,
-        k_unroll=1,
-        right_cache_modifier=0,
-    ),
-    (16, 4096, 8192): replace(
-        CONFIGS_BY_SHAPE[(16, 4096, 8192)],
-        k_unroll=1,
-        right_cache_modifier=2,
-    ),
-    (17, 77, 46): replace(
-        CONFIGS_BY_SHAPE[(17, 77, 46)],
-        traversal_group_m=4,
-    ),
-    (17, 1046, 8214): replace(
-        CONFIGS_BY_SHAPE[(17, 1046, 8214)],
-        group_tile_n=128,
-        waves_per_group_n=4,
-        k_unroll=1,
-        right_cache_modifier=2,
-    ),
-    (31, 1025, 8193): replace(
-        CONFIGS_BY_SHAPE[(31, 1025, 8193)],
-        k_unroll=1,
-        right_cache_modifier=2,
-        left_cache_modifier=2,
-    ),
-}
-
-
-def default_config(shape, *, use_lut=True):
-    if not use_lut and shape in ARITHMETIC_CONFIGS_BY_SHAPE:
-        return ARITHMETIC_CONFIGS_BY_SHAPE[shape]
+def default_config(shape):
     if shape in CONFIGS_BY_SHAPE:
         return CONFIGS_BY_SHAPE[shape]
     return Config(
@@ -466,6 +423,7 @@ def _lookup_e2m1_magnitudes(b_packed_word):
     low, high = fx.Uint32(0x03020100), fx.Uint32(0x0C080604)
     # TODO 1. Select the three magnitude bits in each even nibble.
     even_codes = None
+    even_codes = b_packed_word & 0x07070707
     if even_codes is None:
         raise NotImplementedError("Fill in even_codes for the LUT.")
     odd_codes = (b_packed_word >> 4) & 0x07070707
@@ -668,7 +626,6 @@ def _matmul_mxfp4_w4a16_fused_impl(
     RIGHT_IN_REGISTERS: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
-    USE_LUT: fx.Constexpr,
 ):
     MMA_M, MMA_N, MMA_K = 16, 16, 16
     WAVE_GROUPS = WAVE_GROUPS_M * WAVE_GROUPS_N
@@ -1106,19 +1063,15 @@ def _matmul_mxfp4_w4a16_fused_impl(
                 for chunk_in_scale in fx.range_constexpr(B_REGISTER_ROWS_PER_SCALE // 8):
                     chunk = scale_slot * (B_REGISTER_ROWS_PER_SCALE // 8) + chunk_in_scale
                     word = fx.Uint32(b_register_codes[column_slot * (STAGE_K // 8) + chunk])
-                    if fx.const_expr(USE_LUT):
-                        even_magnitudes, odd_magnitudes = _lookup_e2m1_magnitudes(word)
+                    even_magnitudes, odd_magnitudes = _lookup_e2m1_magnitudes(word)
                     for value_id in fx.range_constexpr(8):
                         local_k = chunk * 8 + value_id
                         code = (word >> (value_id * 4)) & 15
-                        if fx.const_expr(USE_LUT):
-                            packed_magnitudes = (
-                                even_magnitudes if value_id % 2 == 0 else odd_magnitudes
-                            )
-                            doubled = ((packed_magnitudes >> (8 * (value_id // 2))) & 255).to(fx.Int32)
-                            value = _decode_scaled_e2m1(code, scale_byte, doubled)
-                        else:
-                            value = _scale_b_e2m1(code, scale_byte)
+                        packed_magnitudes = (
+                            even_magnitudes if value_id % 2 == 0 else odd_magnitudes
+                        )
+                        doubled = ((packed_magnitudes >> (8 * (value_id // 2))) & 255).to(fx.Int32)
+                        value = _decode_scaled_e2m1(code, scale_byte, doubled)
                         if fx.const_expr(HAS_K_TAIL or HAS_EMPTY_K_STAGES):
                             valid_k = tile_k * STAGE_K + local_k < k
                             value = valid_k.select(value, fx.BFloat16(0.0))
@@ -1145,35 +1098,21 @@ def _matmul_mxfp4_w4a16_fused_impl(
                     valid_k = tile_k * STAGE_K + local_row < k
                     b_packed_word = valid_k.select(b_packed_word, fx.Uint32(0))
                     b_scale_word = valid_k.select(b_scale_word, fx.Uint64(0))
-                if fx.const_expr(USE_LUT):
-                    even_magnitudes, odd_magnitudes = _lookup_e2m1_magnitudes(b_packed_word)
+                even_magnitudes, odd_magnitudes = _lookup_e2m1_magnitudes(b_packed_word)
                 b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
                 for value_id in fx.range_constexpr(8):
                     nibble = (b_packed_word >> (value_id * 4)) & 15
                     b_scale_byte = ((b_scale_word >> (value_id * 8)) & 255).to(fx.Int32)
-                    if fx.const_expr(USE_LUT):
-                        if fx.const_expr(value_id % 2 == 0):
-                            magnitudes = even_magnitudes
-                        else:
-                            magnitudes = odd_magnitudes
-                        doubled_magnitude = (
-                            (magnitudes >> (8 * (value_id // 2))) & 255
-                        ).to(fx.Int32)
-                        b_staging_fragment[value_id] = _decode_scaled_e2m1(
-                            nibble, b_scale_byte, doubled_magnitude
-                        )
+                    if fx.const_expr(value_id % 2 == 0):
+                        magnitudes = even_magnitudes
                     else:
-                        value = _decode_e2m1(nibble)
-                        power = b_scale_byte - 127
-                        scaled = fx.Float32(
-                            llvm.intr_ldexp(
-                                fx.Float32.ir_type, value.ir_value(), power.ir_value()
-                            )
-                        )
-                        scaled = (b_scale_byte == 255).select(
-                            fx.Float32(float("nan")), scaled
-                        )
-                        b_staging_fragment[value_id] = scaled.to(fx.BFloat16)
+                        magnitudes = odd_magnitudes
+                    doubled_magnitude = (
+                        (magnitudes >> (8 * (value_id // 2))) & 255
+                    ).to(fx.Int32)
+                    b_staging_fragment[value_id] = _decode_scaled_e2m1(
+                        nibble, b_scale_byte, doubled_magnitude
+                    )
                 b_lds_destination = fx.make_view(
                     fx.get_iter(b_group_staging_view)
                     + local_row * GROUP_TILE_N
@@ -1358,7 +1297,6 @@ def _launch_matmul_mxfp4_w4a16_fused_impl(
     RIGHT_IN_REGISTERS: fx.Constexpr,
     GROUP_M: fx.Constexpr,
     SPLIT_K: fx.Constexpr,
-    USE_LUT: fx.Constexpr,
     PRACTICE_REVISION: fx.Constexpr,
 ):
     WAVE_GROUPS = WAVE_GROUPS_M * WAVE_GROUPS_N
@@ -1390,7 +1328,6 @@ def _launch_matmul_mxfp4_w4a16_fused_impl(
         RIGHT_IN_REGISTERS=RIGHT_IN_REGISTERS,
         GROUP_M=GROUP_M,
         SPLIT_K=SPLIT_K,
-        USE_LUT=USE_LUT,
     ).launch(
         grid=(
             fx.ceildiv(m, BLOCK_M) * fx.ceildiv(n, BLOCK_N) * SPLIT_K,
@@ -1412,17 +1349,6 @@ def _decode_e2m1(code):
     )
     magnitude = (exponent == 0).select(subnormal, normal)
     return sign.select(-magnitude, magnitude)
-
-def _scale_b_e2m1(code, scale_byte):
-    value = _decode_e2m1(code)
-    power = scale_byte - 127
-    scaled = fx.Float32(
-        llvm.intr_ldexp(fx.Float32.ir_type, value.ir_value(), power.ir_value())
-    )
-    scaled = (scale_byte == 255).select(fx.Float32(float("nan")), scaled)
-    return scaled.to(fx.BFloat16)
-
-
 
 @lru_cache(maxsize=128)
 def _workspace_for(config, shape, device, stream, capture_id):
@@ -1494,15 +1420,12 @@ def matmul_mxfp4_w4a16(
     out=None,
     config=None,
     stream=None,
-    use_lut=True,
 ):
     """BF16 A times packed MXFP4 B, decoding B into LDS as WMMA consumes it."""
     a = activations
     b_packed = packed_weights
     b_scales = scales
     c = out
-    if type(use_lut) is not bool:
-        raise TypeError("use_lut must be a bool")
     for name, tensor in (
         ("activations", a),
         ("packed_weights", b_packed),
@@ -1544,7 +1467,7 @@ def matmul_mxfp4_w4a16(
         raise ValueError("packed weights or scale shape does not match K and N")
     shape = (m, n, k)
     if config is None:
-        config = default_config(shape, use_lut=use_lut)
+        config = default_config(shape)
     validate_config(config, shape)
     if c is not None:
         if type(c) not in (torch.Tensor, torch.nn.Parameter):
@@ -1623,7 +1546,6 @@ def matmul_mxfp4_w4a16(
             RIGHT_IN_REGISTERS=config.right_in_registers,
             GROUP_M=config.traversal_group_m,
             SPLIT_K=config.split_k,
-            USE_LUT=use_lut,
             PRACTICE_REVISION=_PRACTICE_REVISION,
         )
         if supplied_out:
@@ -1692,7 +1614,7 @@ def _gpu_input(tensor, poison=None):
     return view
 
 
-def _check_matmul(inputs, b_bf16_cpu, config, *, poison=False, use_lut=True):
+def _check_matmul(inputs, b_bf16_cpu, config, *, poison=False):
     a_cpu, b_packed_cpu, b_scales_cpu = inputs
     a = _gpu_input(a_cpu, float("nan") if poison else None)
     b_packed = _gpu_input(b_packed_cpu, 255 if poison else None)
@@ -1705,7 +1627,7 @@ def _check_matmul(inputs, b_bf16_cpu, config, *, poison=False, use_lut=True):
         c.fill_(float("nan"))
         assert (
             matmul_mxfp4_w4a16(
-                a, b_packed, b_scales, out=c, config=config, use_lut=use_lut
+                a, b_packed, b_scales, out=c, config=config
             )
             is c
         )
@@ -1723,7 +1645,7 @@ def _check_matmul(inputs, b_bf16_cpu, config, *, poison=False, use_lut=True):
     return c
 
 
-def solve(shape=ALIGNED_SHAPES[1], seed=13, config=None, *, poison=False, use_lut=True):
+def solve(shape=ALIGNED_SHAPES[1], seed=13, config=None, *, poison=False):
     m, n, k = shape
     generator = torch.Generator().manual_seed(seed)
     a_cpu = torch.randn((m, k), generator=generator).to(torch.bfloat16)
@@ -1742,18 +1664,17 @@ def solve(shape=ALIGNED_SHAPES[1], seed=13, config=None, *, poison=False, use_lu
         torch.cuda.synchronize()
         torch.testing.assert_close(decoded_gpu.cpu(), b_bf16_cpu, rtol=0, atol=0)
     if config is None:
-        config = default_config(shape, use_lut=use_lut)
+        config = default_config(shape)
     c = _check_matmul(
         (a_cpu, b_packed_cpu, b_scales_cpu),
         b_bf16_cpu,
         config,
         poison=poison,
-        use_lut=use_lut,
     )
     return {
         "shape_MNK": shape,
         "config": config.name,
-        "decode": "lut" if use_lut else "arithmetic",
+        "decode": "lut",
         "first_four": c[0, :4].cpu().tolist(),
         "last_value": c[-1, -1].item(),
         "packed_bytes": b_packed_cpu.numel(),
@@ -1763,7 +1684,7 @@ def solve(shape=ALIGNED_SHAPES[1], seed=13, config=None, *, poison=False, use_lu
     }
 
 
-def check_edges(*, use_lut=True):
+def check_edges():
     # One packed word from the register lookup walkthrough.
     a = torch.ones((1, 1), dtype=torch.bfloat16)
     b_packed = torch.tensor([0x91, 0xB2, 0xD4, 0xF6], dtype=torch.uint8)
@@ -1774,9 +1695,8 @@ def check_edges(*, use_lut=True):
     c = _check_matmul(
         (a, b_packed, b_scales),
         dense,
-        default_config((1, 8, 1), use_lut=use_lut),
+        default_config((1, 8, 1)),
         poison=True,
-        use_lut=use_lut,
     )
     torch.testing.assert_close(c.cpu(), dense, rtol=0, atol=0)
 
@@ -1800,7 +1720,7 @@ def check_edges(*, use_lut=True):
         )
         for suffix in range(1, 8):
             for n in (suffix, 32 + suffix):
-                solve((3, n, 32 + suffix), config=config, poison=True, use_lut=use_lut)
+                solve((3, n, 32 + suffix), config=config, poison=True)
 
         # A's first row must stay finite even though the next row contains NaN.
         a = torch.ones((2, 7), dtype=torch.bfloat16)
@@ -1809,7 +1729,7 @@ def check_edges(*, use_lut=True):
         b_scales = torch.full((1, 9), 127, dtype=torch.uint8)
         b_scales[0, -1] = 255
         dense = torch_dequantize_mxfp4(b_packed, b_scales, (7, 9))
-        _check_matmul((a, b_packed, b_scales), dense, config, poison=True, use_lut=use_lut)
+        _check_matmul((a, b_packed, b_scales), dense, config, poison=True)
 
 
 def main():
