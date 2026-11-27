@@ -28,7 +28,7 @@ The even lookup uses bits 0–2 of each byte. The odd lookup shifts the word rig
 
 Each file defines its own `Config`, launch defaults, staging helpers, and split-K workspace.
 
-Fill `even_codes` in `_lookup_e2m1_magnitudes` in [practice.py](practice.py). Keep the low three bits of each low nibble so they form four byte selectors. The scaffold supplies the odd selectors, the two lookup instructions, and the final stores. [Worked solution](solution.py)
+Fill `even_codes` in `_decode_mxfp4_word` in [practice.py](practice.py). Keep the low three bits of each low nibble so they form four byte selectors. The scaffold supplies the odd selectors, the two lookup instructions, and the final stores. [Worked solution](solution.py)
 
 ```bash
 pixi run python lessons/01-gpu-programming/14-quantized-matmul/01-mxfp4-w4a16/04-lut-decode/practice.py

@@ -412,29 +412,38 @@ def _load_row_word(resource, row, column, rows, n, cache_modifier, check_boundar
     return fx.Uint64(edge.results[0])
 
 
-def _lookup_e2m1_magnitudes(b_packed_word):
+def _decode_mxfp4_word(b_packed_word, b_scale, *, shared_scale):
+    """Decode eight packed weights to BF16 in nibble order.
+
+    K chunks share one E8M0 byte. N chunks use eight packed scale bytes.
+    """
     # The eight little-endian byte entries are twice the E2M1 magnitudes.
     # Each perm_b32 looks up the four even or four odd nibbles in parallel.
     low, high = fx.Uint32(0x03020100), fx.Uint32(0x0C080604)
     even_codes = b_packed_word & 0x07070707
     odd_codes = (b_packed_word >> 4) & 0x07070707
-    return (
-        fx.Uint32(fx.rocdl.perm_b32(high, low, even_codes)),
-        fx.Uint32(fx.rocdl.perm_b32(high, low, odd_codes)),
-    )
+    even_magnitudes = fx.Uint32(fx.rocdl.perm_b32(high, low, even_codes))
+    odd_magnitudes = fx.Uint32(fx.rocdl.perm_b32(high, low, odd_codes))
 
-
-def _decode_scaled_e2m1(code, b_scale_byte, doubled_magnitude):
-    value = doubled_magnitude.to(fx.Float32)
-    # The extra factor of two in the lookup moves the scale bias from 127 to 128.
-    power = b_scale_byte - 128
-    scaled = fx.Float32(
-        llvm.intr_ldexp(fx.Float32.ir_type, value.ir_value(), power.ir_value())
-    )
-    # Finite FP32 results fit exactly in BF16. Take the high bits and add the sign.
-    bits = (scaled.bitcast(fx.Uint32) >> 16) | ((code & 8) << 12)
-    bits = (b_scale_byte == 255).select(fx.Uint32(0x7FC0), bits)
-    return bits.to(fx.Uint16).bitcast(fx.BFloat16)
+    values = []
+    for value_id in range(8):
+        magnitudes = even_magnitudes if value_id % 2 == 0 else odd_magnitudes
+        doubled_magnitude = (magnitudes >> (8 * (value_id // 2))) & 255
+        scale_byte = (
+            b_scale if shared_scale else ((b_scale >> (value_id * 8)) & 255).to(fx.Int32)
+        )
+        # Subtracting 128 applies the E8M0 scale and cancels the table's factor of two.
+        value = doubled_magnitude.to(fx.Int32).to(fx.Float32)
+        power = scale_byte - 128
+        scaled = fx.Float32(
+            llvm.intr_ldexp(fx.Float32.ir_type, value.ir_value(), power.ir_value())
+        )
+        # Take the BF16 bits and restore the sign from the original nibble.
+        code = (b_packed_word >> (value_id * 4)) & 15
+        bits = (scaled.bitcast(fx.Uint32) >> 16) | ((code & 8) << 12)
+        bits = (scale_byte == 255).select(fx.Uint32(0x7FC0), bits)
+        values.append(bits.to(fx.Uint16).bitcast(fx.BFloat16))
+    return tuple(values)
 
 
 @flyc.kernel
@@ -1054,15 +1063,10 @@ def _matmul_mxfp4_w4a16_fused_impl(
                 for chunk_in_scale in fx.range_constexpr(B_REGISTER_ROWS_PER_SCALE // 8):
                     chunk = scale_slot * (B_REGISTER_ROWS_PER_SCALE // 8) + chunk_in_scale
                     word = fx.Uint32(b_register_codes[column_slot * (STAGE_K // 8) + chunk])
-                    even_magnitudes, odd_magnitudes = _lookup_e2m1_magnitudes(word)
+                    values = _decode_mxfp4_word(word, scale_byte, shared_scale=True)
                     for value_id in fx.range_constexpr(8):
                         local_k = chunk * 8 + value_id
-                        code = (word >> (value_id * 4)) & 15
-                        packed_magnitudes = (
-                            even_magnitudes if value_id % 2 == 0 else odd_magnitudes
-                        )
-                        doubled = ((packed_magnitudes >> (8 * (value_id // 2))) & 255).to(fx.Int32)
-                        value = _decode_scaled_e2m1(code, scale_byte, doubled)
+                        value = values[value_id]
                         if fx.const_expr(HAS_K_TAIL or HAS_EMPTY_K_STAGES):
                             valid_k = tile_k * STAGE_K + local_k < k
                             value = valid_k.select(value, fx.BFloat16(0.0))
@@ -1089,21 +1093,12 @@ def _matmul_mxfp4_w4a16_fused_impl(
                     valid_k = tile_k * STAGE_K + local_row < k
                     b_packed_word = valid_k.select(b_packed_word, fx.Uint32(0))
                     b_scale_word = valid_k.select(b_scale_word, fx.Uint64(0))
-                even_magnitudes, odd_magnitudes = _lookup_e2m1_magnitudes(b_packed_word)
+                values = _decode_mxfp4_word(
+                    b_packed_word, b_scale_word, shared_scale=False
+                )
                 b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
                 for value_id in fx.range_constexpr(8):
-                    nibble = (b_packed_word >> (value_id * 4)) & 15
-                    b_scale_byte = ((b_scale_word >> (value_id * 8)) & 255).to(fx.Int32)
-                    if fx.const_expr(value_id % 2 == 0):
-                        magnitudes = even_magnitudes
-                    else:
-                        magnitudes = odd_magnitudes
-                    doubled_magnitude = (
-                        (magnitudes >> (8 * (value_id // 2))) & 255
-                    ).to(fx.Int32)
-                    b_staging_fragment[value_id] = _decode_scaled_e2m1(
-                        nibble, b_scale_byte, doubled_magnitude
-                    )
+                    b_staging_fragment[value_id] = values[value_id]
                 b_lds_destination = fx.make_view(
                     fx.get_iter(b_group_staging_view)
                     + local_row * GROUP_TILE_N
