@@ -53,11 +53,7 @@ def _dequantize_mxfp4(
         value = ((nibble & 8) != 0).select(-magnitude, magnitude)
 
         # One E8M0 scale per column and per 32 rows of B.
-        # TODO 2. Fill in b_scale_row.
-        b_scale_row = None
         b_scale_row = row // MX_BLOCK_K
-        if b_scale_row is None:
-            raise NotImplementedError("Fill in b_scale_row.")
         b_scale_byte = fx.Uint8(b_scales[b_scale_row, column]).to(fx.Int32)
         # TODO 3. Fill in power.
         power = None

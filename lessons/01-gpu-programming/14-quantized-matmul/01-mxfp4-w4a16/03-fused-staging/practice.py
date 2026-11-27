@@ -11,7 +11,7 @@ import flydsl.compiler as flyc
 import flydsl.expr as fx
 import torch
 from flydsl._mlir import ir
-from flydsl._mlir.dialects import gpu, llvm, scf
+from flydsl._mlir.dialects import gpu, scf
 from flydsl.expr.typing import Vector as Vec
 
 # Include edits to decoder helpers in the practice compilation key.
@@ -139,7 +139,7 @@ def validate_config(config, shape=(16, 1024, 8192)):
     return config
 
 
-# Fused arithmetic defaults measured on gfx1151.
+# Launch defaults measured with the earlier decoder on gfx1151.
 CONFIGS_BY_SHAPE = {
     (16, 1024, 8192): Config(
         stage_k=32,
@@ -418,26 +418,28 @@ def _load_row_word(resource, row, column, rows, n, cache_modifier, check_boundar
     return fx.Uint64(edge.results[0])
 
 
-def _decode_e2m1(code):
-    sign = (code & 8) != 0
-    exponent = (code >> 1) & 3
-    mantissa = code & 1
-    subnormal = mantissa.to(fx.Float32) * 0.5
-    normal = (1.0 + mantissa.to(fx.Float32) * 0.5) * fx.exp2(
-        exponent.to(fx.Float32) - 1.0
-    )
-    magnitude = (exponent == 0).select(subnormal, normal)
-    return sign.select(-magnitude, magnitude)
+def _decode_e2m1_as_fp32(code):
+    magnitude_code = code & 7
+    # Normal E2M1 codes 2..7 map to six consecutive FP32 bit patterns
+    # on a grid with only the top fraction bit.
+    magnitude = (magnitude_code << 22) + 0x3F000000
+    magnitude = (magnitude_code == 1).select(fx.Uint32(0x3F000000), magnitude)
+    magnitude = (magnitude_code == 0).select(fx.Uint32(0), magnitude)
+    return (magnitude | ((code & 8) << 28)).bitcast(fx.Float32)
+
+
+def _decode_e8m0_as_fp32(scale_byte):
+    exponent = scale_byte.to(fx.Uint32) << 23
+    # The fraction bit makes byte 0 a subnormal 2^-127 and byte 255 a NaN.
+    has_fraction = (scale_byte == 0) | (scale_byte == 255)
+    bits = exponent | has_fraction.select(fx.Uint32(0x00400000), fx.Uint32(0))
+    return bits.bitcast(fx.Float32)
+
 
 def _scale_b_e2m1(code, scale_byte):
-    value = _decode_e2m1(code)
-    power = scale_byte - 127
-    scaled = fx.Float32(
-        llvm.intr_ldexp(fx.Float32.ir_type, value.ir_value(), power.ir_value())
-    )
-    scaled = (scale_byte == 255).select(fx.Float32(float("nan")), scaled)
-    return scaled.to(fx.BFloat16)
-
+    value = _decode_e2m1_as_fp32(code)
+    scale = _decode_e8m0_as_fp32(scale_byte)
+    return (value * scale).to(fx.BFloat16)
 
 
 @flyc.kernel
@@ -608,7 +610,7 @@ def _matmul_mxfp4_w4a16(
     ACCUMULATOR_VALUES = fx.size(c_accum.shape).to_py_value()
     c_accum.fill(0)
 
-    # Staging copies for A and B.
+    # A staging and WMMA operand layout.
     staging_value_layout = fx.make_ordered_layout((1, 8), (1, 0))
     a_gmem_load = fx.make_copy_atom(
         fx.rocdl.BufferCopy128b(LEFT_CACHE_MODIFIER), fx.BFloat16
@@ -634,40 +636,20 @@ def _matmul_mxfp4_w4a16(
         )
         a_staging_fragment = fx.make_fragment_like(a_staging_destination)
 
-    def make_a_global_copy(atom):
-        if fx.const_expr(LEFT_IN_REGISTERS):
-            return fx.make_tiled_copy_A(atom, mma).get_slice(thread_id_in_wave_group)
-        else:
-            return fx.make_tiled_copy(
-                atom, a_staging_copy_tv, a_staging_copy_tile
-            ).get_slice(thread_id_in_wave_group)
+    def make_a_register_global_copy(atom):
+        return fx.make_tiled_copy_A(atom, mma).get_slice(thread_id_in_wave_group)
 
-    # Both widths write into views of the same staging fragment.
-    a_global_thread_copy = make_a_global_copy(a_gmem_load)
+    def make_a_lds_global_copy(atom):
+        return fx.make_tiled_copy(
+            atom, a_staging_copy_tv, a_staging_copy_tile
+        ).get_slice(thread_id_in_wave_group)
+
+    if fx.const_expr(LEFT_IN_REGISTERS):
+        a_global_thread_copy = make_a_register_global_copy(a_gmem_load)
+    else:
+        a_global_thread_copy = make_a_lds_global_copy(a_gmem_load)
     a_global_destination = a_global_thread_copy.retile(a_staging_fragment)
 
-    # Read eight adjacent N values per lane. Packed weights and scale bytes
-    # stay in registers until publish_stage expands them into this group's LDS.
-    if fx.const_expr(not RIGHT_IN_REGISTERS):
-        RIGHT_N_THREADS = GROUP_TILE_N // 8
-        RIGHT_K_THREADS = THREADS_PER_GROUP // RIGHT_N_THREADS
-        RIGHT_ROWS_PER_THREAD = STAGE_K // RIGHT_K_THREADS
-        b_k_lane = thread_id_in_wave_group // RIGHT_N_THREADS
-        b_col = thread_id_in_wave_group % RIGHT_N_THREADS * 8
-        global_col = output_group_col * GROUP_TILE_N + b_col
-
-        # Reuse a scale word for rows this lane owns in the same MX block.
-        if fx.const_expr(STAGE_K in (16, 32)):
-            ROW_SLOTS_PER_SCALE = RIGHT_ROWS_PER_THREAD
-        elif fx.const_expr(STAGE_K % MX_BLOCK_K == 0 and MX_BLOCK_K % RIGHT_K_THREADS == 0):
-            ROW_SLOTS_PER_SCALE = MX_BLOCK_K // RIGHT_K_THREADS
-        else:
-            ROW_SLOTS_PER_SCALE = 1
-        RIGHT_SCALE_SLOTS = RIGHT_ROWS_PER_THREAD // ROW_SLOTS_PER_SCALE
-        b_packed_fragment = fx.make_rmem_tensor(RIGHT_ROWS_PER_THREAD, fx.Uint32)
-        b_scale_fragment = fx.make_rmem_tensor(RIGHT_SCALE_SLOTS, fx.Uint64)
-
-    # MMA copies for A and B.
     a_group_staging_tiled = fx.flat_divide(
         a_group_staging_view, (GROUP_TILE_M, MMA_K)
     )
@@ -689,6 +671,208 @@ def _matmul_mxfp4_w4a16(
         )
         a_r_destination = a_lds2reg_thread_copy.retile(a_r_tile)
 
+    def prefetch_a_tile(tile_k, make_global_copy):
+        # Both A paths share the guarded load and use their own copy layouts.
+        a_block_view = fx.slice(a_block_tiles, (None, None, block_row, tile_k))
+        a_group_tiles = fx.flat_divide(a_block_view, (GROUP_TILE_M, STAGE_K))
+        a_group_view = fx.slice(a_group_tiles, (None, None, group_row, 0))
+        a_source = a_global_thread_copy.partition_S(a_group_view)
+
+        if fx.const_expr(HAS_K_TAIL):
+            # A's extra K columns can alias the next row, including nonfinite values.
+            is_k_tail = tile_k == REAL_K_STAGES - 1
+            tail = scf.IfOp(is_k_tail.ir_value(), [], has_else=True)
+            with ir.InsertionPoint(tail.then_block):
+                coordinate_block = fx.slice(
+                    a_coordinate_tiles, (None, None, block_row, tile_k)
+                )
+                coordinate_groups = fx.flat_divide(
+                    coordinate_block, (GROUP_TILE_M, STAGE_K)
+                )
+                group_coordinates = fx.slice(
+                    coordinate_groups, (None, None, group_row, 0)
+                )
+                a_global_destination.fill(0)
+                if fx.const_expr(k % STAGE_K >= 8):
+                    thread_coordinates = a_global_thread_copy.partition_S(
+                        group_coordinates
+                    )
+                    _copy_valid_columns(
+                        a_gmem_load,
+                        a_source,
+                        a_global_destination,
+                        thread_coordinates,
+                        k,
+                        8,
+                    )
+                _copy_tail_segments(
+                    LEFT_TAIL_SEGMENTS,
+                    LEFT_CACHE_MODIFIER,
+                    make_global_copy,
+                    a_group_view,
+                    group_coordinates,
+                    a_staging_fragment,
+                )
+                scf.yield_([])
+            with ir.InsertionPoint(tail.else_block):
+                fx.copy(a_gmem_load, a_source, a_global_destination)
+                scf.yield_([])
+        else:
+            fx.copy(a_gmem_load, a_source, a_global_destination)
+
+    def prefetch_a_for_lds(tile_k):
+        prefetch_a_tile(tile_k, make_a_lds_global_copy)
+
+    def prefetch_a_for_registers(tile_k):
+        prefetch_a_tile(tile_k, make_a_register_global_copy)
+
+    def publish_a_to_lds():
+        fx.copy(copy_128b, a_staging_fragment, a_staging_destination)
+
+    def publish_a_to_compute_fragment():
+        # Preserve the current stage while the staging fragment receives the next load.
+        fx.copy(copy_16b, a_staging_fragment, a_compute_fragment)
+
+    def load_a_operand_from_lds(inner_k):
+        a_mma_view = fx.slice(a_group_staging_tiled, (None, None, 0, inner_k))
+        a_source = a_lds2reg_thread_copy.partition_S(a_mma_view)
+        fx.copy(copy_16b, a_source, a_r_destination)
+
+    def load_a_operand_from_registers(inner_k):
+        # Keep the three inner axes that match a_r_tile and select the K step.
+        a_source = fx.slice(a_compute_tiled, (None, None, None, 0, 0, inner_k))
+        fx.copy(copy_16b, a_source, a_r_destination)
+
+    # B through LDS.
+    # Read eight adjacent N values per lane. Packed weights and scale bytes
+    # stay in registers until publish_b_to_lds expands them.
+    if fx.const_expr(not RIGHT_IN_REGISTERS):
+        RIGHT_N_THREADS = GROUP_TILE_N // 8
+        RIGHT_K_THREADS = THREADS_PER_GROUP // RIGHT_N_THREADS
+        RIGHT_ROWS_PER_THREAD = STAGE_K // RIGHT_K_THREADS
+        b_k_lane = thread_id_in_wave_group // RIGHT_N_THREADS
+        b_col = thread_id_in_wave_group % RIGHT_N_THREADS * 8
+        global_col = output_group_col * GROUP_TILE_N + b_col
+
+        # Reuse a scale word for rows this lane owns in the same MX block.
+        if fx.const_expr(STAGE_K in (16, 32)):
+            ROW_SLOTS_PER_SCALE = RIGHT_ROWS_PER_THREAD
+        elif fx.const_expr(STAGE_K % MX_BLOCK_K == 0 and MX_BLOCK_K % RIGHT_K_THREADS == 0):
+            ROW_SLOTS_PER_SCALE = MX_BLOCK_K // RIGHT_K_THREADS
+        else:
+            ROW_SLOTS_PER_SCALE = 1
+        RIGHT_SCALE_SLOTS = RIGHT_ROWS_PER_THREAD // ROW_SLOTS_PER_SCALE
+        b_packed_fragment = fx.make_rmem_tensor(RIGHT_ROWS_PER_THREAD, fx.Uint32)
+        b_scale_fragment = fx.make_rmem_tensor(RIGHT_SCALE_SLOTS, fx.Uint64)
+
+        # Reinterpret B as (N,K) for WMMA without moving its physical data.
+        b_group_staging_transposed_view = fx.make_view(
+            fx.get_iter(b_group_staging_view),
+            fx.make_layout((GROUP_TILE_N, STAGE_K), (1, GROUP_TILE_N)),
+        )
+        b_group_staging_transposed_tiled = fx.flat_divide(
+            b_group_staging_transposed_view, (GROUP_TILE_N, MMA_K)
+        )
+
+        # One K=16 slice of B determines the operand register shape.
+        b_group_staging_transposed_initial_view = fx.slice(
+            b_group_staging_transposed_tiled, (None, None, 0, 0)
+        )
+
+        b_group_staging2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
+
+        b_lds2reg_thread_copy = b_group_staging2reg_copy_plan.get_slice(
+            thread_id_in_wave_group
+        )
+
+        b_r_tile = thread_mma.make_fragment_B(
+            b_group_staging_transposed_initial_view
+        )
+
+        b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
+
+    def prefetch_b_lds_rows(tile_k, check_boundary):
+        first_row = tile_k * STAGE_K + b_k_lane
+        for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
+            b_row = first_row + row_slot * RIGHT_K_THREADS
+            b_packed_fragment[row_slot] = _load_packed_word(
+                b_packed_resource,
+                b_row,
+                global_col,
+                k,
+                n,
+                RIGHT_CACHE_MODIFIER,
+                check_boundary,
+            )
+        for scale_slot in fx.range_constexpr(RIGHT_SCALE_SLOTS):
+            b_scale_row = (
+                first_row + scale_slot * ROW_SLOTS_PER_SCALE * RIGHT_K_THREADS
+            ) // MX_BLOCK_K
+            b_scale_fragment[scale_slot] = _load_row_word(
+                b_scale_resource,
+                b_scale_row,
+                global_col,
+                SCALE_ROWS,
+                n,
+                RIGHT_CACHE_MODIFIER,
+                check_boundary,
+            )
+
+    def prefetch_b_for_lds(tile_k):
+        # A complete N group can stay wide. In an earlier MX block,
+        # the next rows of packed values and scales are still allocated.
+        if fx.const_expr(n >= 8 and n % 2 != 0):
+            full_group = (output_group_col + 1) * GROUP_TILE_N <= n
+            before_final_scale = (tile_k + 1) * STAGE_K <= (SCALE_ROWS - 1) * MX_BLOCK_K
+            edge = scf.IfOp(
+                (full_group | before_final_scale).ir_value(), [], has_else=True
+            )
+            with ir.InsertionPoint(edge.then_block):
+                prefetch_b_lds_rows(tile_k, False)
+                scf.yield_([])
+            with ir.InsertionPoint(edge.else_block):
+                prefetch_b_lds_rows(tile_k, True)
+                scf.yield_([])
+        else:
+            prefetch_b_lds_rows(tile_k, True)
+
+    def publish_b_to_lds(tile_k):
+        # Expand this lane's prefetched codes only as the B tile is published.
+        for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
+            local_row = b_k_lane + row_slot * RIGHT_K_THREADS
+            b_packed_word = fx.Uint32(b_packed_fragment[row_slot])
+            b_scale_word = fx.Uint64(
+                b_scale_fragment[row_slot // ROW_SLOTS_PER_SCALE]
+            )
+            if fx.const_expr(HAS_K_TAIL):
+                valid_k = tile_k * STAGE_K + local_row < k
+                b_packed_word = valid_k.select(b_packed_word, fx.Uint32(0))
+                b_scale_word = valid_k.select(b_scale_word, fx.Uint64(0))
+            b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
+            for value_id in fx.range_constexpr(8):
+                # TODO 1. Fill in nibble.
+                nibble = None
+                if nibble is None:
+                    raise NotImplementedError("Fill in nibble.")
+                # TODO 2. Fill in b_scale_byte.
+                b_scale_byte = None
+                if b_scale_byte is None:
+                    raise NotImplementedError("Fill in b_scale_byte.")
+                b_staging_fragment[value_id] = _scale_b_e2m1(nibble, b_scale_byte)
+            b_lds_destination = fx.make_view(
+                fx.get_iter(b_group_staging_view)
+                + local_row * GROUP_TILE_N
+                + b_col,
+                fx.make_layout(8, 1),
+            )
+            fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
+
+    def load_b_operand_from_lds(inner_k):
+        b_mma_view = fx.slice(b_group_staging_transposed_tiled, (None, None, 0, inner_k))
+        b_source = b_lds2reg_thread_copy.partition_S(b_mma_view)
+        fx.copy(copy_16b, b_source, b_r_destination)
+
+    # B through registers.
     if fx.const_expr(RIGHT_IN_REGISTERS):
         # A typed shape model gives the WMMA register layout of (N,K).
         b_group_model = fx.make_view(
@@ -718,34 +902,8 @@ def _matmul_mxfp4_w4a16(
         wave_n = (thread_id_in_wave_group // 32) // WAVES_M
         b_first_column = output_group_col * GROUP_TILE_N + wave_n * MMA_N
         b_first_column = b_first_column + thread_id_in_wave_group % MMA_N
-    else:
-        # Reinterpret B as (N,K) for WMMA without moving its physical data.
-        b_group_staging_transposed_view = fx.make_view(
-            fx.get_iter(b_group_staging_view),
-            fx.make_layout((GROUP_TILE_N, STAGE_K), (1, GROUP_TILE_N)),
-        )
-        b_group_staging_transposed_tiled = fx.flat_divide(
-            b_group_staging_transposed_view, (GROUP_TILE_N, MMA_K)
-        )
 
-        # One K=16 slice of B determines the operand register shape.
-        b_group_staging_transposed_initial_view = fx.slice(
-            b_group_staging_transposed_tiled, (None, None, 0, 0)
-        )
-
-        b_group_staging2reg_copy_plan = fx.make_tiled_copy_B(copy_16b, mma)
-
-        b_lds2reg_thread_copy = b_group_staging2reg_copy_plan.get_slice(
-            thread_id_in_wave_group
-        )
-
-        b_r_tile = thread_mma.make_fragment_B(
-            b_group_staging_transposed_initial_view
-        )
-
-        b_r_destination = b_lds2reg_thread_copy.retile(b_r_tile)
-
-    def load_b_registers(tile_k):
+    def prefetch_b_for_registers(tile_k):
         # Gather each owning lane's column into chunks of eight K codes.
         for column_slot in fx.range_constexpr(B_COLUMNS_PER_THREAD):
             if fx.const_expr(n == 1 and k % 8 == 0):
@@ -785,100 +943,36 @@ def _matmul_mxfp4_w4a16(
                         word = word | (code << (value_id * 4))
                 b_register_codes[column_slot * (STAGE_K // 8) + chunk] = word
 
-    def load_b_stage(tile_k, check_boundary):
-        first_row = tile_k * STAGE_K + b_k_lane
-        for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
-            b_row = first_row + row_slot * RIGHT_K_THREADS
-            b_packed_fragment[row_slot] = _load_packed_word(
-                b_packed_resource,
-                b_row,
-                global_col,
-                k,
-                n,
-                RIGHT_CACHE_MODIFIER,
-                check_boundary,
-            )
-        for scale_slot in fx.range_constexpr(RIGHT_SCALE_SLOTS):
-            b_scale_row = (
-                first_row + scale_slot * ROW_SLOTS_PER_SCALE * RIGHT_K_THREADS
-            ) // MX_BLOCK_K
-            b_scale_fragment[scale_slot] = _load_row_word(
-                b_scale_resource,
-                b_scale_row,
-                global_col,
-                SCALE_ROWS,
-                n,
-                RIGHT_CACHE_MODIFIER,
-                check_boundary,
-            )
+    def publish_b_to_compute_fragment(tile_k):
+        for column_slot in fx.range_constexpr(B_COLUMNS_PER_THREAD):
+            for scale_slot in fx.range_constexpr(B_REGISTER_SCALE_SLOTS):
+                scale_byte = fx.Uint8(b_register_scale_bytes[column_slot * B_REGISTER_SCALE_SLOTS + scale_slot]).to(fx.Int32)
+                for chunk_in_scale in fx.range_constexpr(B_REGISTER_ROWS_PER_SCALE // 8):
+                    chunk = scale_slot * (B_REGISTER_ROWS_PER_SCALE // 8) + chunk_in_scale
+                    word = fx.Uint32(b_register_codes[column_slot * (STAGE_K // 8) + chunk])
+                    for value_id in fx.range_constexpr(8):
+                        local_k = chunk * 8 + value_id
+                        code = (word >> (value_id * 4)) & 15
+                        value = _scale_b_e2m1(code, scale_byte)
+                        if fx.const_expr(HAS_K_TAIL or HAS_EMPTY_K_STAGES):
+                            valid_k = tile_k * STAGE_K + local_k < k
+                            value = valid_k.select(value, fx.BFloat16(0.0))
+                        b_compute_fragment[(local_k % MMA_K, column_slot, local_k // MMA_K)] = value
 
+    def load_b_operand_from_registers(inner_k):
+        b_source = fx.slice(b_compute_tiled, (None, None, None, 0, 0, inner_k))
+        fx.copy(copy_16b, b_source, b_r_destination)
+
+    # Shared stage schedule.
     def load_nonempty_stage(tile_k):
-        a_block_view = fx.slice(a_block_tiles, (None, None, block_row, tile_k))
-        a_group_tiles = fx.flat_divide(a_block_view, (GROUP_TILE_M, STAGE_K))
-        a_group_view = fx.slice(a_group_tiles, (None, None, group_row, 0))
-        a_source = a_global_thread_copy.partition_S(a_group_view)
-
         if fx.const_expr(RIGHT_IN_REGISTERS):
-            load_b_registers(tile_k)
+            prefetch_b_for_registers(tile_k)
         else:
-            # A complete N group can stay wide. In an earlier MX block,
-            # the next rows of packed values and scales are still allocated.
-            if fx.const_expr(n >= 8 and n % 2 != 0):
-                full_group = (output_group_col + 1) * GROUP_TILE_N <= n
-                before_final_scale = (tile_k + 1) * STAGE_K <= (SCALE_ROWS - 1) * MX_BLOCK_K
-                edge = scf.IfOp(
-                    (full_group | before_final_scale).ir_value(), [], has_else=True
-                )
-                with ir.InsertionPoint(edge.then_block):
-                    load_b_stage(tile_k, False)
-                    scf.yield_([])
-                with ir.InsertionPoint(edge.else_block):
-                    load_b_stage(tile_k, True)
-                    scf.yield_([])
-            else:
-                load_b_stage(tile_k, True)
-
-        if fx.const_expr(HAS_K_TAIL):
-            # A's extra K columns can alias the next row, including nonfinite values.
-            is_k_tail = tile_k == REAL_K_STAGES - 1
-            tail = scf.IfOp(is_k_tail.ir_value(), [], has_else=True)
-            with ir.InsertionPoint(tail.then_block):
-                coordinate_block = fx.slice(
-                    a_coordinate_tiles, (None, None, block_row, tile_k)
-                )
-                coordinate_groups = fx.flat_divide(
-                    coordinate_block, (GROUP_TILE_M, STAGE_K)
-                )
-                group_coordinates = fx.slice(
-                    coordinate_groups, (None, None, group_row, 0)
-                )
-                a_global_destination.fill(0)
-                if fx.const_expr(k % STAGE_K >= 8):
-                    thread_coordinates = a_global_thread_copy.partition_S(
-                        group_coordinates
-                    )
-                    _copy_valid_columns(
-                        a_gmem_load,
-                        a_source,
-                        a_global_destination,
-                        thread_coordinates,
-                        k,
-                        8,
-                    )
-                _copy_tail_segments(
-                    LEFT_TAIL_SEGMENTS,
-                    LEFT_CACHE_MODIFIER,
-                    make_a_global_copy,
-                    a_group_view,
-                    group_coordinates,
-                    a_staging_fragment,
-                )
-                scf.yield_([])
-            with ir.InsertionPoint(tail.else_block):
-                fx.copy(a_gmem_load, a_source, a_global_destination)
-                scf.yield_([])
+            prefetch_b_for_lds(tile_k)
+        if fx.const_expr(LEFT_IN_REGISTERS):
+            prefetch_a_for_registers(tile_k)
         else:
-            fx.copy(a_gmem_load, a_source, a_global_destination)
+            prefetch_a_for_lds(tile_k)
 
     def load_stage(tile_k):
         if fx.const_expr(HAS_EMPTY_K_STAGES):
@@ -896,94 +990,27 @@ def _matmul_mxfp4_w4a16(
         else:
             load_nonempty_stage(tile_k)
 
-    def publish_b_registers(tile_k):
-        for column_slot in fx.range_constexpr(B_COLUMNS_PER_THREAD):
-            for scale_slot in fx.range_constexpr(B_REGISTER_SCALE_SLOTS):
-                scale_byte = fx.Uint8(b_register_scale_bytes[column_slot * B_REGISTER_SCALE_SLOTS + scale_slot]).to(fx.Int32)
-                for chunk_in_scale in fx.range_constexpr(B_REGISTER_ROWS_PER_SCALE // 8):
-                    chunk = scale_slot * (B_REGISTER_ROWS_PER_SCALE // 8) + chunk_in_scale
-                    word = fx.Uint32(b_register_codes[column_slot * (STAGE_K // 8) + chunk])
-                    for value_id in fx.range_constexpr(8):
-                        local_k = chunk * 8 + value_id
-                        code = (word >> (value_id * 4)) & 15
-                        value = _scale_b_e2m1(code, scale_byte)
-                        if fx.const_expr(HAS_K_TAIL or HAS_EMPTY_K_STAGES):
-                            valid_k = tile_k * STAGE_K + local_k < k
-                            value = valid_k.select(value, fx.BFloat16(0.0))
-                        b_compute_fragment[(local_k % MMA_K, column_slot, local_k // MMA_K)] = value
-
     def publish_stage(tile_k):
         if fx.const_expr(LEFT_IN_REGISTERS):
-            # Make the prefetched A stage current within each lane. This frees
-            # the staging registers for the next global load.
-            fx.copy(copy_16b, a_staging_fragment, a_compute_fragment)
+            publish_a_to_compute_fragment()
         else:
-            fx.copy(copy_128b, a_staging_fragment, a_staging_destination)
+            publish_a_to_lds()
         if fx.const_expr(RIGHT_IN_REGISTERS):
-            publish_b_registers(tile_k)
+            publish_b_to_compute_fragment(tile_k)
         else:
-            # Expand this lane's prefetched codes only as the B tile is published.
-            for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
-                local_row = b_k_lane + row_slot * RIGHT_K_THREADS
-                b_packed_word = fx.Uint32(b_packed_fragment[row_slot])
-                b_scale_word = fx.Uint64(
-                    b_scale_fragment[row_slot // ROW_SLOTS_PER_SCALE]
-                )
-                if fx.const_expr(HAS_K_TAIL):
-                    valid_k = tile_k * STAGE_K + local_row < k
-                    b_packed_word = valid_k.select(b_packed_word, fx.Uint32(0))
-                    b_scale_word = valid_k.select(b_scale_word, fx.Uint64(0))
-                b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
-                for value_id in fx.range_constexpr(8):
-                    # TODO 1. Fill in nibble.
-                    nibble = None
-                    if nibble is None:
-                        raise NotImplementedError("Fill in nibble.")
-                    # TODO 2. Fill in b_scale_byte.
-                    b_scale_byte = None
-                    if b_scale_byte is None:
-                        raise NotImplementedError("Fill in b_scale_byte.")
-                    value = _decode_e2m1(nibble)
-                    power = b_scale_byte - 127
-                    scaled = fx.Float32(
-                        llvm.intr_ldexp(
-                            fx.Float32.ir_type, value.ir_value(), power.ir_value()
-                        )
-                    )
-                    scaled = (b_scale_byte == 255).select(fx.Float32(float("nan")), scaled)
-                    b_staging_fragment[value_id] = scaled.to(fx.BFloat16)
-                b_lds_destination = fx.make_view(
-                    fx.get_iter(b_group_staging_view)
-                    + local_row * GROUP_TILE_N
-                    + b_col,
-                    fx.make_layout(8, 1),
-                )
-                fx.copy(copy_128b, b_staging_fragment, b_lds_destination)
+            publish_b_to_lds(tile_k)
         lds_barrier()
 
     def compute_stage():
         for inner_k in fx.range_constexpr(STAGE_K // MMA_K):
             if fx.const_expr(LEFT_IN_REGISTERS):
-                # Keep the three inner axes that match a_r_tile. The outer
-                # register-slot and M axes have one tile each, so only K varies.
-                # The copy below moves this chunk into a_r_tile within the lane.
-                a_source = fx.slice(
-                    a_compute_tiled, (None, None, None, 0, 0, inner_k)
-                )
+                load_a_operand_from_registers(inner_k)
             else:
-                a_mma_view = fx.slice(
-                    a_group_staging_tiled, (None, None, 0, inner_k)
-                )
-                a_source = a_lds2reg_thread_copy.partition_S(a_mma_view)
+                load_a_operand_from_lds(inner_k)
             if fx.const_expr(RIGHT_IN_REGISTERS):
-                b_source = fx.slice(b_compute_tiled, (None, None, None, 0, 0, inner_k))
+                load_b_operand_from_registers(inner_k)
             else:
-                b_mma_view = fx.slice(
-                    b_group_staging_transposed_tiled, (None, None, 0, inner_k)
-                )
-                b_source = b_lds2reg_thread_copy.partition_S(b_mma_view)
-            fx.copy(copy_16b, a_source, a_r_destination)
-            fx.copy(copy_16b, b_source, b_r_destination)
+                load_b_operand_from_lds(inner_k)
             fx.gemm(mma_atom, c_accum, a_r_tile, b_r_tile, c_accum)
 
     # Prime one stage, then prefetch the next stage before consuming the current one.
@@ -1485,7 +1512,7 @@ def solve(shape=ALIGNED_SHAPES[1], seed=13, config=None, *, poison=False):
     return {
         "shape_MNK": shape,
         "config": config.name,
-        "decode": "arithmetic",
+        "decode": "FP32 scale bits and multiply",
         "first_four": c[0, :4].cpu().tolist(),
         "last_value": c[-1, -1].item(),
         "packed_bytes": b_packed_cpu.numel(),

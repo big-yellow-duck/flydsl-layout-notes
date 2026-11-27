@@ -1,20 +1,31 @@
 # 14.3.4 · Decode eight NVFP4 nibbles with a register lookup
 
-NVFP4 uses the same eight magnitudes as MXFP4. Reuse the doubled-magnitude byte table and the two `perm_b32` instructions. Keep the E4M3 decode, FP32 tensor multiplier, and WMMA pipeline from [fused arithmetic staging](../03-fused-staging/README.md). [MXFP4 register lookup](../../01-mxfp4-w4a16/04-lut-decode/README.md)
+NVFP4 uses the same eight magnitudes as MXFP4. Two `perm_b32` lookups return bits 29:22 of each FP32 magnitude. The original code supplies the sign and top exponent bit. Assemble the E4M3 block scale's exponent and fraction in FP32, then apply the block scale and tensor multiplier in order. [MXFP4 register lookup](../../01-mxfp4-w4a16/04-lut-decode/README.md)
 
 ## Follow eight weights in row 16
 
 The first eight columns use packed bytes `[0x29, 0x43, 0x65, 0xf7]` in address order. Mask the low three bits of each low nibble to get even selectors `[1, 3, 5, 7]`. Shift the word by four bits and apply the same mask to get odd selectors `[2, 4, 6, 7]`.
 
-![Four packed bytes produce even selectors 1, 3, 5, 7 and odd selectors 2, 4, 6, 7. The lookups return twice the magnitudes, which are divided by two before applying signs and scales.](../../../../../assets/01-gpu-programming/14-quantized-matmul/03-nvfp4-w4a16/04-lut-decode/lookup.svg)
+![Four packed bytes produce even selectors 1, 3, 5, 7 and odd selectors 2, 4, 6, 7. Each lookup returns bits 29:22 of four FP32 magnitudes.](../../../../../assets/01-gpu-programming/14-quantized-matmul/03-nvfp4-w4a16/04-lut-decode/lookup.svg)
 
-Follow column 1. Its code is the first odd nibble, `0x2`. The table returns 2, then multiplying by 0.5 recovers the E2M1 magnitude 1. The sign comes from the original nibble. For this column, the two scale multiplications are `1 × 1.5 × 0.5 = 0.75`.
+Follow column 1. Its code is the first odd nibble, `0x2`. The table returns `0xfe`. Shift it left by 22 and add the sign and top exponent bit from the original nibble to get `0x3f800000`, FP32 1. For this column, the two scale multiplications are `1 × 1.5 × 0.5 = 0.75`.
 
 ## Where the work changes
 
 The lookup replaces magnitude arithmetic with two register permutations per chunk. It still applies the E4M3 block scale and FP32 tensor scale to each decoded weight. Check the measured shape defaults for end-to-end timings and the selected staging route. [NVFP4 tuning results](../results/README.md)
 
-The tuned gfx1151 defaults took **53.66 µs** at `16×1024×8192`, compared with 82.54 µs for the previous schedule. B uses LDS. The `2×9×17` launcher default uses B through registers and takes 2.16 µs, compared with 2.84 µs previously. The practice trace supplies its LDS config explicitly so the lane coordinates match the diagram.
+The earlier tuned gfx1151 defaults took **53.66 µs** at `16×1024×8192`, compared with 82.54 µs for the previous schedule. B uses LDS. The `2×9×17` launcher default uses B through registers and takes 2.16 µs, compared with 2.84 µs previously. The practice trace supplies its LDS config explicitly so the lane coordinates match the diagram.
+
+## Matched decoder update
+
+On Radeon 8060S (gfx1151), the FP32-bit lookup and E4M3 scale expansion were timed against the earlier decoder at the same launch settings. Times are medians of 11 batches of 40 graph replays with 16 matmuls per graph.
+
+| Shape (M,N,K) | Earlier LUT (µs) | FP32-bit LUT (µs) | Latency change |
+| --- | ---: | ---: | ---: |
+| (16, 1024, 8192) | 53.68 | 49.35 | -8.1% |
+| (16, 4096, 8192) | 145.94 | 135.12 | -7.4% |
+| (31, 1025, 8193) | 98.78 | 88.13 | -10.8% |
+| (2, 9, 17) | 2.09 | 2.07 | -0.7% |
 
 ## Practice
 
@@ -28,17 +39,16 @@ pixi run python lessons/01-gpu-programming/14-quantized-matmul/03-nvfp4-w4a16/04
 ## Performance progression
 
 1. **Decode E4M3 scales once per owned block and column.** Reuse the decoded values across the K slots that share them. [Step 05 · Reuse decoded scales](../05-scale-reuse/README.md)
-2. **Use bit assembly for E4M3 decode.** If scale conversions are still expensive, assemble normal values as FP16 bits and use a small table for subnormals. [MXFP8 E4M3 decode](../../02-mxfp8-blockscale/README.md)
-3. **Tune the staging schedule for 16-row blocks.** Compare K stage depths of 16, 32, and 64 along with tile geometry and split-K. Time the same packed inputs and include small, skinny, and odd-width shapes.
-4. **Compare a native block-scaled FP4 path on supporting hardware.** This would require a separate operand layout and a compatible representation for A. Include any A conversion or packing in the end-to-end comparison. [NVIDIA cuDNN NVFP4 conversion and layout](https://docs.nvidia.com/deeplearning/cudnn/latest/operations/BlockScaling/nvfp4_block_scale_conversion)
+2. **Tune the staging schedule for 16-row blocks.** Compare K stage depths of 16, 32, and 64 along with tile geometry and split-K. Time the same packed inputs and include small, skinny, and odd-width shapes.
+3. **Compare a native block-scaled FP4 path on supporting hardware.** This would require a separate operand layout and a compatible representation for A. Include any A conversion or packing in the end-to-end comparison. [NVIDIA cuDNN NVFP4 conversion and layout](https://docs.nvidia.com/deeplearning/cudnn/latest/operations/BlockScaling/nvfp4_block_scale_conversion)
 
 ## Revision question
 
-Why do columns 6 and 7 have the same doubled magnitude and different decoded weights?
+Why do columns 6 and 7 have the same lookup byte and different decoded weights?
 
 <details><summary>Answer</summary>
 
-Their codes are `0x7` and `0xf`. Each has magnitude selector 7, so each lookup returns 12. The sign bit is set only in `0xf`, so the final weights have opposite signs.
+Their codes are `0x7` and `0xf`. Each has magnitude selector 7, so each lookup returns `0x03`. Both codes supply the same top exponent bit. The sign bit in `0xf` gives −6, while `0x7` gives +6 before scaling.
 
 </details>
 

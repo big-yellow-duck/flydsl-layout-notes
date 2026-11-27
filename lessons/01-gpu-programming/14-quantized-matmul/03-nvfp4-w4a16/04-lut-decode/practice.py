@@ -478,19 +478,19 @@ def _load_row_word(resource, row, column, rows, n, cache_modifier, check_boundar
 
 
 def _decode_e4m3_scale(b_scale_byte):
-    """Decode an E4M3FN byte in FP32, including zero, subnormals, and NaN."""
-    exponent = (b_scale_byte >> 3) & 15
-    mantissa = (b_scale_byte & 7).to(fx.Float32)
-    subnormal = mantissa * (2.0**-9)
-    normal = (1.0 + mantissa * 0.125) * fx.exp2(exponent.to(fx.Float32) - 7.0)
-    magnitude = (exponent == 0).select(subnormal, normal)
-    signed = ((b_scale_byte & 128) != 0).select(-magnitude, magnitude)
-    return ((b_scale_byte & 127) == 127).select(fx.Float32(float("nan")), signed)
+    """Decode E4M3FN scale bits into FP32, including subnormals and NaN."""
+    magnitude = (b_scale_byte & 127).to(fx.Uint32)
+    normal_bits = fx.Uint32(0x3C000000) + (magnitude << 20)
+    subnormal = (magnitude & 7).to(fx.Float32) * (2.0**-9)
+    bits = (magnitude < 8).select(subnormal.bitcast(fx.Uint32), normal_bits)
+    sign = (b_scale_byte.to(fx.Uint32) & 128) << 24
+    bits = (magnitude == 127).select(fx.Uint32(0x7FC00000), bits | sign)
+    return bits.bitcast(fx.Float32)
 
 
 def _lookup_e2m1_magnitudes(b_packed_word):
-    # Each table byte stores twice the true magnitude.
-    low, high = fx.Uint32(0x03020100), fx.Uint32(0x0C080604)
+    # Each byte holds bits 29:22 of the unscaled FP32 magnitude.
+    low, high = fx.Uint32(0xFFFEFC00), fx.Uint32(0x03020100)
     # TODO 1. Fill in even_codes.
     even_codes = None
     if even_codes is None:
@@ -500,6 +500,13 @@ def _lookup_e2m1_magnitudes(b_packed_word):
         fx.Uint32(fx.rocdl.perm_b32(high, low, even_codes)),
         fx.Uint32(fx.rocdl.perm_b32(high, low, odd_codes)),
     )
+
+
+def _decode_e2m1_lookup(code, magnitude_byte):
+    # The byte supplies FP32 bits 29:22. Code bits 3 and 2 supply the
+    # sign and the top exponent bit, respectively.
+    bits = (magnitude_byte.to(fx.Uint32) << 22) | ((code & 12) << 28)
+    return bits.bitcast(fx.Float32)
 
 
 @flyc.kernel
@@ -969,9 +976,8 @@ def _matmul_nvfp4_w4a16(
                         packed_magnitudes = (
                             even_magnitudes if value_id % 2 == 0 else odd_magnitudes
                         )
-                        doubled = (packed_magnitudes >> (8 * (value_id // 2))) & 255
-                        magnitude = doubled.to(fx.Float32) * 0.5
-                        value = ((code & 8) != 0).select(-magnitude, magnitude)
+                        magnitude_byte = (packed_magnitudes >> (8 * (value_id // 2))) & 255
+                        value = _decode_e2m1_lookup(code, magnitude_byte)
                         block_scale = _decode_e4m3_scale(scale_byte)
                         value = ((value * block_scale) * tensor_scale).to(fx.BFloat16)
                         if fx.const_expr(HAS_K_TAIL or HAS_EMPTY_K_STAGES):
@@ -1006,9 +1012,8 @@ def _matmul_nvfp4_w4a16(
                     packed_magnitudes = (
                         even_magnitudes if value_id % 2 == 0 else odd_magnitudes
                     )
-                    doubled = (packed_magnitudes >> (8 * (value_id // 2))) & 255
-                    magnitude = doubled.to(fx.Float32) * 0.5
-                    value = ((nibble & 8) != 0).select(-magnitude, magnitude)
+                    magnitude_byte = (packed_magnitudes >> (8 * (value_id // 2))) & 255
+                    value = _decode_e2m1_lookup(nibble, magnitude_byte)
                     b_block_scale = _decode_e4m3_scale(b_scale_byte)
                     scaled = (value * b_block_scale) * tensor_scale
                     if fx.const_expr(HAS_K_TAIL or HAS_EMPTY_K_STAGES):

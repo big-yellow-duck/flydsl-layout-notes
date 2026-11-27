@@ -1,6 +1,6 @@
 # 14.1.4 · Decode eight E2M1 magnitudes with a register lookup
 
-The fused arithmetic kernel already loads packed weights and publishes a BF16 tile in LDS. Keep that pipeline and replace the magnitude calculation inside `publish_stage`. On gfx1151 and gfx1152, AMD's `perm_b32` instruction can select four bytes from two source registers in one operation. [Fused arithmetic decode](../03-fused-staging/README.md) · [AMD RDNA 3.5 ISA](https://www.amd.com/content/dam/amd/en/documents/radeon-tech-docs/instruction-set-architectures/rdna35_instruction_set_architecture.pdf) · [FlyDSL packed lookup example](https://github.com/ROCm/FlyDSL/pull/1374/files)
+Keep the fused staging pipeline and look up the magnitudes of eight packed weights in registers. This version scales those magnitudes with `ldexp` before publishing a BF16 tile to LDS. On gfx1151 and gfx1152, AMD's `perm_b32` instruction can select four bytes from two source registers in one operation. [Fused staging](../03-fused-staging/README.md) · [AMD RDNA 3.5 ISA](https://www.amd.com/content/dam/amd/en/documents/radeon-tech-docs/instruction-set-architectures/rdna35_instruction_set_architecture.pdf) · [FlyDSL packed lookup example](https://github.com/ROCm/FlyDSL/pull/1374/files)
 
 ## Pack the table into two registers
 

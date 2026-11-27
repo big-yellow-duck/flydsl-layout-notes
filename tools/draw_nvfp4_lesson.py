@@ -77,14 +77,14 @@ def scale_ownership():
 
 def register_lookup():
     d = Diagram(420, "Two register lookups expand eight E2M1 magnitudes")
-    describe(d, "Four packed bytes give two sets of selectors and doubled magnitudes.")
+    describe(d, "Four packed bytes give two sets of selectors and FP32 magnitude bytes.")
     d.text(32, 66, "Packed B values for row 16, columns 0 through 7.", 21)
     rows = (
         ("Packed bytes", ("0x29", "0x43", "0x65", "0xf7"), BLUE),
         ("Even selectors", (1, 3, 5, 7), GOLD),
-        ("Even table bytes", (1, 3, 6, 12), TEAL),
+        ("Even table bytes", ("0xfc", "0xff", "0x01", "0x03"), TEAL),
         ("Odd selectors", (2, 4, 6, 7), GOLD),
-        ("Odd table bytes", (2, 4, 8, 12), TEAL),
+        ("Odd table bytes", ("0xfe", "0x00", "0x02", "0x03"), TEAL),
     )
     for i, (label, values, color) in enumerate(rows):
         y = 108 + i * 52
@@ -94,7 +94,7 @@ def register_lookup():
     d.text(
         32,
         378,
-        "Interleave the table bytes, halve them, then apply each sign and both scales.",
+        "Rebuild signed FP32 weights, then apply the block scale and tensor scale.",
         19,
     )
     d.save(f"{BASE}/04-lut-decode/lookup")
