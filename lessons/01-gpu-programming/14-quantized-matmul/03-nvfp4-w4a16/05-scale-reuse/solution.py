@@ -1000,9 +1000,6 @@ def _matmul_nvfp4_w4a16(
                     row_slot = scale_slot * ROW_SLOTS_PER_SCALE + row_in_scale
                     local_row = b_k_lane + row_slot * B_K_THREADS
                     b_packed_word = fx.Uint32(b_packed_fragment[row_slot])
-                    if fx.const_expr(HAS_K_TAIL):
-                        valid_k = tile_k * STAGE_K + local_row < k
-                        b_packed_word = valid_k.select(b_packed_word, fx.Uint32(0))
                     even_magnitudes, odd_magnitudes = _lookup_e2m1_magnitudes(b_packed_word)
                     b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
                     for value_id in fx.range_constexpr(8):

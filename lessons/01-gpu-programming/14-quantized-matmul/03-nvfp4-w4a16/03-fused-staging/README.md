@@ -10,7 +10,7 @@ Trace the same `(M,N,K) = (2,9,17)` example. The default `16×64×32` group tile
 
 Follow lane 0 from row 12 to row 16. The scale word changes because `row // 16` changes. Every byte in a word belongs to a different N column. `load_b_stage` loads the scale words and packed weight words with separate physical byte limits. Inside `publish_stage`, the lane extracts each nibble and its E4M3 byte, computes the E2M1 and E4M3 values with arithmetic, and multiplies by the FP32 tensor scale. Invalid K rows are cleared before the BF16 tile reaches WMMA.
 
-Decoded weights live in the LDS tile consumed by the current group. Step 04 replaces the E2M1 magnitude arithmetic with a register lookup.
+The LDS path selects FP32 zero for padded K rows after both scale multiplications, then converts the selected values to BF16. Step 04 replaces the E2M1 magnitude arithmetic with a register lookup. [Matched K-tail timings](../../results/README.md#masking-the-quantized-k-tail)
 
 ## Where the work changes
 

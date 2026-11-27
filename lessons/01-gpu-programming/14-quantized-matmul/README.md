@@ -18,3 +18,5 @@ workload. [Why B registers can help](../13-matmul/16-right-register-staging/READ
 
 Each format's report shows its best verified timings for both B routes and the
 configuration selected for each measured gfx1151 shape. [MXFP8 results](02-mxfp8-blockscale/results/README.md#shape-tuning-with-b-registers) · [NVFP4 results](03-nvfp4-w4a16/results/README.md)
+
+Fixed-geometry measurements show how masking the K tail after decoding affects MXFP4 and NVFP4. [K-tail timings](results/README.md#masking-the-quantized-k-tail)

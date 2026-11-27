@@ -12,7 +12,7 @@ Follow column 1. Its code is the first odd nibble, `0x2`. The table returns `0xf
 
 ## Where the work changes
 
-The lookup replaces magnitude arithmetic with two register permutations per chunk. It still applies the E4M3 block scale and FP32 tensor scale to each decoded weight. Check the measured shape defaults for end-to-end timings and the selected staging route. [NVFP4 tuning results](../results/README.md)
+The lookup replaces magnitude arithmetic with two register permutations per chunk. The LDS path applies the E4M3 block scale and FP32 tensor scale, then selects zero for padded K rows before casting to BF16. Check the measured shape defaults for end-to-end timings and the selected staging route. [NVFP4 tuning results](../results/README.md) · [Matched K-tail timings](../../results/README.md#masking-the-quantized-k-tail)
 
 The earlier tuned gfx1151 defaults took **53.66 µs** at `16×1024×8192`, compared with 82.54 µs for the previous schedule. B uses LDS. The `2×9×17` launcher default uses B through registers and takes 2.16 µs, compared with 2.84 µs previously. The practice trace supplies its LDS config explicitly so the lane coordinates match the diagram.
 

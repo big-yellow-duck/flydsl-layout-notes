@@ -21,6 +21,8 @@ c = matmul_bf16(a, b)
 
 Both launches use the current GPU stream. A has shape `(2,17)`. Row 0 selects K coordinate 16, and row 1 sums coordinates 15 and 16, giving `C[1,1] = 0.5 + 0.75 = 1.25`.
 
+The scalar decoder writes the exact `(K,N)` matrix. This two-launch path is the control for the fused K-tail timings. [Matched timings](../../results/README.md#masking-the-quantized-k-tail)
+
 ## Practice
 
 Fill two expressions in [practice.py](practice.py).

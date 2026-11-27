@@ -23,6 +23,8 @@ c = matmul_bf16(a.cuda(), b_bf16)
 
 The decoder takes the exact K from the caller. The scale shape gives the number of K blocks, and the byte count may include a spare nibble. The matmul infers its dimensions from the two dense matrices.
 
+The scalar launch writes one BF16 value for each logical weight. This two-launch path is the control for the fused K-tail timings. [Matched timings](../../results/README.md#masking-the-quantized-k-tail)
+
 A has shape `(2,33)`. Its first row has a single one at K coordinate 32, so the first row of C copies the three weights at `B[32,:]`. Its second row has ones at K coordinates 31 and 32, so the second output row adds those two B rows across the scale boundary. For column 1, that gives `C[1,1] = −4 + 0.25 = −3.75`.
 
 The decoder writes the full BF16 B to global memory, where the BF16 matmul reads it back. The next sub-lesson moves decode into the B staging step and keeps the expanded weights in each workgroup's LDS tile.

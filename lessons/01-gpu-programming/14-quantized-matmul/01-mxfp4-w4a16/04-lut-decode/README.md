@@ -24,6 +24,8 @@ The even lookup uses bits 0–2 of each byte. The odd lookup shifts the word rig
 
 `ldexp(doubled_magnitude, b_scale_byte - 128)` applies the E8M0 scale and cancels the table's factor of two. With scale byte `126` for all eight columns, the output weights are `[0.25, -0.25, 0.5, -0.75, 1.0, -1.5, 2.0, -3.0]`. The fused edge checker runs this chunk with one activation equal to 1 and checks all eight results.
 
+The LDS path selects BF16 zero for padded K rows after lookup and scaling. The bound compares the row's global K coordinate with the logical K extent. [Matched K-tail timings](../../results/README.md#masking-the-quantized-k-tail)
+
 ## Practice
 
 Each file defines its own `Config`, launch defaults, staging helpers, and split-K workspace.

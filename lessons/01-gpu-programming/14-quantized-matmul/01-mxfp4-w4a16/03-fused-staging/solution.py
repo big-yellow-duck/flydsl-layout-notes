@@ -839,15 +839,15 @@ def _matmul_mxfp4_w4a16(
             b_scale_word = fx.Uint64(
                 b_scale_fragment[row_slot // ROW_SLOTS_PER_SCALE]
             )
-            if fx.const_expr(HAS_K_TAIL):
-                valid_k = tile_k * STAGE_K + local_row < k
-                b_packed_word = valid_k.select(b_packed_word, fx.Uint32(0))
-                b_scale_word = valid_k.select(b_scale_word, fx.Uint64(0))
             b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
             for value_id in fx.range_constexpr(8):
                 nibble = (b_packed_word >> (value_id * 4)) & 15
                 b_scale_byte = ((b_scale_word >> (value_id * 8)) & 255).to(fx.Int32)
-                b_staging_fragment[value_id] = _scale_b_e2m1(nibble, b_scale_byte)
+                value = _scale_b_e2m1(nibble, b_scale_byte)
+                if fx.const_expr(HAS_K_TAIL):
+                    valid_k = tile_k * STAGE_K + local_row < k
+                    value = valid_k.select(value, fx.BFloat16(0.0))
+                b_staging_fragment[value_id] = value
             b_lds_destination = fx.make_view(
                 fx.get_iter(b_group_staging_view)
                 + local_row * GROUP_TILE_N

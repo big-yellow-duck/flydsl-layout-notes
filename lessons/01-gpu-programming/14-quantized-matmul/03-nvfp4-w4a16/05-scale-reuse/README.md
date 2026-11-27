@@ -10,7 +10,7 @@ Use the same `(M,N,K) = (2,9,17)` example and `16×64×32` group tile. Lane 0 ow
 
 Follow column 1 from the second scale word. The byte `0x3c` decodes to FP32 `1.5` and is stored in `b_decoded_scales[1]`. The first row slot in this group is `1 * 4 + 0 = 4`, and its K coordinate is `0 + 4 * 4 = 16`. The FP4 lookup gives 1 for `B[16,1]`, so the result before BF16 conversion is `(1 × 1.5) × 0.5 = 0.75`. Slots for K rows 20, 24, and 28 publish zeros.
 
-In `publish_stage`, the outer loop selects a scale word and fills `b_decoded_scales`. The inner loop publishes the rows that use it. Each row reconstructs signed FP32 weights from the lookup bytes and multiplies by the decoded block scale and tensor scale in that order. The next scale slot overwrites the same eight FP32 values.
+In `publish_stage`, the outer loop selects a scale word and fills `b_decoded_scales`. The inner loop publishes the rows that use it. Each row reconstructs signed FP32 weights from the lookup bytes and multiplies by the decoded block scale and tensor scale in that order. The LDS path selects zero for padded K rows after both multiplications and then casts to BF16. The next scale slot overwrites the same eight FP32 values. [Matched K-tail timings](../../results/README.md#masking-the-quantized-k-tail)
 
 For this geometry, the source describes 16 E4M3 conversions per lane per stage. Step 04 describes 64. Generated instructions can differ because the compiler can eliminate repeated work.
 

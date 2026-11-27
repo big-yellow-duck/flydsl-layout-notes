@@ -840,14 +840,10 @@ def _matmul_mxfp4_w4a16(
         # Expand this lane's prefetched codes only as the B tile is published.
         for row_slot in fx.range_constexpr(RIGHT_ROWS_PER_THREAD):
             local_row = b_k_lane + row_slot * RIGHT_K_THREADS
-            b_packed_word = fx.Uint32(b_packed_fragment[row_slot])
-            b_scale_word = fx.Uint64(
+            b_packed_word = fx.Uint32(b_packed_fragment[row_slot])  # noqa: F841 -- TODO 1
+            b_scale_word = fx.Uint64(  # noqa: F841 -- TODO 2
                 b_scale_fragment[row_slot // ROW_SLOTS_PER_SCALE]
             )
-            if fx.const_expr(HAS_K_TAIL):
-                valid_k = tile_k * STAGE_K + local_row < k
-                b_packed_word = valid_k.select(b_packed_word, fx.Uint32(0))
-                b_scale_word = valid_k.select(b_scale_word, fx.Uint64(0))
             b_staging_fragment = fx.make_rmem_tensor(8, fx.BFloat16)
             for value_id in fx.range_constexpr(8):
                 # TODO 1. Fill in nibble.
@@ -858,7 +854,11 @@ def _matmul_mxfp4_w4a16(
                 b_scale_byte = None
                 if b_scale_byte is None:
                     raise NotImplementedError("Fill in b_scale_byte.")
-                b_staging_fragment[value_id] = _scale_b_e2m1(nibble, b_scale_byte)
+                value = _scale_b_e2m1(nibble, b_scale_byte)
+                if fx.const_expr(HAS_K_TAIL):
+                    valid_k = tile_k * STAGE_K + local_row < k
+                    value = valid_k.select(value, fx.BFloat16(0.0))
+                b_staging_fragment[value_id] = value
             b_lds_destination = fx.make_view(
                 fx.get_iter(b_group_staging_view)
                 + local_row * GROUP_TILE_N
